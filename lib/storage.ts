@@ -1,13 +1,16 @@
-// Supabase Storage bucket holding admin-uploaded article imagery.
+// Supabase Storage bucket holding article imagery. It predates the drag-and-
+// drop field — article images were uploaded to it by hand from the Supabase
+// dashboard, and live articles already reference objects at its root.
 //
 // Uploads are authorised by /api/uploads/article-image (admin session →
 // service-role signed upload URL) and the bytes go straight from the browser
 // to Supabase, so the bucket needs no RLS policy for writes. It is public so
 // that a plain <img src> works for readers.
-export const ARTICLE_IMAGE_BUCKET = 'locreport'
+export const ARTICLE_IMAGE_BUCKET = 'images'
 
-// Object key prefix inside the bucket — keeps article images grouped and
-// leaves room for other asset kinds later.
+// Object key prefix inside the bucket. Hand-uploaded images sit at the bucket
+// root; namespacing new uploads keeps the two sets distinguishable and leaves
+// room for other asset kinds later.
 export const ARTICLE_IMAGE_PREFIX = 'articles'
 
 // Per-file ceiling, mirrored onto the bucket so Supabase enforces it too.
