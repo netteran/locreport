@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Article } from '@/lib/types'
-import { safeImageUrl } from '@/lib/utils'
 import { ArticleEditor } from '@/components/ArticleEditor'
+import { ImageDropzone } from '@/components/ImageDropzone'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -82,26 +82,11 @@ export default function EditArticlePage() {
           <Label>Publisher</Label>
           <Input value={publisher} onChange={e => setPublisher(e.target.value)} placeholder="e.g. Argos Multilingual" />
         </div>
-        <div>
-          <Label>Image URL</Label>
-          <Input
-            value={imageUrl}
-            onChange={e => setImageUrl(e.target.value)}
-            placeholder="https://… — optional; leave empty for no image"
-          />
-          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-            Optional. Shown at the top of the article and as a thumbnail in the article lists.
-          </p>
-          {safeImageUrl(imageUrl) && (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={safeImageUrl(imageUrl)!}
-              alt=""
-              className="mt-2 rounded-md border object-cover"
-              style={{ borderColor: 'var(--border)', width: 240, height: 135 }}
-            />
-          )}
-        </div>
+        <ImageDropzone
+          value={imageUrl}
+          onChange={setImageUrl}
+          hint="Optional. Shown at the top of the article and as a thumbnail in the article lists."
+        />
         <div>
           <Label>Image alt text</Label>
           <Input
