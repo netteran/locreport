@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { marked } from 'marked'
 import { Draft } from '@/lib/types'
-import { safeImageUrl } from '@/lib/utils'
+import { ImageDropzone } from '@/components/ImageDropzone'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -235,28 +235,11 @@ export default function DraftReviewPage() {
           )}
         </div>
 
-        <div>
-          <Label htmlFor="edit-image-url">Image URL</Label>
-          <Input
-            id="edit-image-url"
-            value={editImageUrl}
-            onChange={e => setEditImageUrl(e.target.value)}
-            placeholder="https://… — optional"
-            className="mt-1"
-          />
-          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-            Optional. Shown at the top of the published article and as a thumbnail in the lists.
-          </p>
-          {safeImageUrl(editImageUrl) && (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={safeImageUrl(editImageUrl)!}
-              alt=""
-              className="mt-2 rounded-md border object-cover"
-              style={{ borderColor: 'var(--border)', width: 240, height: 135 }}
-            />
-          )}
-        </div>
+        <ImageDropzone
+          value={editImageUrl}
+          onChange={setEditImageUrl}
+          hint="Optional. Shown at the top of the published article and as a thumbnail in the lists."
+        />
 
         <div>
           <Label htmlFor="edit-image-alt">Image alt text</Label>
