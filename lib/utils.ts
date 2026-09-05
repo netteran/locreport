@@ -96,3 +96,33 @@ export function extractTeaser(content: string, maxSentences = 2): string {
   const result = sentences.slice(0, maxSentences).join('').trim()
   return result || plain.slice(0, 140).trim()
 }
+
+// Validates an admin-supplied image URL before it reaches an <img src>.
+// Accepts absolute http(s) URLs and root-relative paths; everything else
+// (javascript:, data:, malformed input) resolves to null so the layout simply
+// falls back to the no-image rendering.
+export function safeImageUrl(url: string | null | undefined): string | null {
+  const trimmed = url?.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return trimmed
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? trimmed : null
+  } catch {
+    return null
+  }
+}
+
+// MIME type for an image URL, guessed from its extension. Used for RSS
+// <enclosure> elements, which require a type attribute.
+export function imageMimeType(url: string): string {
+  const ext = url.split('?')[0].split('#')[0].split('.').pop()?.toLowerCase()
+  switch (ext) {
+    case 'png': return 'image/png'
+    case 'gif': return 'image/gif'
+    case 'webp': return 'image/webp'
+    case 'avif': return 'image/avif'
+    case 'svg': return 'image/svg+xml'
+    default: return 'image/jpeg'
+  }
+}

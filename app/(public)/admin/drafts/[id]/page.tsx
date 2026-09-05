@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { marked } from 'marked'
 import { Draft } from '@/lib/types'
+import { safeImageUrl } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,6 +31,8 @@ export default function DraftReviewPage() {
   const [editSlug, setEditSlug] = useState(() => searchParams.get('slug') ?? '')
   const [editPublisher, setEditPublisher] = useState(() => searchParams.get('publisher') ?? 'LocReport')
   const [editSourceUrl, setEditSourceUrl] = useState('')
+  const [editImageUrl, setEditImageUrl] = useState('')
+  const [editImageAlt, setEditImageAlt] = useState('')
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(() => !!searchParams.get('slug'))
 
   const [impactScore, setImpactScore] = useState(() => searchParams.get('impact_score') ?? '')
@@ -53,6 +56,8 @@ export default function DraftReviewPage() {
         setEditTitle(d.title || '')
         setEditSlug(clientSlugify(d.title || ''))
         setEditSourceUrl(d.source_url ?? '')
+        setEditImageUrl(d.image_url ?? '')
+        setEditImageAlt(d.image_alt ?? '')
       })
       .catch(() => setError('Failed to load draft.'))
   }, [id])
@@ -75,6 +80,8 @@ export default function DraftReviewPage() {
           content,
           title: editTitle || undefined,
           source_url: editSourceUrl || null,
+          image_url: editImageUrl.trim() || null,
+          image_alt: editImageAlt.trim() || null,
         }),
       })
       if (!res.ok) {
@@ -103,6 +110,8 @@ export default function DraftReviewPage() {
           slug: editSlug || undefined,
           publisher: editPublisher || undefined,
           source_url: editSourceUrl || null,
+          image_url: editImageUrl.trim() || null,
+          image_alt: editImageAlt.trim() || null,
           impact_score: impactScore ? Number(impactScore) : null,
           time_horizon: timeHorizon || null,
           content_type: contentType,
@@ -224,6 +233,40 @@ export default function DraftReviewPage() {
               View source →
             </a>
           )}
+        </div>
+
+        <div>
+          <Label htmlFor="edit-image-url">Image URL</Label>
+          <Input
+            id="edit-image-url"
+            value={editImageUrl}
+            onChange={e => setEditImageUrl(e.target.value)}
+            placeholder="https://… — optional"
+            className="mt-1"
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+            Optional. Shown at the top of the published article and as a thumbnail in the lists.
+          </p>
+          {safeImageUrl(editImageUrl) && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={safeImageUrl(editImageUrl)!}
+              alt=""
+              className="mt-2 rounded-md border object-cover"
+              style={{ borderColor: 'var(--border)', width: 240, height: 135 }}
+            />
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="edit-image-alt">Image alt text</Label>
+          <Input
+            id="edit-image-alt"
+            value={editImageAlt}
+            onChange={e => setEditImageAlt(e.target.value)}
+            placeholder="Describe the image — falls back to the article title"
+            className="mt-1"
+          />
         </div>
 
         <div className="flex gap-4">
