@@ -179,7 +179,7 @@ Several Compass and other sections use co-located client components:
 | `/api/admin/backfill-authors` | POST | Admin utility: backfill article authors |
 | `/api/admin/reclassify` | POST | Admin utility: reclassify articles via LLM |
 | `/api/admin/backfill-embeddings` | POST | Embed articles with null embedding, batched; returns `{embedded, remaining}` (admin session or CRON_SECRET) |
-| `/api/uploads/article-image` | POST | Admin-only: validates type/size, ensures the `locreport` storage bucket exists, returns a signed upload URL + public URL. The bytes never pass through the route |
+| `/api/uploads/article-image` | POST | Admin-only: validates type/size, ensures the `images` storage bucket exists, returns a signed upload URL + public URL. The bytes never pass through the route |
 | `/api/subscribe` | POST | Digest signup → pending subscriber + Resend confirm email (double opt-in) |
 | `/api/subscribe/preferences` | POST | Token-authenticated preference updates / unsubscribe |
 | `/api/subscribe/unsubscribe` | GET/POST | One-click unsubscribe (`?token=`); POST is the RFC 8058 List-Unsubscribe target |
@@ -306,7 +306,7 @@ One row per price change per model (a new row is only inserted when the price di
 
 | Bucket | Public | Contents |
 |---|---|---|
-| `locreport` | yes | Article lead images uploaded from the admin editors, under `articles/<yyyy>/<mm>/`. 10 MB / image, JPG-PNG-WebP-AVIF-GIF only. Writes go through a service-role signed upload URL (`/api/uploads/article-image`), so no `storage.objects` RLS policy is involved |
+| `images` | yes | Article lead images. Editor uploads land under `articles/<yyyy>/<mm>/`; objects at the bucket root are older hand-uploads from the Supabase dashboard, still referenced by live articles. 10 MB / image, JPG-PNG-WebP-AVIF-GIF only. Writes go through a service-role signed upload URL (`/api/uploads/article-image`), so no `storage.objects` RLS policy is involved |
 | `directory-logos` | yes | Vendor logos uploaded in `/admin/directory` (uploaded straight from the browser client) |
 
 ---
@@ -476,14 +476,15 @@ DIGEST_FROM_EMAIL             — Optional digest sender (falls back to Resend o
   of `/api/drafts/[id]`). There is no URL text input: the field takes a dropped file, a click-to-browse
   pick, or a clipboard paste, and stores the resulting public URL.
 - **Upload path** (`components/ImageDropzone.tsx` → `/api/uploads/article-image` → Supabase Storage):
-  the route authenticates the admin session, ensures the public `locreport` bucket exists (creating it
+  the route authenticates the admin session, ensures the public `images` bucket exists (creating it
   with the size/MIME limits from `lib/storage.ts` if missing), and returns a signed upload URL. The
   browser then PUTs the file straight to Supabase, so image bytes never cross the serverless function
   and are not bounded by its request body limit. Objects land at
-  `articles/<yyyy>/<mm>/<random>-<name>.<ext>` — unique per upload, hence the one-year cache header.
+  `articles/<yyyy>/<mm>/<random>-<name>.<ext>` — unique per upload, hence the one-year cache header. The
+  prefix keeps them apart from the older hand-uploaded objects sitting at the bucket root.
 - Limits live in `lib/storage.ts` (10 MB; JPG/PNG/WebP/AVIF/GIF — no SVG) and are mirrored onto the
-  bucket itself, so Supabase enforces them independently of the client. `supabase/migrations/20260905_locreport_storage_bucket.sql`
-  is the declarative version of that bucket.
+  bucket itself, so Supabase enforces them independently of the client. `supabase/migrations/20260905_article_image_bucket.sql`
+  pins those limits on the bucket.
 - Removing an image clears `image_url` only; the stored object is left in place, since a draft and its
   published article can point at the same file.
 - Legacy rows may still hold a third-party publisher URL — those keep rendering; only new images go to
