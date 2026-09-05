@@ -38,6 +38,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const excerpt = body.excerpt?.trim() || extractTeaser(content)
     const publisher = body.publisher?.trim() || 'LocReport'
     const source_url = body.source_url !== undefined ? body.source_url : draft.source_url
+    // Optional lead image — falls back to whatever was stored on the draft.
+    const image_url = (body.image_url !== undefined ? body.image_url : draft.image_url) || null
+    const image_alt = (body.image_alt !== undefined ? body.image_alt : draft.image_alt) || null
 
     const author = draft.source_feed_id
       ? 'LocReport Industry Desk'
@@ -56,6 +59,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       excerpt,
       source_url,
       publisher,
+      image_url,
+      image_alt,
       draft_id: draft.id,
       article_type: 'industry',
       author,
@@ -87,6 +92,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (body.content !== undefined) patch.content = body.content
   if (body.title !== undefined) patch.title = body.title
   if (body.source_url !== undefined) patch.source_url = body.source_url
+  if (body.image_url !== undefined) patch.image_url = body.image_url || null
+  if (body.image_alt !== undefined) patch.image_alt = body.image_alt || null
 
   const { data, error } = await supabase
     .from('drafts')

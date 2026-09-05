@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Article } from '@/lib/types'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { articleHref } from '@/lib/utils'
+import { articleHref, safeImageUrl } from '@/lib/utils'
 import { getTopics, topicOrFilter, TOPIC_IDS } from '@/lib/topics'
 import ArticlesFilter, { FilterState } from './ArticlesFilter'
 
@@ -33,6 +33,7 @@ interface FeedRow {
   impact_score: number | null
   published_at: string
   topics: string[]
+  image_url: string | null
 }
 
 const STATIC_REPORTS: FeedRow[] = [
@@ -46,6 +47,7 @@ const STATIC_REPORTS: FeedRow[] = [
     impact_score: null,
     published_at: '2026-04-01T00:00:00.000Z',
     topics: [],
+    image_url: null,
   },
 ]
 
@@ -92,7 +94,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
 
   let query = supabase
     .from('articles')
-    .select('id, title, slug, excerpt, author, article_type, impact_score, signal_ids, published_at', { count: 'exact' })
+    .select('id, title, slug, excerpt, author, article_type, impact_score, signal_ids, published_at, image_url', { count: 'exact' })
 
   if (f.impact !== 'all') query = query.gte('impact_score', parseInt(f.impact, 10))
   if (f.category !== 'all') query = query.eq('article_type', f.category)
@@ -124,6 +126,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
     impact_score: a.impact_score,
     published_at: a.published_at,
     topics: getTopics(a),
+    image_url: safeImageUrl(a.image_url),
   }))
 
   const staticMatches = STATIC_REPORTS.filter(r => staticReportMatches(r, f))
@@ -166,6 +169,11 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
             })
             return (
               <Link key={article.id} href={article.href} className="article-card">
+                {article.image_url && (
+                  /* Decorative in this context — the card title is the link text. */
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img className="article-card-thumb" src={article.image_url} alt="" loading="lazy" decoding="async" />
+                )}
                 <div className="article-card-body">
                   <h3 className="article-card-title">{article.title}</h3>
                   {article.excerpt && (

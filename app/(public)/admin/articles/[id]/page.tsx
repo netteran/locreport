@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Article } from '@/lib/types'
+import { safeImageUrl } from '@/lib/utils'
 import { ArticleEditor } from '@/components/ArticleEditor'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,8 @@ export default function EditArticlePage() {
   const [title, setTitle] = useState('')
   const [slug, setSlug] = useState('')
   const [publisher, setPublisher] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
+  const [imageAlt, setImageAlt] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [impactScore, setImpactScore] = useState<number | null>(null)
@@ -25,6 +28,8 @@ export default function EditArticlePage() {
       setTitle(a.title)
       setSlug(a.slug ?? '')
       setPublisher(a.publisher ?? '')
+      setImageUrl(a.image_url ?? '')
+      setImageAlt(a.image_alt ?? '')
       setImpactScore(a.impact_score ?? null)
       setTimeHorizon(a.time_horizon ?? '')
     })
@@ -36,7 +41,14 @@ export default function EditArticlePage() {
     const res = await fetch(`/api/articles/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, content, slug, publisher: publisher || null, impact_score: impactScore, time_horizon: timeHorizon || null }),
+      body: JSON.stringify({
+        title, content, slug,
+        publisher: publisher || null,
+        image_url: imageUrl.trim() || null,
+        image_alt: imageAlt.trim() || null,
+        impact_score: impactScore,
+        time_horizon: timeHorizon || null,
+      }),
     })
     if (res.ok) {
       setMessage('Saved.')
@@ -69,6 +81,34 @@ export default function EditArticlePage() {
         <div>
           <Label>Publisher</Label>
           <Input value={publisher} onChange={e => setPublisher(e.target.value)} placeholder="e.g. Argos Multilingual" />
+        </div>
+        <div>
+          <Label>Image URL</Label>
+          <Input
+            value={imageUrl}
+            onChange={e => setImageUrl(e.target.value)}
+            placeholder="https://… — optional; leave empty for no image"
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+            Optional. Shown at the top of the article and as a thumbnail in the article lists.
+          </p>
+          {safeImageUrl(imageUrl) && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={safeImageUrl(imageUrl)!}
+              alt=""
+              className="mt-2 rounded-md border object-cover"
+              style={{ borderColor: 'var(--border)', width: 240, height: 135 }}
+            />
+          )}
+        </div>
+        <div>
+          <Label>Image alt text</Label>
+          <Input
+            value={imageAlt}
+            onChange={e => setImageAlt(e.target.value)}
+            placeholder="Describe the image — falls back to the article title"
+          />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>

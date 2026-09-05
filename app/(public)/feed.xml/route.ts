@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { articleHref } from '@/lib/utils'
+import { articleHref, safeImageUrl, imageMimeType } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,13 +20,16 @@ export async function GET() {
 
   const { data: articles } = await supabase
     .from('articles')
-    .select('id, title, slug, excerpt, author, published_at')
+    .select('id, title, slug, excerpt, author, published_at, image_url')
     .order('published_at', { ascending: false })
     .limit(50)
 
   const items = (articles ?? [])
     .map(a => {
       const link = `${BASE_URL}${articleHref(a.slug)}`
+      // Readers show the lead image when the item carries an enclosure.
+      const image = safeImageUrl(a.image_url)
+      const imageAbs = image ? new URL(image, BASE_URL).toString() : null
       return `
     <item>
       <title>${escapeXml(a.title)}</title>
@@ -35,6 +38,7 @@ export async function GET() {
       <pubDate>${new Date(a.published_at).toUTCString()}</pubDate>
       ${a.author ? `<dc:creator>${escapeXml(a.author)}</dc:creator>` : ''}
       ${a.excerpt ? `<description>${escapeXml(a.excerpt)}</description>` : ''}
+      ${imageAbs ? `<enclosure url="${escapeXml(imageAbs)}" type="${imageMimeType(imageAbs)}" length="0"/>` : ''}
     </item>`
     }).join('\n')
 

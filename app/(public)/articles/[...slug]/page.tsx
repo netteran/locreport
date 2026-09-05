@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { SITE_URL, ORG_ID, WEBSITE_ID, breadcrumbJsonLd } from '@/lib/seo'
 import { marked } from 'marked'
 import { Article } from '@/lib/types'
-import { articleHref, estimateReadMinutes } from '@/lib/utils'
+import { articleHref, estimateReadMinutes, safeImageUrl } from '@/lib/utils'
 import { SIGNAL_MAP } from '@/lib/signals'
 import { ShareButton } from '@/components/ShareButton'
 import { SubscribeForm } from '@/components/SubscribeForm'
@@ -46,10 +46,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!result) return {}
   const { article: a } = result
   const canonicalSlug = a.slug.split('/').pop()
+  // Only override the site-wide OG image when this article has its own.
+  const image = safeImageUrl(a.image_url)
   return {
     title: a.title,
     description: a.excerpt ?? undefined,
     alternates: { canonical: `/articles/${canonicalSlug}` },
+    ...(image ? { openGraph: { images: [{ url: image }] }, twitter: { images: [image] } } : {}),
   }
 }
 
@@ -80,6 +83,10 @@ export default async function ArticlePage({ params }: Props) {
 
   // Read time
   const readMinutes = estimateReadMinutes(content)
+
+  // Optional lead image — absent unless an image URL was set on the article.
+  const heroImage = safeImageUrl(a.image_url)
+  const heroAlt = a.image_alt?.trim() || a.title
 
   // Resolve signal metadata
   const articleSignals = (a.signal_ids ?? [])
@@ -140,7 +147,7 @@ export default async function ArticlePage({ params }: Props) {
     author: a.author ? { '@type': 'Person', name: a.author } : { '@type': 'Organization', name: 'LocReport' },
     publisher: { '@id': ORG_ID },
     isPartOf: { '@id': WEBSITE_ID },
-    image: 'https://locreport.com/og-image.jpg',
+    image: heroImage ? new URL(heroImage, SITE_URL).toString() : 'https://locreport.com/og-image.jpg',
     mainEntityOfPage: { '@type': 'WebPage', '@id': articleUrl },
   }
 
@@ -187,6 +194,15 @@ export default async function ArticlePage({ params }: Props) {
             </div>
           </div>
         </header>
+
+        {heroImage && (
+          <figure className="post-hero">
+            {/* Arbitrary external hosts — plain <img> avoids routing every
+                publisher's CDN through the Next image optimizer. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={heroImage} alt={heroAlt} loading="eager" decoding="async" />
+          </figure>
+        )}
 
         <div className="post-content" dangerouslySetInnerHTML={{ __html: html }} />
 

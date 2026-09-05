@@ -15,6 +15,8 @@ export interface Draft {
   source_url: string | null
   source_feed_id: string | null
   source_published_at: string | null
+  image_url: string | null
+  image_alt: string | null
   status: 'pending' | 'approved' | 'rejected' | 'rerunning' | 'rerun'
   created_at: string
   updated_at: string
@@ -30,6 +32,9 @@ export interface Article {
   author: string | null
   publisher: string | null
   source_url: string | null
+  // Optional lead image — hero on the article page, thumbnail in listings.
+  image_url: string | null
+  image_alt: string | null
   signal_ids: string[]
   signal_stance: string | null
   signal_confidence: string | null

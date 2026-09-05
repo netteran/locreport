@@ -1094,6 +1094,23 @@ article.post h1 { font-size: clamp(1.9rem, 4.2vw, 2.75rem); margin-top: 0; margi
 .post-meta { font-size: 0.85rem; font-weight: 500; color: var(--muted); margin: 0; }
 .post-author { color: var(--text); font-weight: 600; }
 
+/* ── Post hero image ─────────────────────────────────────────
+   Optional: rendered only when the article carries an image_url, so
+   image-less articles keep the exact previous header → content rhythm. */
+.post-hero {
+  margin: var(--space-6) 0 0;
+}
+.post-hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 480px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
 /* ── Post type eyebrow ───────────────────────────────────── */
 .post-eyebrow {
   display: inline-flex;
@@ -2254,6 +2271,16 @@ article.page > h1 {
   color: var(--accent);
 }
 
+/* Optional listing thumbnail — present only when the article has an image. */
+.article-card-thumb {
+  flex-shrink: 0;
+  width: 116px;
+  height: 76px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
 .article-card-body {
   flex: 1;
   min-width: 0;
@@ -2418,6 +2445,7 @@ article.page > h1 {
   .research-filter-panel .filter-group { width: 100%; }
   .research-filter-panel .filter-select { width: 100%; min-width: 0; }
   .article-card { flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+  .article-card-thumb { width: 100%; height: 160px; border-radius: var(--radius-md); }
   .article-card-meta { flex-direction: row; align-items: center; gap: var(--space-2); }
   .article-card-excerpt { -webkit-line-clamp: 2; }
   .signal-modal { padding: var(--space-4); max-height: 90vh; }
@@ -5398,6 +5426,50 @@ article.page > h1 {
   font-size: 0.97rem;
   margin-bottom: var(--space-4);
 }
+
+/* Stream rows with an image: text column + fixed thumbnail column. Rows
+   without an image keep the original single-column block layout. */
+.home-v1 .article-row--with-thumb {
+  display: grid;
+  grid-template-columns: 1fr clamp(104px, 20vw, 168px);
+  gap: var(--space-4);
+  align-items: start;
+}
+.home-v1 .article-row__main {
+  min-width: 0;
+}
+.home-v1 .article-row__thumb,
+.home-v1 .article-row__hero {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+.home-v1 .article-row__thumb img,
+.home-v1 .article-row__hero img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  transition: transform 0.35s ease;
+}
+.home-v1 .article-row__hero {
+  margin-bottom: var(--space-3);
+}
+.home-v1 .article-row__hero img {
+  aspect-ratio: 16 / 9;
+}
+.home-v1 .article-row--with-thumb:hover .article-row__thumb img,
+.home-v1 .article-row--featured:hover .article-row__hero img {
+  transform: scale(1.03);
+}
+@media (max-width: 560px) {
+  .home-v1 .article-row--with-thumb {
+    grid-template-columns: 1fr 96px;
+    gap: var(--space-3);
+  }
+}
 .home-v1 .home-layout {
   display: grid;
   grid-template-columns: 1fr 280px;
@@ -5654,6 +5726,16 @@ article.page > h1 {
 .home-v1 .briefing__lead {
   display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start;
 }
+.home-v1 .briefing__lead-image {
+  display: block; align-self: stretch; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+}
+.home-v1 .briefing__lead-image img {
+  display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
+  transition: transform 0.35s ease;
+}
+.home-v1 .briefing__lead-image:hover img { transform: scale(1.02); }
 .home-v1 .briefing__lead-meta {
   display: flex; align-items: center; gap: var(--space-3);
 }

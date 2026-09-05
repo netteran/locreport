@@ -197,6 +197,8 @@ article_type 'industry' | 'theory' | 'monthly-summary'
 author text
 publisher text
 source_url text
+image_url text                 — optional lead image (hero on the article, thumbnail in listings)
+image_alt text                 — optional alt text; falls back to the title
 signal_ids text[]
 signal_stance text
 signal_confidence text
@@ -223,6 +225,8 @@ content text
 source_url text
 source_feed_id uuid FK → rss_sources.id
 source_published_at timestamptz
+image_url text             — optional lead image, carried onto the article on approval
+image_alt text
 status 'pending' | 'approved' | 'rejected' | 'rerunning' | 'rerun'
 created_at timestamptz
 updated_at timestamptz
@@ -451,6 +455,18 @@ DIGEST_FROM_EMAIL             — Optional digest sender (falls back to Resend o
 - Supabase email/password session
 - `app/(public)/admin/layout.tsx` checks session and redirects to `/login` if unauthenticated
 - Admin status determined by `api/me` checking Supabase user metadata
+
+### Article images
+- Entirely optional and URL-based (no upload/storage bucket). `articles.image_url` set → hero image
+  under the article header, thumbnail in the `/articles` cards and the homepage stream/briefing lead,
+  OG/`twitter:image` override, `Article` JSON-LD `image`, and an RSS `<enclosure>`. Null → every one of
+  those falls back to exactly the previous, image-less rendering.
+- Set it in `/admin/articles/[id]` (published) or `/admin/drafts/[id]` (before approving — the value is
+  stored on the draft and copied to the article by the approve branch of `/api/drafts/[id]`).
+- Rendered with plain `<img>`, not `next/image`: sources are arbitrary publisher CDNs, and allowing them
+  through the optimizer would mean opening `images.remotePatterns` to every host.
+- `safeImageUrl()` in `lib/utils.ts` gates every render — http(s) or root-relative only, so a pasted
+  `javascript:`/`data:` URL degrades to no image instead of reaching an `src`.
 
 ### LLM model
 - `lib/openai.ts` sets the model (currently GPT-4o-mini) — do not hardcode model strings elsewhere
