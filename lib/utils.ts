@@ -63,6 +63,18 @@ export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(' ')
 }
 
+// Escapes text for safe placement inside XML element/attribute content.
+// Shared by every RSS-emitting route (feed.xml, fact-flow/feed.xml, the
+// generated feeds in lib/feedGenerator.ts).
+export function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
 // Estimated reading time from markdown content, ~200 words/minute.
 export function estimateReadMinutes(content: string): number {
   const words = content.trim().split(/\s+/).length

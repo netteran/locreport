@@ -7,6 +7,42 @@ export interface RssSource {
   created_at: string
 }
 
+export interface ContentFilter {
+  keywords: string[]
+  minMatches?: number
+  checkFullContent?: boolean
+  maxScan?: number
+}
+
+// A scrape target for the feed generator (lib/feedGenerator.ts) — an HTML
+// listing page (CSS selectors) or an existing feed re-filtered by keyword.
+// Served publicly at /api/feeds/[name]; an rss_sources row can point at that
+// URL like any other feed. Replaces the standalone rss-generator repo.
+export interface ScrapedSource {
+  id: string
+  name: string
+  type: 'html' | 'rss'
+  url: string
+  active: boolean
+  article_selector: string | null
+  title_selector: string | null
+  link_selector: string | null
+  description_selector: string | null
+  date_selector: string | null
+  link_pattern: string | null
+  feed_title: string | null
+  feed_description: string | null
+  content_filter: ContentFilter | null
+  classified_links: Record<string, { relevant: boolean; checkedAt: string }>
+  generated_xml: string | null
+  last_run_at: string | null
+  last_status: 'success' | 'error' | null
+  last_error: string | null
+  last_item_count: number | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Draft {
   id: string
   title: string

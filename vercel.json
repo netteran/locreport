@@ -2,6 +2,12 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/scraped-sources/run",
+      "schedule": "0 10 * * *"
+    }
+  ],
   "redirects": [
     { "source": "/market", "destination": "/compass/locstock", "permanent": true },
     { "source": "/market/", "destination": "/compass/locstock", "permanent": true },

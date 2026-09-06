@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { IngestButton, type IngestResult } from '@/components/IngestButton'
 import { BackfillEmbeddingsButton } from '@/components/BackfillEmbeddingsButton'
+import { RunFeedButton, type RunFeedResult } from '@/components/RunFeedButton'
 
 type Confirm = 'ingest' | 'monthly' | 'monthly-force' | null
 type Frequency = 'daily' | 'weekly'
 type DigestPreview = { frequency: Frequency; recipients: number; skipped: number; articles: number }
-type RowKey = 'ingest' | 'monthly' | 'digest' | 'facts' | 'quotes' | 'pricing'
+type RowKey = 'ingest' | 'feeds' | 'monthly' | 'digest' | 'facts' | 'quotes' | 'pricing'
 
 // One row of the action list. The title doubles as the toggle for its
 // explanation, so the resting state is just a title and its controls;
@@ -290,6 +291,23 @@ export default function AdminDashboard() {
             />
           )}
           {status('ingest')}
+        </ActionRow>
+
+        <ActionRow
+          title="Run feed generator"
+          description="Refreshes every active scraped source — HTML listing pages read via CSS selectors, or existing feeds re-filtered by keyword — and republishes each one at /api/feeds/<name> for the sources above to pull from. Runs automatically via Vercel Cron once a day. Manage sources, see per-source status, and run one individually at /admin/scraped-sources."
+          controls={
+            <RunFeedButton
+              label="Run"
+              onDone={(result: RunFeedResult) => flash(
+                'feeds',
+                `${result.succeeded}/${result.processed} source${result.processed !== 1 ? 's' : ''} refreshed${result.failed ? `, ${result.failed} failed` : ''}.`,
+                result.failed ? 'error' : 'ok',
+              )}
+            />
+          }
+        >
+          {status('feeds')}
         </ActionRow>
 
         <ActionRow
