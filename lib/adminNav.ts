@@ -10,6 +10,7 @@ export const ADMIN_LINKS: AdminLink[] = [
   { href: '/admin/drafts', label: 'Drafts' },
   { href: '/admin/articles', label: 'Articles' },
   { href: '/admin/sources', label: 'Sources' },
+  { href: '/admin/scraped-sources', label: 'Feed Generator' },
   { href: '/admin/fact-flow', label: 'Fact Flow' },
   { href: '/admin/events', label: 'Events' },
   { href: '/admin/directory', label: 'Directory' },

@@ -1,19 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { articleHref, safeImageUrl, imageMimeType } from '@/lib/utils'
+import { articleHref, safeImageUrl, imageMimeType, escapeXml } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
 const BASE_URL = 'https://locreport.com'
-
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
-}
 
 export async function GET() {
   const supabase = await createClient()

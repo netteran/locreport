@@ -26,7 +26,7 @@
 | Market data | Yahoo Finance 2 (LocStock tickers) |
 | Email | Resend (contact form + digest subscriptions with double opt-in) |
 | Analytics | Google Analytics 4 (G-1KQKEEP1PL) |
-| Deployment | Vercel (no active cron jobs in vercel.json — ingest triggered manually) |
+| Deployment | Vercel (one daily cron in `vercel.json` for the feed generator; ingest/digest still run via GitHub Actions — see Scheduled Jobs) |
 
 ---
 
@@ -56,6 +56,8 @@ components/
   BackToTop.tsx          — Scroll-to-top button (rendered in (public)/layout.tsx)
   IngestButton.tsx       — Manual RSS ingest trigger button (admin)
   SourceForm.tsx         — Form for adding/editing RSS sources
+  RunFeedButton.tsx      — Manual trigger for /api/scraped-sources/run (one source or all active; admin)
+  ScrapedSourceForm.tsx  — Form for adding a feed-generator scrape source (JSON config textarea)
 
 lib/
   supabase/server.ts     — SSR Supabase client (use in Server Components/API routes)
@@ -72,9 +74,14 @@ lib/
   prompts.ts             — LLM system prompts (also editable in DB settings table)
   classify.ts            — Article classification logic (impact, signals, segments, implications)
   rss.ts                 — RSS parsing, HTML-to-text, Google News redirect resolution
+  feedGenerator.ts       — Feed generator: scrapes an HTML listing page (cheerio + CSS selectors) or
+                           re-filters an existing feed by keyword, for scraped_sources rows; builds the
+                           RSS XML served at /api/feeds/[name]. Replaces the old aparasion/rss-generator repo
+  scrapedSourceConfig.ts — camelCase JSON (config.json-shaped) ↔ scraped_sources column mapping, shared by
+                           ScrapedSourceForm and the /admin/scraped-sources inline editor
   slugify.ts             — URL-safe slug generation
   storage.ts             — Supabase Storage constants for article images (bucket name, size/MIME limits, object key builder)
-  utils.ts               — articleHref(), extractTeaser(), cn() (Tailwind merge)
+  utils.ts               — articleHref(), extractTeaser(), cn() (Tailwind merge), escapeXml() (shared by every RSS-emitting route)
   data/
     events.ts            — 2026 industry calendar (11 events, hardcoded)
     directory.ts         — 31 localization tech vendors (hardcoded)
@@ -90,7 +97,7 @@ public/
   logodark.png           — Logo for dark mode
   og-image.jpg           — OG image (1200×630)
 
-vercel.json              — Build config, 301 redirects (no active cron jobs)
+vercel.json              — Build config, 301 redirects, one cron job (daily feed-generator run)
 ```
 
 ---
@@ -149,6 +156,7 @@ Several Compass and other sections use co-located client components:
 | `/admin/compose` | Manually write a new article |
 | `/admin/prompts` | Edit LLM system prompts stored in DB |
 | `/admin/sources` | Manage RSS feed sources |
+| `/admin/scraped-sources` | Feed generator: scrape sources (HTML selectors or keyword-refiltered feeds) that publish to `/api/feeds/[name]` for an `/admin/sources` row to point at. Per-source and run-all triggers, inline JSON config editor |
 | `/admin/direct` | Direct article ingestion tool |
 | `/admin/events` | Event management |
 
@@ -171,6 +179,10 @@ Several Compass and other sections use co-located client components:
 | `/api/settings` | GET/POST | App settings (prompts, admin prefs) |
 | `/api/sources` | GET/POST | RSS source management |
 | `/api/sources/[id]` | PATCH/DELETE | Single RSS source |
+| `/api/scraped-sources` | GET/POST | Feed-generator scrape source management |
+| `/api/scraped-sources/[id]` | GET/PATCH/DELETE | Single scrape source CRUD |
+| `/api/scraped-sources/run` | GET/POST | Regenerates every active scrape source (or one, via `?id=`) and stores the resulting XML on the row (admin session or CRON_SECRET). Called by the daily Vercel Cron job and the `/admin/scraped-sources` run buttons |
+| `/api/feeds/[name]` | GET | Public: serves one scrape source's most recently generated RSS XML — this is the URL an `rss_sources` row points at |
 | `/api/stats` | GET | Dashboard stats: article/draft/source counts |
 | `/api/seen-urls` | GET | Legacy Jekyll URLs (deduplication) |
 | `/api/events` | GET/POST | Events CRUD |
@@ -243,6 +255,24 @@ name text
 active boolean
 created_at timestamptz
 ```
+
+### `scraped_sources`
+```
+id uuid PK
+name text UNIQUE
+type 'html' | 'rss'        — html: scrape a listing page via CSS selectors; rss: re-filter an existing feed
+url text
+active boolean
+article_selector / title_selector / link_selector / description_selector / date_selector text  — html type only
+link_pattern text           — substring a candidate link must contain
+feed_title / feed_description text
+content_filter jsonb        — { keywords: string[], minMatches?, checkFullContent?, maxScan? }; null = no filter
+classified_links jsonb      — per-article relevance memo so a content-filtered source isn't re-classified every run
+generated_xml text          — most recent output; served as-is by GET /api/feeds/[name]
+last_run_at / last_status ('success'|'error') / last_error / last_item_count
+created_at / updated_at timestamptz
+```
+RLS enabled with no policies — service-role access only. Regenerated by `/api/scraped-sources/run` (lib/feedGenerator.ts); replaces the standalone aparasion/rss-generator GitHub repo, which needed hourly GitHub Actions runs that only mattered as often as ingest itself checks these feeds (once a day). An `rss_sources` row consumes a scrape source by pointing its `url` at `/api/feeds/<name>`.
 
 ### `settings`
 ```
@@ -501,19 +531,24 @@ DIGEST_FROM_EMAIL             — Optional digest sender (falls back to Resend o
 
 ## Scheduled Jobs
 
-Scheduled work runs via **GitHub Actions**, not Vercel cron:
+Most scheduled work runs via **GitHub Actions**; the feed generator runs via **Vercel Cron** instead
+(`vercel.json`) — both call plain `CRON_SECRET`-authenticated API routes, so the scheduler is an
+implementation detail the route itself doesn't care about:
 
-| Schedule | Workflow | Purpose |
+| Schedule | Trigger | Purpose |
 |---|---|---|
-| `30 10 * * *` (10:30 UTC daily) | `ingest.yml` | POST `/api/ingest` with `CRON_SECRET` header |
-| Fridays 1pm Central European time | `digest.yml` | POST `/api/digest/send?frequency=weekly` |
-| Workdays (Mon–Fri) 4pm Central European time | `digest.yml` | POST `/api/digest/send?frequency=daily` (only reaches daily-frequency subscribers) |
-| On-demand | `workflow_dispatch` on both | Manual trigger from GitHub Actions UI (digest has a frequency picker) |
-| On-demand | `/admin` dashboard | Daily/Weekly digest buttons — dry-run preview, then confirm to send |
+| `30 10 * * *` (10:30 UTC daily) | GitHub Actions `ingest.yml` | POST `/api/ingest` with `CRON_SECRET` header |
+| Fridays 1pm Central European time | GitHub Actions `digest.yml` | POST `/api/digest/send?frequency=weekly` |
+| Workdays (Mon–Fri) 4pm Central European time | GitHub Actions `digest.yml` | POST `/api/digest/send?frequency=daily` (only reaches daily-frequency subscribers) |
+| `0 10 * * *` (10:00 UTC daily) | **Vercel Cron** (`vercel.json`) | POST `/api/scraped-sources/run` — refreshes every active feed-generator source, 30 min before the ingest run above reads them |
+| On-demand | `workflow_dispatch` on both GitHub workflows | Manual trigger from GitHub Actions UI (digest has a frequency picker) |
+| On-demand | `/admin` dashboard | Ingest, feed generator, and Daily/Weekly digest (dry-run preview, then confirm to send) all have manual buttons |
 
-GitHub Actions cron is UTC-only and ignores DST, so `digest.yml` schedules **both** possible UTC offsets for each target local time (e.g. `0 11 * * 5` and `0 12 * * 5` for 1pm Friday) and a runtime guard checks the actual `Europe/Berlin` clock to decide which firing should actually send — the other is a no-op. This keeps the send time pinned to 1pm/4pm local wall-clock time year-round instead of drifting an hour across the DST boundary.
+GitHub Actions cron is UTC-only and ignores DST, so `digest.yml` schedules **both** possible UTC offsets for each target local time (e.g. `0 11 * * 5` and `0 12 * * 5` for 1pm Friday) and a runtime guard checks the actual `Europe/Berlin` clock to decide which firing should actually send — the other is a no-op. This keeps the send time pinned to 1pm/4pm local wall-clock time year-round instead of drifting an hour across the DST boundary. The feed generator doesn't need this: it isn't wall-clock sensitive, so it's one Vercel Cron entry rather than a DST-aware pair.
 
-`vercel.json` has **no cron jobs configured**. The `CRON_SECRET` env var must be set in both Vercel (for the API route to validate) and the GitHub repository secrets (for the workflow to authenticate).
+The `CRON_SECRET` env var must be set in Vercel (Vercel attaches it as `Authorization: Bearer $CRON_SECRET` automatically on cron requests, and the API routes validate it the same way for manually-configured callers) and in the GitHub repository secrets (for the two workflows above to authenticate their own `curl` calls).
+
+Vercel's Hobby plan caps each cron job at once-per-day cadence (and fires within the scheduled hour, not to the minute) — fine for a daily job, but the reason ingest/digest weren't just moved to Vercel Cron too: digest needs the DST-pair trick above, which needs a pre-request decision step Vercel Cron can't run (it just GETs the path).
 
 Monthly reports are triggered manually from the admin dashboard.
 
@@ -568,6 +603,13 @@ Monthly reports are triggered manually from the admin dashboard.
 ### Update static data (events, directory, LLM pricing)
 - `lib/data/events.ts`, `lib/data/directory.ts`, `lib/data/llm-pricing.ts`
 - These are hardcoded TypeScript arrays — edit the file directly
+
+### Add a feed-generator scrape source (a site with no usable RSS feed)
+1. `/admin/scraped-sources` → Add source: name, type (`html` or `rss`), source URL, and a JSON config
+   (CSS selectors for `html`; `contentFilter` keywords for either) — see `lib/feedGenerator.ts` for the
+   selector/filter semantics
+2. Click **Run now** to confirm it extracts items, then copy its `/api/feeds/<name>` URL
+3. Add an `/admin/sources` row whose URL is that `/api/feeds/<name>` address, so ingest picks it up
 
 ---
 
