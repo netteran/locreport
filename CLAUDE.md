@@ -9,7 +9,7 @@
 **LocReport** is a Next.js 15 (App Router) content intelligence platform for the language services industry. It ingests RSS feeds daily, uses OpenAI to generate draft articles, routes them through an admin approval workflow, and publishes them with impact scoring and signal tagging.
 
 **Live domain:** `https://locreport.com`
-**Repository:** `aparasion/locreport`
+**Repository:** `netteran/locreport`
 **Deployment:** Vercel (auto-deploy from main)
 
 ---
