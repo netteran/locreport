@@ -40,21 +40,54 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
+// Columns the homepage actually renders. Narrower than `Article` so the
+// query skips `embedding` (a ~15-20KB serialized vector per row) and other
+// unused columns (tags, business_implications, etc.) across 60 rows.
+type HomeArticle = Pick<
+  Article,
+  | 'id'
+  | 'title'
+  | 'slug'
+  | 'excerpt'
+  | 'content'
+  | 'author'
+  | 'image_url'
+  | 'signal_ids'
+  | 'impact_score'
+  | 'published_at'
+>
+
+export const revalidate = 3600
+
 export default async function HomePage() {
   const supabase = await createClient()
-  const { data: articles } = await supabase
-    .from('articles')
-    .select('*')
-    .order('published_at', { ascending: false })
-    .limit(60)
 
-  const { data: latestFacts } = await supabase
-    .from('facts')
-    .select('id, content, created_at, article_id')
-    .not('article_id', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(4)
+  // Independent queries — run concurrently instead of paying for each
+  // round trip in sequence.
+  const [{ data: articles }, { data: latestFacts }, { data: latestReport }, intel] = await Promise.all([
+    supabase
+      .from('articles')
+      .select('id, title, slug, excerpt, content, author, image_url, signal_ids, impact_score, published_at')
+      .order('published_at', { ascending: false })
+      .limit(60),
+    supabase
+      .from('facts')
+      .select('id, content, created_at, article_id')
+      .not('article_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(4),
+    supabase
+      .from('articles')
+      .select('id, title, slug, excerpt, published_at')
+      .eq('article_type', 'monthly-summary')
+      .order('published_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    getIntelligenceData(supabase),
+  ])
 
+  // Depends on latestFacts, so it stays a follow-up query rather than
+  // joining the batch above.
   const factArticleIds = [...new Set((latestFacts ?? []).map(f => f.article_id).filter(Boolean))]
   const factSlugMap = new Map<string, string>()
   if (factArticleIds.length > 0) {
@@ -65,7 +98,7 @@ export default async function HomePage() {
     for (const a of factArticles ?? []) factSlugMap.set(a.id, a.slug)
   }
 
-  const allArticles = (articles as Article[]) ?? []
+  const allArticles = (articles as HomeArticle[]) ?? []
 
   // Today's briefing: impact-ranked lead from the latest 10 articles,
   // plus a rail of recent high-impact stories.
@@ -83,7 +116,7 @@ export default async function HomePage() {
     .slice(0, 3)
 
   // Group by day (up to 3 days)
-  const byDay = new Map<string, Article[]>()
+  const byDay = new Map<string, HomeArticle[]>()
   for (const a of allArticles) {
     const day = new Date(a.published_at).toLocaleDateString('en-US', {
       year: 'numeric', month: '2-digit', day: '2-digit',
@@ -95,17 +128,7 @@ export default async function HomePage() {
     byDay.get(day)!.push(a)
   }
 
-  // Latest monthly report
-  const { data: latestReport } = await supabase
-    .from('articles')
-    .select('id, title, slug, excerpt, published_at')
-    .eq('article_type', 'monthly-summary')
-    .order('published_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
   // Signal momentum strip: rising signals first, busiest coverage as filler
-  const intel = await getIntelligenceData(supabase)
   const rising = intel.signalSeries.filter(s => s.observedMomentum === 'rising')
   const filler = intel.signalSeries
     .filter(s => s.observedMomentum !== 'rising')
