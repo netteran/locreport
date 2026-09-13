@@ -44,7 +44,8 @@ components/
   ui/                    — Primitive UI components (Button, Card, Input, Badge, Textarea, Label)
   Nav.tsx                — Site header with dropdown nav + search + theme toggle
   SubscribeForm.tsx      — Digest email capture (homepage, article footer, /intelligence)
-  SignalSparkline.tsx    — Tiny weekly-volume area chart (signals index/detail; Recharts, client)
+  SignalSparkline.tsx    — Tiny weekly-volume area chart (signals index/detail + MomentumStrip; Recharts, client)
+  MomentumStrip.tsx      — Homepage strip: 4 signals by coverage momentum + sparklines
   BackfillEmbeddingsButton.tsx — Admin one-click embeddings backfill loop
   ArticleCard.tsx        — Article preview row; currently unrendered (the homepage inlines its own rows)
   ArticleEditor.tsx      — Markdown editor (admin only)
@@ -107,7 +108,7 @@ vercel.json              — Build config, 301 redirects, one cron job (daily fe
 
 | Path | File | Notes |
 |---|---|---|
-| `/` | `page.tsx` | Articles-first editorial column: kicker line → lead story (highest-impact of the newest 10) → chronological stream (20 rows, optional thumbnails) → "All articles" → compact digest sign-up. No hero, no sidebar, one Supabase query. Runs the site-wide institutional-editorial system — see Design System below. |
+| `/` | `page.tsx` | Split hero (gradient wash + orbs, Explore-tools panel) → sources marquee → "Highlighted story" briefing + high-impact rail → momentum strip → day-grouped stream (3 days) → digest band → CTA; sidebar carries Fact Flow, reports, active signals. **Runs the pre-2026-08-17 visual system — see Design System below.** |
 | `/articles` | `articles/page.tsx` | All articles — server-side filters + pagination via URL params (`topic`, `impact`, `category`, `from`, `to`, `sort`, `page`) |
 | `/articles/[slug]` | `articles/[...slug]/page.tsx` | Article detail, 24h ISR revalidation |
 | `/intelligence` | `intelligence/page.tsx` | Signals dashboard + stats |
@@ -426,23 +427,24 @@ To add a new signal: edit `lib/signals.ts`. No DB migration needed — signals a
 --space-1 … --space-16  Spacing scale (0.25rem → 8rem)
 ```
 
-Design direction (every page, homepage included): institutional-editorial — near-monochrome ink/paper,
+Design direction (everything except the homepage): institutional-editorial — near-monochrome ink/paper,
 the single indigo accent used sparingly (links, active states, one eyebrow per page), no decorative
 gradients/orbs/glassmorphism/marquees. Prefer flat surfaces + hairline borders over shadows; reserve
 `--gold`/`--warm` for a single deliberate highlight, not broad theming.
 
-**The homepage runs this system too.** The `.home-v1` scope — the Aug 16 visual system with its split
-hero, orbs, sources marquee and redeclared palette — was retired on 2026-09-13 along with the ~1,150 lines
-of CSS that carried it. The homepage is now an articles-first editorial column (`.home-*` rules in
-`assets/css/style.css`): kicker line → lead story → chronological stream → digest sign-up, with no hero,
-no sidebar and no embedded intelligence widgets. Fact Flow, signals, reports and Compass reach the reader
-through `Nav.tsx` and the footer in `app/(public)/layout.tsx` instead.
+**The homepage is a deliberate exception.** It runs the visual system the site had on 2026-08-16 — split
+hero with gradient wash and drifting orbs, a sources marquee, card shadows, the brighter `#3550F5` accent,
+and the softer radius scale. That system lives entirely inside `assets/css/style.css` under the `.home-v1`
+scope, matched by the wrapper `<div className="home-v1">` in `app/(public)/page.tsx`.
 
 Working on it:
-- Homepage rules use the global tokens directly — there is no scoped palette to keep in sync, and none
-  should be reintroduced. A homepage-only value belongs in a `.home-*` rule, not a token override.
-- `.home-column` (820px) is deliberately wider than `--content-width`, so a row's thumbnail doesn't
-  squeeze the headline column.
+- The `.home-v1` rule redeclares the **full** Aug 16 token set, not just the values that differ, because it
+  sits later in the file than the global `[data-theme="dark"]` block at equal specificity — a partial
+  light-mode set leaks into dark mode.
+- It also redeclares `color`, because `<body>` resolved that from the global `--text` before the scope
+  existed and inheritance carries the computed colour, not the variable.
+- Keep new homepage rules inside the scope. Do not re-point them at the global tokens, and do not lift them
+  out to global selectors — that is what would bleed this palette onto the rest of the site.
 
 **Theme:** `data-theme="dark"` on `<html>` activates dark mode via CSS variable overrides.
 
@@ -496,7 +498,7 @@ DIGEST_FROM_EMAIL             — Optional digest sender (falls back to Resend o
 
 ### Article images
 - Entirely optional. `articles.image_url` set → hero image under the article header, thumbnail in the
-  `/articles` cards and the homepage lead + stream rows, OG/`twitter:image` override, `Article`
+  `/articles` cards and the homepage stream/briefing lead, OG/`twitter:image` override, `Article`
   JSON-LD `image`, and an RSS `<enclosure>`. Null → every one of those falls back to exactly the
   previous, image-less rendering.
 - Set it with the `ImageDropzone` field in `/admin/articles/[id]` (published) or `/admin/drafts/[id]`
