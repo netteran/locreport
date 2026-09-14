@@ -54,6 +54,9 @@ export interface Draft {
   image_url: string | null
   image_alt: string | null
   status: 'pending' | 'approved' | 'rejected' | 'rerunning' | 'rerun'
+  // Raw Stage 1 fact sheet the draft was written from. Re-runs reuse it verbatim so only
+  // the Stage 2 prose is regenerated. Null on pre-existing or hand-made drafts.
+  extracted_facts: string | null
   created_at: string
   updated_at: string
 }

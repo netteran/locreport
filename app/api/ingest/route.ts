@@ -189,6 +189,16 @@ export async function POST(req: NextRequest) {
             .single()
 
           if (draftRow?.id) {
+            // Pin the Stage 1 fact sheet to the draft so a re-run can re-profile the prose
+            // against the original facts instead of re-extracting from its own output.
+            const { error: factsError } = await supabase
+              .from('drafts')
+              .update({ extracted_facts: facts })
+              .eq('id', draftRow.id)
+            if (factsError) {
+              console.error(`[ingest] could not store extracted facts for ${item.link}:`, factsError)
+            }
+
             const factFlowPrompt = await getPrompt(supabase, 'prompt_factflow', DEFAULT_FACTFLOW_PROMPT)
             const distilRes = await openai.chat.completions.create({
               model: 'gpt-4o-mini',

@@ -6,6 +6,10 @@ import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 
 type Params = { params: Promise<{ id: string }> }
 
+// Guard rail on the reviewer-supplied Stage 2 note — long enough for real editorial
+// direction, short enough that it can't crowd out the system prompt.
+const MAX_INSTRUCTION_LENGTH = 2000
+
 async function getPrompt(key: string, fallback: string): Promise<string> {
   try {
     const supabase = createServiceClient()
@@ -16,6 +20,18 @@ async function getPrompt(key: string, fallback: string): Promise<string> {
   }
 }
 
+// Wraps the reviewer's note so it reads as a directive over the house style prompt,
+// while restating that the fact sheet is off limits.
+function buildInstructionMessage(instruction: string): string {
+  return [
+    'ADDITIONAL EDITORIAL INSTRUCTION FOR THIS RE-RUN.',
+    'It applies to the shape, angle, emphasis, structure and length of the write-up only, and takes precedence over the style guidance above wherever the two conflict.',
+    'The extracted facts below are fixed and already verified: do not add, drop, soften, sharpen, re-date, re-attribute or invent any fact, number, name, quote or milestone in order to satisfy this instruction. If the instruction cannot be followed without changing a fact, follow it only as far as the facts allow.',
+    '',
+    instruction,
+  ].join('\n')
+}
+
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
 
@@ -23,6 +39,21 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user || user.email !== process.env.ADMIN_EMAIL) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Optional body — a plain "re-run as is" may send nothing at all.
+  let instruction = ''
+  try {
+    const body = await req.json()
+    if (typeof body?.instruction === 'string') instruction = body.instruction.trim()
+  } catch {
+    // no/invalid body — treat as an unmodified re-run
+  }
+  if (instruction.length > MAX_INSTRUCTION_LENGTH) {
+    return NextResponse.json(
+      { error: `Instruction too long (${instruction.length} chars, max ${MAX_INSTRUCTION_LENGTH}).` },
+      { status: 400 },
+    )
   }
 
   const service = createServiceClient()
@@ -49,21 +80,29 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   try {
     const openai = getOpenAI()
-    // Stage 1: extract facts
-    const extractorPrompt = await getPrompt('prompt_extractor', DEFAULT_EXTRACTOR_PROMPT)
-    const extractInput = [
-      draft.source_url ? `Source URL: ${draft.source_url}` : '',
-      `Article content:\n${draft.content}`,
-    ].filter(Boolean).join('\n\n')
 
-    const extractRes = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: extractorPrompt },
-        { role: 'user', content: extractInput },
-      ],
-    })
-    const facts = extractRes.choices[0].message.content ?? ''
+    // Stage 1: reuse the fact sheet the draft was built from. A re-run re-profiles the
+    // prose, so re-extracting would let the facts drift — and on a draft that has already
+    // been generated, the only text left to extract from is Stage 2's own output.
+    let facts = typeof draft.extracted_facts === 'string' ? draft.extracted_facts.trim() : ''
+    const factsReused = facts.length > 0
+
+    if (!factsReused) {
+      const extractorPrompt = await getPrompt('prompt_extractor', DEFAULT_EXTRACTOR_PROMPT)
+      const extractInput = [
+        draft.source_url ? `Source URL: ${draft.source_url}` : '',
+        `Article content:\n${draft.content}`,
+      ].filter(Boolean).join('\n\n')
+
+      const extractRes = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: extractorPrompt },
+          { role: 'user', content: extractInput },
+        ],
+      })
+      facts = (extractRes.choices[0].message.content ?? '').trim()
+    }
 
     // Stage 2: generate article
     const basePrompt = await getPrompt('prompt_industry', DEFAULT_INDUSTRY_PROMPT)
@@ -78,8 +117,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     const generateRes = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: basePrompt },
-        { role: 'user', content: generateInput },
+        { role: 'system' as const, content: basePrompt },
+        ...(instruction
+          ? [{ role: 'system' as const, content: buildInstructionMessage(instruction) }]
+          : []),
+        { role: 'user' as const, content: generateInput },
       ],
     })
     const rawNewContent = generateRes.choices[0].message.content ?? ''
@@ -88,13 +130,18 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const { data: updated, error: updateError } = await service
       .from('drafts')
-      .update({ content: newContent, status: 'rerun' })
+      .update({
+        content: newContent,
+        status: 'rerun',
+        // Pin the fact sheet on first re-run so every later re-run profiles the same facts.
+        ...(factsReused ? {} : { extracted_facts: facts }),
+      })
       .eq('id', id)
       .select()
       .single()
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
-    return NextResponse.json(updated)
+    return NextResponse.json({ ...updated, facts_reused: factsReused })
 
   } catch (err) {
     await service.from('drafts').update({ status: 'pending' }).eq('id', id)

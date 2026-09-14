@@ -170,7 +170,7 @@ Several Compass and other sections use co-located client components:
 | `/api/monthly-report` | POST | Generate monthly synthesis via OpenAI |
 | `/api/drafts` | GET/POST | List/create drafts |
 | `/api/drafts/[id]` | GET/PATCH/DELETE | Draft CRUD |
-| `/api/drafts/[id]/rerun` | POST | Regenerate draft via LLM |
+| `/api/drafts/[id]/rerun` | POST | Re-run Stage 2 only — reuses `drafts.extracted_facts` so the facts can't drift. Optional JSON body `{ instruction }` (≤2000 chars) is injected as a second system message that may reshape angle/structure/emphasis/length but not the facts. Responds with the updated draft plus `facts_reused` |
 | `/api/articles` | GET/POST | List/create articles |
 | `/api/articles/[id]` | GET/PATCH/DELETE | Article CRUD |
 | `/api/compose` | POST | Publish manually-composed article |
@@ -243,9 +243,15 @@ source_published_at timestamptz
 image_url text             — optional lead image, carried onto the article on approval
 image_alt text
 status 'pending' | 'approved' | 'rejected' | 'rerunning' | 'rerun'
+extracted_facts text       — raw Stage 1 fact sheet the draft was written from; re-runs reuse it verbatim
 created_at timestamptz
 updated_at timestamptz
 ```
+
+`extracted_facts` is set by ingest and reused by `/api/drafts/[id]/rerun`, so a re-run only re-profiles the
+Stage 2 prose and never re-derives the facts. Null on drafts created before the column, or created outside
+ingest (`/api/drafts` POST, `/admin/direct`) — the first re-run of such a draft extracts once and pins the
+result, so every later re-run of it profiles the same facts.
 
 ### `rss_sources`
 ```
@@ -358,7 +364,9 @@ One row per price change per model (a new row is only inserted when the price di
    → Admin reads draft, edits if needed
    → Approve → status='approved' → triggers article creation
    → Reject → status='rejected'
-   → Rerun → calls /api/drafts/[id]/rerun → status='rerunning' → OpenAI regenerates
+   → Rerun → calls /api/drafts/[id]/rerun → status='rerunning' → Stage 2 regenerates
+     from the stored Stage 1 facts (Stage 1 is not re-run). The confirm panel carries an
+     optional free-text instruction for Stage 2 — leave it blank to re-run as is.
 
 3. PUBLISH
    Approved draft → article record created with all signal/impact metadata
