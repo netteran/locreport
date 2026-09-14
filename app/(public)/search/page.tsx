@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
 import { SIGNALS } from '@/lib/signals'
 import { articleHref } from '@/lib/utils'
 import { embedText } from '@/lib/embeddings'
@@ -44,7 +44,7 @@ interface ArticleResult {
  * 3. If the RPCs don't exist yet (migration not applied), legacy ilike
  */
 async function searchArticles(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createPublicClient>,
   query: string
 ): Promise<{ results: ArticleResult[]; mode: 'hybrid' | 'keyword' | 'basic' }> {
   try {
@@ -97,7 +97,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const { q = '' } = await searchParams
   const query = q.trim()
 
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   // Sidebar data — always fetched
   const { data: monthlyReports } = await supabase

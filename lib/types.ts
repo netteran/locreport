@@ -101,3 +101,19 @@ export interface Article {
   // pgvector column; PostgREST returns it serialized as a string
   embedding?: string | null
 }
+
+// Every Article column except the two heavy search columns: `embedding` (a
+// 1536-dim pgvector that PostgREST serializes as tens of kilobytes of text per
+// row) and the generated `fts` tsvector, which is roughly content-sized and is
+// only ever read by Postgres itself. `select('*')` shipped both across the
+// wire on every render that touched an article.
+//
+// `embedding` is still needed by whoever feeds it to the match_articles RPC —
+// append it explicitly there rather than widening this list for everyone.
+export const ARTICLE_COLUMNS = [
+  'id', 'title', 'slug', 'excerpt', 'content', 'article_type', 'author',
+  'publisher', 'source_url', 'image_url', 'image_alt', 'signal_ids',
+  'signal_stance', 'signal_confidence', 'impact_score', 'time_horizon',
+  'affected_segments', 'business_implications', 'tags', 'published_at',
+  'updated_at', 'draft_id',
+].join(', ')

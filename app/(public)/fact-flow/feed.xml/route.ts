@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
 import { CATEGORY_LABELS, type FactCategory } from '@/lib/facts'
 import { escapeXml } from '@/lib/utils'
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 const BASE_URL = 'https://locreport.com'
 
 export async function GET() {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   const { data: facts } = await supabase
     .from('facts')

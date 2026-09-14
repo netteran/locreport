@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SIGNAL_MAP, STATUS_LABEL, MOMENTUM_ICON, CATEGORY_COLOR } from '@/lib/signals'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
 import { Article } from '@/lib/types'
 import { articleHref } from '@/lib/utils'
 import { computeMomentum, weeklySeries } from '@/lib/intelligence'
@@ -40,7 +40,7 @@ export default async function SignalPage({ params }: Props) {
   const signal = SIGNAL_MAP.get(id)
   if (!signal) notFound()
 
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   // Fetch all articles referencing this signal
   const { data: raw } = await supabase

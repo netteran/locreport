@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
 import { Article } from '@/lib/types'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
@@ -90,7 +90,7 @@ function pageLink(f: FilterState, page: number): string {
 
 export default async function ArticlesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const f = parseFilters(await searchParams)
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   let query = supabase
     .from('articles')
@@ -111,10 +111,18 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   }
 
   const fromIdx = (f.page - 1) * PAGE_SIZE
-  const [{ data, count }, { count: totalCount }] = await Promise.all([
+  const [listing, { count: totalCount }] = await Promise.all([
     query.range(fromIdx, fromIdx + PAGE_SIZE - 1),
     supabase.from('articles').select('id', { count: 'exact', head: true }),
   ])
+
+  // A failed query would otherwise fall through to `?? []` and render an
+  // article index with no articles, at HTTP 200 — indistinguishable from
+  // "nothing matched these filters" to a reader and to any monitoring.
+  if (listing.error) {
+    throw new Error(`articles listing query failed: ${listing.error.message}`)
+  }
+  const { data, count } = listing
 
   let rows: FeedRow[] = ((data as Article[]) ?? []).map(a => ({
     id: a.id,

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
 import { EVENTS, type Event } from '@/lib/data/events'
 import { EventsClient } from './EventsClient'
 
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 async function getEvents(): Promise<Event[]> {
   try {
-    const supabase = await createClient()
+    const supabase = createPublicClient()
     const { data, error } = await supabase
       .from('events')
       .select('*')

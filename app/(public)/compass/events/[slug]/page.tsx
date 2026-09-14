@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { EVENTS, type Event } from '@/lib/data/events'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
 
 export const revalidate = 3600
 
@@ -27,7 +27,7 @@ function formatDateRange(start: string, end: string): string {
 
 async function getEvent(slug: string): Promise<Event | null> {
   try {
-    const supabase = await createClient()
+    const supabase = createPublicClient()
     // Try slug column first (DB-created events), then id (static events merged into DB)
     const { data: bySlug } = await supabase.from('events').select('*').eq('slug', slug).maybeSingle()
     if (bySlug) return bySlug as Event
