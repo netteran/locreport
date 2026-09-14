@@ -5789,44 +5789,6 @@ article.page > h1 {
     padding-left: 0; border-left: none; padding-top: var(--space-4); border-top: 1px solid var(--hairline);
   }
 }
-.home-v1 .subscribe-band {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--space-5); align-items: center; margin: var(--space-8) 0; padding: var(--space-6); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl);
-}
-.home-v1 .subscribe-band__title {
-  font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 var(--space-2);
-}
-.home-v1 .subscribe-band__text {
-  font-size: 0.9rem; line-height: 1.55; color: var(--muted); margin: 0;
-}
-@media (max-width: 760px) {
-  .home-v1 .subscribe-band {
-    grid-template-columns: 1fr;
-  }
-}
-.home-v1 .subscribe-form {
-  width: 100%;
-}
-.home-v1 .subscribe-form__row {
-  display: flex; gap: var(--space-2); flex-wrap: wrap;
-}
-.home-v1 .subscribe-form__input {
-  flex: 1; min-width: 200px; padding: 10px 14px; font-size: 0.9rem; font-family: var(--font-body); color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); outline: none; transition: border-color 0.15s;
-}
-.home-v1 .subscribe-form__input:focus {
-  border-color: var(--accent);
-}
-.home-v1 .subscribe-form__btn {
-  white-space: nowrap;
-}
-.home-v1 .subscribe-form__note {
-  font-size: 0.76rem; color: var(--muted); margin: var(--space-2) 0 0;
-}
-.home-v1 .subscribe-form__confirm {
-  font-size: 0.9rem; font-weight: 600; color: var(--accent); margin: 0;
-}
-.home-v1 .subscribe-form__error {
-  font-size: 0.8rem; color: #dc2626; margin: var(--space-2) 0 0;
-}
 .home-v1 .momentum-strip {
   margin-bottom: var(--space-8);
 }
@@ -6614,19 +6576,81 @@ kbd, code {
 .search-sidebar__more { font-size: 0.78rem; color: var(--accent); display: inline-block; margin-top: 0.5rem; }
 
 /* ── Digest subscription ── */
-.subscribe-band { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--space-5); align-items: center; margin: var(--space-8) 0; padding: var(--space-6); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl); }
-.subscribe-band__title { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 var(--space-2); }
-@media (max-width: 760px) { .subscribe-band { grid-template-columns: 1fr; } }
-.subscribe-form { width: 100%; }
-.subscribe-form__row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.subscribe-form__input { flex: 1; min-width: 200px; padding: 10px 14px; font-size: 0.9rem; font-family: var(--font-body); color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); outline: none; transition: border-color 0.15s; }
-.subscribe-form__input:focus { border-color: var(--accent); }
-.subscribe-form__btn { white-space: nowrap; }
-.subscribe-form__note { font-size: 0.76rem; color: var(--muted); margin: var(--space-2) 0 0; }
-.subscribe-form__confirm { font-size: 0.9rem; font-weight: 600; color: var(--accent); margin: 0; }
-.subscribe-form__error { font-size: 0.8rem; color: #dc2626; margin: var(--space-2) 0 0; }
-.post-subscribe { margin: var(--space-8) 0 var(--space-4); padding: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
-.post-subscribe__title { font-size: 0.95rem; font-weight: 700; margin: 0 0 var(--space-3); }
+/* ── Digest popup — the site's only signup surface ────────────────────────
+   Rendered from app/(public)/layout.tsx, i.e. outside the .home-v1 scope, so
+   it reads the global institutional tokens on every page including the home
+   page. Keep it that way: scoping it would give the homepage a second look. */
+.digest-popup__overlay {
+  position: fixed; inset: 0; z-index: 1200;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  animation: digest-popup-fade 0.2s ease both;
+}
+.digest-popup {
+  position: relative;
+  width: 100%; max-width: 420px; max-height: calc(100vh - var(--space-8));
+  overflow-y: auto;
+  padding: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+  animation: digest-popup-rise 0.24s ease both;
+}
+.digest-popup__close {
+  position: absolute; top: var(--space-2); right: var(--space-2);
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; line-height: 1;
+  color: var(--muted); background: none; border: none; border-radius: var(--radius-sm);
+  cursor: pointer; transition: color 0.15s, background 0.15s;
+}
+.digest-popup__close:hover { color: var(--text); background: var(--accent-soft); }
+.digest-popup__eyebrow {
+  font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--accent); margin: 0 0 var(--space-2);
+}
+.digest-popup__title {
+  font-family: var(--font-display); font-size: 1.35rem; font-weight: 600;
+  letter-spacing: -0.01em; line-height: 1.25; margin: 0 0 var(--space-2);
+}
+.digest-popup__text {
+  font-size: 0.88rem; line-height: 1.6; color: var(--muted); margin: 0 0 var(--space-4);
+}
+.digest-popup__form { display: flex; flex-direction: column; gap: var(--space-2); }
+.digest-popup__input {
+  width: 100%; padding: 11px 14px;
+  font-size: 0.9rem; font-family: var(--font-body); color: var(--text);
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md);
+  outline: none; transition: border-color 0.15s;
+}
+.digest-popup__input:focus { border-color: var(--accent); }
+.digest-popup__btn { width: 100%; justify-content: center; }
+.digest-popup__error { font-size: 0.8rem; color: #dc2626; margin: var(--space-2) 0 0; }
+.digest-popup__note {
+  font-size: 0.72rem; color: var(--muted); margin: var(--space-3) 0 0; text-align: center;
+}
+.footer-digest-link {
+  /* Block + fit-content so the social icons that follow it in the footer
+     brand column drop to their own line instead of trailing the arrow. */
+  display: block; width: fit-content; margin: var(--space-3) 0 var(--space-3);
+  padding: 0; font-size: 0.82rem; font-weight: 600; font-family: inherit;
+  color: var(--accent); background: none; border: none; cursor: pointer;
+  transition: opacity 0.15s;
+}
+.footer-digest-link:hover { opacity: 0.75; }
+
+@keyframes digest-popup-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes digest-popup-rise {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .digest-popup__overlay, .digest-popup { animation: none; }
+}
 
 /* ── Subscribe status + manage pages ── */
 .subscribe-status-page { max-width: 560px; padding-top: var(--space-10); padding-bottom: var(--space-12); }

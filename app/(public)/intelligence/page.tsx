@@ -3,7 +3,6 @@ import type { Metadata } from 'next'
 import { SIGNALS } from '@/lib/signals'
 import { createPublicClient } from '@/lib/supabase/server'
 import { required } from '@/lib/supabase/required'
-import { SubscribeForm } from '@/components/SubscribeForm'
 import { getIntelligenceData, signalShortLabel } from '@/lib/intelligence'
 import { SignalMomentumChart } from './SignalMomentumChart'
 import { ImpactDistributionChart } from './ImpactDistributionChart'
@@ -98,17 +97,6 @@ export default async function IntelligencePage() {
           <span className="intel-link-card__desc">Review recent significant, major, and disruptive localization industry coverage.</span>
           <span className="intel-link-card__cta">Open articles →</span>
         </Link>
-      </section>
-
-      <section className="subscribe-band" aria-label="Subscribe to the digest">
-        <div className="subscribe-band__copy">
-          <h2 className="subscribe-band__title">Signals in your inbox</h2>
-          <p className="subscribe-band__text">
-            Follow the signals you care about — the weekly digest filters
-            stories to your picks and minimum impact level.
-          </p>
-        </div>
-        <SubscribeForm />
       </section>
 
       <div className="intel-disclaimer">
