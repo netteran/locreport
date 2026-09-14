@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { CATEGORY_SHORT, DIRECTORY } from '@/lib/data/directory'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
 import { DirectoryLogo } from './DirectoryLogo'
 import { AdminEditButton } from './AdminEditButton'
 
@@ -12,7 +12,7 @@ const CAT_DISPLAY = CATEGORY_SHORT
 
 async function getEntry(slug: string) {
   try {
-    const supabase = await createClient()
+    const supabase = createPublicClient()
     const { data, error } = await supabase
       .from('directory')
       .select('*')

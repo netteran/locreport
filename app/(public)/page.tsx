@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
 import { Article } from '@/lib/types'
-import { articleHref, extractTeaser, safeImageUrl } from '@/lib/utils'
+import { articleHref, safeImageUrl } from '@/lib/utils'
 import { SIGNALS, SIGNAL_MAP } from '@/lib/signals'
 import { SubscribeForm } from '@/components/SubscribeForm'
 import { MomentumStrip } from '@/components/MomentumStrip'
@@ -42,14 +42,16 @@ function timeAgo(iso: string): string {
 
 // Columns the homepage actually renders. Narrower than `Article` so the
 // query skips `embedding` (a ~15-20KB serialized vector per row) and other
-// unused columns (tags, business_implications, etc.) across 60 rows.
+// unused columns (tags, business_implications, etc.) across 60 rows. It also
+// skips `content`: 60 full articles is ~156KB of markdown fetched to render
+// nothing but excerpts, and this was measurably the slowest request the site
+// made. Where an excerpt is missing the row simply renders without one.
 type HomeArticle = Pick<
   Article,
   | 'id'
   | 'title'
   | 'slug'
   | 'excerpt'
-  | 'content'
   | 'author'
   | 'image_url'
   | 'signal_ids'
@@ -60,14 +62,14 @@ type HomeArticle = Pick<
 export const revalidate = 3600
 
 export default async function HomePage() {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
   // Independent queries — run concurrently instead of paying for each
   // round trip in sequence.
-  const [{ data: articles }, { data: latestFacts }, { data: latestReport }, intel] = await Promise.all([
+  const [articlesResult, { data: latestFacts }, { data: latestReport }, intel] = await Promise.all([
     supabase
       .from('articles')
-      .select('id, title, slug, excerpt, content, author, image_url, signal_ids, impact_score, published_at')
+      .select('id, title, slug, excerpt, author, image_url, signal_ids, impact_score, published_at')
       .order('published_at', { ascending: false })
       .limit(60),
     supabase
@@ -98,7 +100,14 @@ export default async function HomePage() {
     for (const a of factArticles ?? []) factSlugMap.set(a.id, a.slug)
   }
 
-  const allArticles = (articles as HomeArticle[]) ?? []
+  // Rendering an empty homepage on a failed query is worse than not
+  // rendering one: it returns 200, so nothing downstream treats it as a
+  // failure, and with ISR it would replace a good cached page with a blank
+  // one. Throwing keeps the last good render being served.
+  if (articlesResult.error) {
+    throw new Error(`homepage articles query failed: ${articlesResult.error.message}`)
+  }
+  const allArticles = (articlesResult.data as HomeArticle[]) ?? []
 
   // Today's briefing: impact-ranked lead from the latest 10 articles,
   // plus a rail of recent high-impact stories.
@@ -226,7 +235,7 @@ export default async function HomePage() {
                     {lead.author && <span className="briefing__publisher">{lead.author}</span>}
                   </div>
                   <h2 className="briefing__title"><Link href={articleHref(lead.slug)}>{lead.title}</Link></h2>
-                  <p className="briefing__excerpt">{lead.excerpt || extractTeaser(lead.content)}</p>
+                  {lead.excerpt && <p className="briefing__excerpt">{lead.excerpt}</p>}
                   {leadSignals.length > 0 && (
                     <div className="briefing__signals">
                       {leadSignals.map(s => (
@@ -281,7 +290,7 @@ export default async function HomePage() {
                             )}
                           </div>
                           <h2 className="article-row__title"><Link href={articleHref(article.slug)}>{article.title}</Link></h2>
-                          <p className="article-row__excerpt">{article.excerpt || extractTeaser(article.content)}</p>
+                          {article.excerpt && <p className="article-row__excerpt">{article.excerpt}</p>}
                           <div className="article-row__footer">
                             {article.author && <span className="article-row__publisher">{article.author}</span>}
                             <Link className="article-row__read-more" href={articleHref(article.slug)}>Read more →</Link>

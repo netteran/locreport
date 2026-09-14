@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
+import { required } from '@/lib/supabase/required'
 import { Article } from '@/lib/types'
 import { articleHref } from '@/lib/utils'
 
@@ -15,9 +16,9 @@ export const revalidate = 3600
 const IMPACT_LABEL: Record<number, string> = { 3: 'Significant', 4: 'Major', 5: 'Disruptive' }
 
 export default async function HighImpactPage() {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
-  const { data } = await supabase
+  const result = await supabase
     .from('articles')
     .select('id, title, slug, excerpt, publisher, impact_score, time_horizon, business_implications, affected_segments, published_at')
     .neq('article_type', 'monthly-summary')
@@ -26,7 +27,7 @@ export default async function HighImpactPage() {
     .order('published_at', { ascending: false })
     .limit(12)
 
-  const articles = (data as Article[]) ?? []
+  const articles = (required(result, 'high-impact articles') as Article[]) ?? []
 
   return (
     <div className="container" style={{ paddingBottom: 'var(--space-12)' }}>

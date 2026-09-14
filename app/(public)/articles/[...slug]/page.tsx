@@ -1,8 +1,10 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
+import AdminEditLink from '@/components/AdminEditLink'
+import { cache } from 'react'
 import { SITE_URL, ORG_ID, WEBSITE_ID, breadcrumbJsonLd } from '@/lib/seo'
 import { marked } from 'marked'
-import { Article } from '@/lib/types'
+import { Article, ARTICLE_COLUMNS } from '@/lib/types'
 import { articleHref, estimateReadMinutes, safeImageUrl } from '@/lib/utils'
 import { SIGNAL_MAP } from '@/lib/signals'
 import { ShareButton } from '@/components/ShareButton'
@@ -16,29 +18,41 @@ type Props = { params: Promise<{ slug: string[] }> }
 
 const IMPACT_LABEL: Record<number, string> = { 1: 'Routine', 2: 'Notable', 3: 'Significant', 4: 'Major', 5: 'Disruptive' }
 
-async function fetchArticle(slugParts: string[]) {
-  const supabase = await createClient()
+// Deduped per render pass: the page and generateMetadata both need the
+// article, and without this each one issued its own set of lookups.
+const fetchArticle = cache(async (slugParts: string[]) => {
+  const supabase = createPublicClient()
+  // Related reading passes this article's own vector to match_articles.
+  const ARTICLE_WITH_EMBEDDING = `${ARTICLE_COLUMNS}, embedding`
   const joined = slugParts.join('/')
   const bare = slugParts[slugParts.length - 1]
 
-  const { data: exact } = await supabase
-    .from('articles').select('*').eq('slug', joined).maybeSingle()
-  if (exact) return { article: exact as Article, shouldRedirect: slugParts.length > 1 }
+  // A failed lookup must never be read as "no such article". Falling through
+  // on error would 404 a live article — and ISR would then cache that 404.
+  // Throwing instead keeps the last good render in place.
+  const orThrow = <T,>({ data, error }: { data: T; error: { message: string } | null }) => {
+    if (error) throw new Error(`article lookup failed for "${joined}": ${error.message}`)
+    return data
+  }
 
-  const { data: bySuffix } = await supabase
-    .from('articles').select('*').ilike('slug', `%/${bare}`).maybeSingle()
-  if (bySuffix) return { article: bySuffix as Article, shouldRedirect: false }
+  const exact = orThrow(await supabase
+    .from('articles').select(ARTICLE_WITH_EMBEDDING).eq('slug', joined).maybeSingle())
+  if (exact) return { article: exact as unknown as Article, shouldRedirect: slugParts.length > 1 }
+
+  const bySuffix = orThrow(await supabase
+    .from('articles').select(ARTICLE_WITH_EMBEDDING).ilike('slug', `%/${bare}`).maybeSingle())
+  if (bySuffix) return { article: bySuffix as unknown as Article, shouldRedirect: false }
 
   // Legacy URLs (pre-migration Jekyll permalinks, RSS-title truncation) sometimes carry a
   // slug that's a truncated/un-deduped prefix of the current one (slugify() cuts titles to
   // 80 chars and appends "-2", "-3", ... on collision). Redirect to the unique DB slug this
   // one is a prefix of, rather than 404ing on every retitle/dedup drift.
-  const { data: byPrefix } = await supabase
-    .from('articles').select('*').ilike('slug', `${bare}%`).limit(2)
-  if (byPrefix?.length === 1) return { article: byPrefix[0] as Article, shouldRedirect: true }
+  const byPrefix = orThrow(await supabase
+    .from('articles').select(ARTICLE_WITH_EMBEDDING).ilike('slug', `${bare}%`).limit(2))
+  if (byPrefix?.length === 1) return { article: byPrefix[0] as unknown as Article, shouldRedirect: true }
 
   return null
-}
+})
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
@@ -95,7 +109,7 @@ export default async function ArticlePage({ params }: Props) {
 
   // Fetch related articles — semantic nearest-neighbors when this article has
   // an embedding, then shared-signal overlap, then recency as a final fill.
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   let relatedArticles: Article[] = []
   if (a.embedding) {
     const { data: semantic } = await supabase.rpc('match_articles', {
@@ -130,9 +144,6 @@ export default async function ArticlePage({ params }: Props) {
   const hasIntel = !!a.impact_score || articleSignals.length > 0
     || a.business_implications?.length > 0 || a.affected_segments?.length > 0
   const hasRelated = relatedArticles.length > 0
-
-  const { data: { user } } = await supabase.auth.getUser()
-  const isAdmin = !!user
 
   const articleUrl = `https://locreport.com/articles/${a.slug.split('/').pop()}`
 
@@ -185,11 +196,7 @@ export default async function ArticlePage({ params }: Props) {
               {date}<span className="read-time"> · {readMinutes} min read</span>
             </p>
             <div className="post-meta-actions">
-              {isAdmin && (
-                <Link href={`/admin/articles/${a.id}`} className="admin-edit-btn">
-                  Edit
-                </Link>
-              )}
+              <AdminEditLink articleId={a.id} />
               <ShareButton title={a.title} url={articleUrl} />
             </div>
           </div>

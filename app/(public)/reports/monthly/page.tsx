@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
+import { required } from '@/lib/supabase/required'
 import { articleHref } from '@/lib/utils'
 
 export const metadata: Metadata = {
@@ -22,14 +23,14 @@ function getTopicChips(title: string, excerpt: string): string[] {
 }
 
 export default async function MonthlyReportsPage() {
-  const supabase = await createClient()
-  const { data } = await supabase
+  const supabase = createPublicClient()
+  const result = await supabase
     .from('articles')
     .select('id, title, slug, excerpt, published_at, signal_ids')
     .eq('article_type', 'monthly-summary')
     .order('published_at', { ascending: false })
 
-  const posts = data ?? []
+  const posts = required(result, 'monthly reports') ?? []
   const latest = posts[0]
   const archive = posts.slice(1)
 

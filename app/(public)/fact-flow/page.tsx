@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
+import { required } from '@/lib/supabase/required'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { ShareButton } from '@/components/ShareButton'
@@ -66,14 +67,16 @@ function groupByDay(facts: FactRow[]) {
 }
 
 export default async function FactFlowPage() {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
-  const { data: facts } = await supabase
+  const factsResult = await supabase
     .from('facts')
     .select('id, content, category, source_url, source_name, article_id, created_at')
     .not('article_id', 'is', null)
     .order('created_at', { ascending: false })
     .limit(120)
+
+  const facts = required(factsResult, 'fact flow')
 
   // Resolve article slugs for all facts that have an article_id
   const articleIds = [...new Set((facts ?? []).map(f => f.article_id).filter(Boolean))]

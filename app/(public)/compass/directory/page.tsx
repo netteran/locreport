@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { fetchDirectoryEntries } from '@/lib/directory'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
 import { DirectoryClient } from './DirectoryClient'
 
 export const revalidate = 3600
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 }
 
 async function getEntries() {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
   return fetchDirectoryEntries(supabase)
 }
 

@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SIGNALS } from '@/lib/signals'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
+import { required } from '@/lib/supabase/required'
 import { SubscribeForm } from '@/components/SubscribeForm'
 import { getIntelligenceData, signalShortLabel } from '@/lib/intelligence'
 import { SignalMomentumChart } from './SignalMomentumChart'
@@ -16,12 +17,13 @@ export const metadata: Metadata = {
 export const revalidate = 3600
 
 export default async function IntelligencePage() {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
-  const [{ data: articles }, intel] = await Promise.all([
+  const [articlesResult, intel] = await Promise.all([
     supabase.from('articles').select('impact_score, published_at'),
     getIntelligenceData(supabase),
   ])
+  const articles = required(articlesResult, 'intelligence articles')
 
   const totalArticles = articles?.length ?? 0
   const highImpact = (articles ?? []).filter(a => (a.impact_score ?? 0) >= 4).length

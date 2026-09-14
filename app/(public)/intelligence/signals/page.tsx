@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { SIGNALS } from '@/lib/signals'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
+import { required } from '@/lib/supabase/required'
 import { getIntelligenceData } from '@/lib/intelligence'
 import { SignalSparkline } from '@/components/SignalSparkline'
 
@@ -20,12 +21,13 @@ const MOMENTUM_LABEL: Record<string, string> = {
 }
 
 export default async function SignalsPage() {
-  const supabase = await createClient()
+  const supabase = createPublicClient()
 
-  const [{ data: articles }, intel] = await Promise.all([
+  const [articlesResult, intel] = await Promise.all([
     supabase.from('articles').select('signal_ids').neq('article_type', 'monthly-summary'),
     getIntelligenceData(supabase),
   ])
+  const articles = required(articlesResult, 'signals articles')
   const seriesById = new Map(intel.signalSeries.map(s => [s.signalId, s]))
 
   const signalCounts = new Map<string, number>()

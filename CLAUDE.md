@@ -546,9 +546,20 @@ DIGEST_FROM_EMAIL             — Optional digest sender (falls back to Resend o
 ## Key Patterns & Conventions
 
 ### Supabase client selection
-- **Server Components / API routes:** `import { createClient } from '@/lib/supabase/server'` → `await createClient()`
+- **Public pages (no session needed):** `createPublicClient()` from `@/lib/supabase/server` — cookie-free,
+  so the page stays statically renderable. **This is the default for anything under `(public)/` that is not
+  an admin surface.** It also carries `fetchWithRetry`, which caps each request and retries transient
+  gateway failures (see below).
+- **Anything that reads the signed-in user (admin surfaces):** `await createClient()` — reads cookies.
 - **Client Components:** `import { createBrowserClient } from '@/lib/supabase/client'`
 - **Admin operations needing service role:** use `createServiceClient()` from `server.ts`
+
+**Do not reach for `createClient()` on a public page.** `cookies()` is a Next.js Dynamic API: touching it
+opts the page out of static rendering, so its `export const revalidate` silently stops meaning anything and
+every visitor pays a live round trip to Supabase. That is exactly how the site came to make ~4,000 article
+queries a day and to show empty pages whenever Supabase's gateway wobbled. If a public page needs to know
+whether an admin is looking at it, resolve that in a Client Component (`components/AdminEditLink.tsx` is the
+worked example) rather than reading the session on the server.
 
 ### Metadata
 - Root defaults in `app/layout.tsx`
@@ -559,6 +570,18 @@ DIGEST_FROM_EMAIL             — Optional digest sender (falls back to Resend o
 ### ISR Revalidation
 - Article detail pages: `export const revalidate = 86400` (24h)
 - Listing pages: `export const revalidate = 3600` (1h)
+
+These only take effect while the page avoids Dynamic APIs — see the client-selection note above. `/articles`
+and `/search` read `searchParams` and so are dynamic by nature no matter which client they use; the
+homepage, article pages, `/intelligence/*`, `/fact-flow`, `/reports/monthly` and `/compass/*` are cached.
+`/articles/[...slug]` has no `generateStaticParams`, so the ~1,200 article pages are generated on first
+request and then cached, rather than at build time.
+
+**A page's primary query must throw on error, not fall back to `[]`.** `lib/supabase/required.ts` exists for
+this. Swallowing the error renders an empty page at HTTP 200 — which reads as "there is nothing here" to
+both the reader and to monitoring, and which a cached page then serves until the next revalidation.
+Throwing leaves the last good version in place; during a build it fails the deploy, and Vercel keeps the
+previous deployment serving. Decorative extras (a sidebar rail, a fact strip) should still degrade quietly.
 
 ### Path alias
 - `@/` maps to repo root (set in `tsconfig.json`)
