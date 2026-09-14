@@ -65,6 +65,7 @@ export default function AdminDashboard() {
   const [digestPreview, setDigestPreview] = useState<DigestPreview | null>(null)
   const [backfillRunning, setBackfillRunning] = useState(false)
   const [backfillSlug, setBackfillSlug] = useState('')
+  const [backfillAllRunning, setBackfillAllRunning] = useState(false)
   const [confirm, setConfirm] = useState<Confirm>(null)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'ok' | 'error'>('ok')
@@ -142,12 +143,45 @@ export default function AdminDashboard() {
     flash(
       'facts',
       res.ok
-        ? `Backfilled ${data.facts_saved} facts for "${slug}".`
+        ? `Published a Fact Flow fact for "${slug}": ${data.fact ?? ''}`
         : (data.error ?? data.message ?? 'Backfill failed.'),
       res.ok ? 'ok' : 'error',
     )
     if (res.ok) setBackfillSlug('')
     setBackfillRunning(false)
+  }
+
+  // Walks every article that has no Fact Flow entry, newest first, in batches.
+  // Each fact is backdated to its article's publication date, so this fills the
+  // gaps in the stream rather than stacking old news on top of it.
+  async function backfillAllFacts() {
+    setBackfillAllRunning(true)
+    clearFlash()
+    let created = 0
+    let remaining: number | null = null
+    try {
+      for (let round = 0; round < 40; round++) {
+        const res = await fetch('/api/admin/backfill-facts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ all: true, limit: 10 }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
+        created += data.created ?? 0
+        remaining = data.remaining ?? 0
+        flash('facts', `Backfilling… ${created} published, ${remaining} to go.`, 'ok')
+        if (!data.processed || remaining === 0) break
+      }
+      flash(
+        'facts',
+        `Backfill finished — ${created} article${created === 1 ? '' : 's'} given a fact${remaining ? `, ${remaining} still without one` : ''}.`,
+        'ok',
+      )
+    } catch (err) {
+      flash('facts', err instanceof Error ? err.message : 'Backfill failed.', 'error')
+    }
+    setBackfillAllRunning(false)
   }
 
   async function refreshQuotes() {
@@ -405,7 +439,7 @@ export default function AdminDashboard() {
         <ActionRow
           title="Backfill Fact Flow"
           controlsClass="admin-action__controls--input"
-          description="Re-fetches one article’s source URL and re-extracts its facts, replacing whatever Fact Flow holds for it. Use it for articles ingested before Fact Flow existed, or when extraction came back empty. Enter the article’s slug — the part of its URL after /articles/."
+          description="Every article published from now on gets its one Fact Flow fact automatically, on approval. This fills gaps left behind: enter a slug — the part of a URL after /articles/ — to give one article its fact, or run Backfill all to walk every article that still has none, newest first. Facts are dated to their article’s publication date, so backfilling slots them into the stream in order instead of piling old news at the top. Monthly reports are excluded. An article that already has a fact is never touched."
           controls={
             <>
               <input
@@ -425,6 +459,14 @@ export default function AdminDashboard() {
                 disabled={backfillRunning || !backfillSlug.trim()}
               >
                 {backfillRunning ? 'Extracting…' : 'Backfill'}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={backfillAllFacts}
+                disabled={backfillRunning || backfillAllRunning}
+              >
+                {backfillAllRunning ? 'Backfilling…' : 'Backfill all'}
               </Button>
             </>
           }

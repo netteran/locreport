@@ -70,6 +70,10 @@ lib/
   openai.ts              — OpenAI client singleton (GPT-4o-mini)
   embeddings.ts          — EMBEDDING_MODEL constant + embedText/embedAndStoreArticle (text-embedding-3-small)
   intelligence.ts        — Signal time-series bucketing + coverage-momentum computation for dashboard charts
+  facts.ts               — Fact types/labels + parseHeadlineFact(): pulls the one headline fact out of a
+                           distillation, tolerating numbered/bullet/bare-prose formatting drift
+  factFlow.ts            — ensureArticleFact(): the one-fact-per-article guarantee every publish path calls.
+                           See Fact Flow below
   topics.ts              — Topic definitions (signals + keywords) shared by /articles filters and badges
   email/
     templates.ts         — Inline-styled HTML email builders (confirm + digest)
@@ -132,6 +136,8 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 | `/compass/events` | `compass/events/page.tsx` | 2026 industry events calendar |
 | `/compass/llm-pricing` | `compass/llm-pricing/page.tsx` | Interactive LLM pricing simulator + history chart |
 | `/compass/directory` | `compass/directory/page.tsx` | 31 localization tech vendors |
+| `/fact-flow` | `fact-flow/page.tsx` | Day-grouped stream of published facts — one per article. Shows only facts with an `article_id` |
+| `/fact-flow/feed.xml` | `fact-flow/feed.xml/route.ts` | Fact Flow RSS (latest 100 linked facts) |
 | `/search` | `search/page.tsx` | Hybrid semantic + full-text search (`?q=...`), RRF-ranked via `hybrid_search_articles` RPC with keyword/ilike fallbacks |
 | `/subscribe/confirm` | `subscribe/confirm/page.tsx` | Double-opt-in confirmation (`?token=`), noindex |
 | `/subscribe/manage` | `subscribe/manage/page.tsx` | Tokenized digest preferences (week-in-brief roundup on/off, signal briefings, min impact), noindex |
@@ -157,7 +163,7 @@ Several Compass and other sections use co-located client components:
 
 | Path | Purpose |
 |---|---|
-| `/admin` | Dashboard: stats banner + a compact action list (`.admin-actions` in `style.css`). Each row is title + controls; the long description collapses behind the title toggle, while confirmation panels and result messages always render inline. Actions: ingest, embeddings backfill, monthly report, digest send (weekly), Fact Flow backfill, market quotes, LLM pricing |
+| `/admin` | Dashboard: stats banner + a compact action list (`.admin-actions` in `style.css`). Each row is title + controls; the long description collapses behind the title toggle, while confirmation panels and result messages always render inline. Actions: ingest, embeddings backfill, monthly report, digest send (weekly), Fact Flow backfill (one slug, or **Backfill all** to walk every article still missing its fact), market quotes, LLM pricing |
 | `/admin/articles` | Article list management |
 | `/admin/articles/[id]` | Edit individual article |
 | `/admin/drafts` | Draft review queue (pending/approved/rejected) |
@@ -200,6 +206,10 @@ Several Compass and other sections use co-located client components:
 | `/api/direct` | POST | Direct article submission |
 | `/api/admin/backfill-authors` | POST | Admin utility: backfill article authors |
 | `/api/admin/reclassify` | POST | Admin utility: reclassify articles via LLM |
+| `/api/facts` | POST | Admin: add a fact by hand, optionally linked to an article by slug |
+| `/api/facts/[id]` | PATCH/DELETE | Edit a fact's text or article link; delete it |
+| `/api/admin/backfill-facts` | POST | Gives articles their missing Fact Flow fact. `{slug}`/`{article_id}` does one; `{all:true, limit}` walks the next batch with no fact (newest first, monthly reports excluded) and returns `{created, skipped, processed, remaining}`. Never overwrites an article that already has one, and dates each fact to its article's `published_at` so a backfill slots into the stream in order instead of burying it |
+| `/api/tweet-facts` | POST | Posts untweeted published facts to X (CRON_SECRET only). **Dormant — nothing calls it; see Fact Flow** |
 | `/api/admin/backfill-embeddings` | POST | Embed articles with null embedding, batched; returns `{embedded, remaining}` (admin session or CRON_SECRET) |
 | `/api/uploads/article-image` | POST | Admin-only: validates type/size, ensures the `images` storage bucket exists, returns a signed upload URL + public URL. The bytes never pass through the route |
 | `/api/subscribe` | POST | Digest signup → pending subscriber + Resend confirm email (double opt-in) |
@@ -262,6 +272,21 @@ updated_at timestamptz
 Stage 2 prose and never re-derives the facts. Null on drafts created before the column, or created outside
 ingest (`/api/drafts` POST, `/admin/direct`) — the first re-run of such a draft extracts once and pins the
 result, so every later re-run of it profiles the same facts.
+
+### `facts`
+```
+id uuid PK
+content text                   — the published sentence
+category text                  — 'news' for everything the pipeline writes
+source_url / source_name text
+draft_id uuid FK → drafts.id   — set while the fact waits on an unapproved draft
+article_id uuid FK → articles.id — set on approval; NULL means not public
+tweeted_at timestamptz / tweet_id text — written only by /api/tweet-facts (dormant)
+created_at timestamptz
+```
+Public read via RLS (`facts_public_read`); writes are service-role only. **`article_id` is what
+publishes a fact** — `/fact-flow`, its RSS feed and the homepage rail all filter on
+`article_id is not null`, so a fact parked on a draft is invisible until that draft is approved.
 
 ### `rss_sources`
 ```
@@ -430,6 +455,8 @@ One row per price change per model (a new row is only inserted when the price di
        title, excerpt, signal_ids, impact_score, time_horizon,
        affected_segments, business_implications, tags
    → Insert draft with status='pending'
+   → Distil ONE headline fact from the Stage 1 sheet via DEFAULT_FACTFLOW_PROMPT and
+     park it on the draft (facts.draft_id set, article_id still null — not yet public)
 
 2. ADMIN REVIEW
    /admin/drafts
@@ -442,6 +469,9 @@ One row per price change per model (a new row is only inserted when the price di
 
 3. PUBLISH
    Approved draft → article record created with all signal/impact metadata
+   → ensureArticleFact() promotes the draft's parked fact onto the article, or
+     distils one now if there isn't one. The article is never published without
+     its Fact Flow entry — see Fact Flow below
    Article appears on public site immediately (ISR revalidation handles caching)
 
 4. MONTHLY REPORT (manual trigger from admin dashboard)
@@ -482,6 +512,44 @@ Each signal has:
 13. `lsp-relevance-erosion` — Boutique/mid-tier LSPs losing relevance vs. mega-LSPs/direct-to-AI
 
 To add a new signal: edit `lib/signals.ts`. No DB migration needed — signals are pure code.
+
+---
+
+## Fact Flow
+
+`/fact-flow` is a stream of one-sentence industry facts. **Every article carries exactly one — the
+single most important fact in it — and it is published automatically when the article is.**
+
+How that is guaranteed:
+
+- `lib/factFlow.ts` → `ensureArticleFact()` is the single entry point, and **every path that creates an
+  article calls it**: the approve branch of `/api/drafts/[id]` (which is where ingest, `/admin/compose`
+  and `/admin/direct` all end up) and `/api/articles` POST. It promotes the fact ingest parked on the
+  draft; if there is none it distils one from `drafts.extracted_facts`, falling back to the article body.
+- It is **idempotent** — an article that already has a fact is left alone, so re-approving a draft or
+  re-running a backfill never duplicates or overwrites.
+- It **never throws**. Publishing an article must not fail because the fact step did, so callers get a
+  status back and failures are logged (`[factflow]`, `[ingest]`, `[drafts]`).
+- `DEFAULT_FACTFLOW_PROMPT` returns one fact or the literal `NO_FACT`. `parseHeadlineFact()` takes the
+  first item and tolerates numbered, bullet, bold-prefixed or bare-prose output.
+
+**Why the guarantee exists.** Facts used to be distilled onto the *draft* at ingest and merely linked at
+approval, so whenever distillation returned nothing the article published with no fact and nothing
+surfaced the gap — 19 of the 238 articles published after Fact Flow launched had none. The old prompt also
+asked for "1–2" facts and the parser sliced to 3, so coverage was 0–3 per article rather than one.
+
+Articles published before 2026-06-24 predate Fact Flow and have no fact. Fill gaps with **Backfill all**
+on `/admin` (`/api/admin/backfill-facts` with `{all:true}`) — each fact is dated to its article's
+`published_at`, so backfilling slots old facts into the stream chronologically instead of dropping months
+of old news at the top. Monthly reports are excluded by design: they synthesise facts Fact Flow already
+carried, and the prompt bans meta-commentary about reports.
+
+**Publishing to X is a separate, dormant feature.** `/api/tweet-facts` and `facts.tweeted_at` exist and
+look complete, but nothing has ever called the route — there is no workflow, no Vercel cron and no admin
+button, and it accepts only `Bearer $CRON_SECRET`, so there is no manual path either. It has posted 0
+tweets. Wiring it up means adding a workflow under `.github/workflows/` (not a Vercel cron — see
+Scheduled Jobs) and setting `X_API_KEY`, `X_API_KEY_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`.
+Note it posts oldest-first, so anything that turns it on should deal with the standing backlog.
 
 ---
 

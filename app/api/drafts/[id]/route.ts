@@ -5,6 +5,7 @@ import { extractTeaser } from '@/lib/utils'
 import { classifyArticle } from '@/lib/classify'
 import { getOpenAI } from '@/lib/openai'
 import { embedAndStoreArticle } from '@/lib/embeddings'
+import { ensureArticleFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 
 type Params = { params: Promise<{ id: string }> }
@@ -72,17 +73,41 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
     if (articleError) return NextResponse.json({ error: articleError.message }, { status: 400 })
 
-    // Link facts from this draft to the newly created article
     const { data: articleRow } = await supabase
       .from('articles')
       .select('id')
       .eq('draft_id', draft.id)
       .single()
     if (articleRow?.id) {
-      await supabase
-        .from('facts')
-        .update({ article_id: articleRow.id })
-        .eq('draft_id', draft.id)
+      // Publishing an article and giving it its Fact Flow entry are the same
+      // event. ensureArticleFact promotes the fact ingest parked on the draft;
+      // if there isn't one — ingest distilled nothing, or the draft was written
+      // by hand in /admin/compose or /admin/direct — it distils one now from
+      // the pinned Stage 1 sheet, falling back to the article body. That is
+      // what stops an article going live with nothing on Fact Flow.
+      let sourceName: string | null = null
+      if (draft.source_feed_id) {
+        const { data: feed } = await supabase
+          .from('rss_sources')
+          .select('name')
+          .eq('id', draft.source_feed_id)
+          .maybeSingle()
+        sourceName = feed?.name ?? null
+      }
+
+      const factResult = await ensureArticleFact(supabase, {
+        articleId: articleRow.id,
+        title,
+        content: linkedContent,
+        sourceUrl: source_url,
+        sourceName,
+        draftId: draft.id,
+        factSheet: draft.extracted_facts,
+      })
+      if (factResult.status === 'skipped') {
+        console.warn(`[drafts] no Fact Flow fact for article ${articleRow.id}: ${factResult.reason}`)
+      }
+
       await embedAndStoreArticle(supabase, articleRow.id)
     }
   }
