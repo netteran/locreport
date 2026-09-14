@@ -94,12 +94,45 @@ function matchesLinkPattern(link: string, pattern: string | null): boolean {
   return link.includes(pattern)
 }
 
+// Listing pages commonly show relative dates ("5 days ago") for their newest posts —
+// exactly the range worth ingesting. Resolved against the run clock, so the result is
+// within a day of the truth; the alternative is emitting no pubDate at all. Each
+// regeneration recomputes it, which is harmless: ingest dedupes on the link, not the date.
+export function parseRelativeDate(text: string, now: Date = new Date()): Date | null {
+  const lower = text.toLowerCase().replace(/\s+/g, ' ').trim()
+  if (lower === 'today' || lower === 'just now') return new Date(now)
+  if (lower === 'yesterday') {
+    const d = new Date(now)
+    d.setUTCDate(d.getUTCDate() - 1)
+    return d
+  }
+
+  const m = lower.match(/^(?:(\d{1,4})|a|an)\s+(minute|hour|day|week|month|year)s?\s+ago$/)
+  if (!m) return null
+  const n = m[1] ? parseInt(m[1], 10) : 1
+  if (!Number.isFinite(n) || n < 0) return null
+
+  const d = new Date(now)
+  switch (m[2]) {
+    case 'minute': d.setUTCMinutes(d.getUTCMinutes() - n); break
+    case 'hour': d.setUTCHours(d.getUTCHours() - n); break
+    case 'day': d.setUTCDate(d.getUTCDate() - n); break
+    case 'week': d.setUTCDate(d.getUTCDate() - n * 7); break
+    case 'month': d.setUTCMonth(d.getUTCMonth() - n); break
+    case 'year': d.setUTCFullYear(d.getUTCFullYear() - n); break
+  }
+  return d
+}
+
 function parseArticleDate(rawDate: string): Date | null {
   const normalized = rawDate.replace(/\s+/g, ' ').trim()
   if (!normalized) return null
 
   const native = new Date(normalized)
   if (!Number.isNaN(native.getTime())) return native
+
+  const relative = parseRelativeDate(normalized)
+  if (relative) return relative
 
   // "DD.MM.YYYY" / "M/D/YYYY" style numeric dates the native parser rejects.
   const numeric = normalized.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/)

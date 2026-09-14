@@ -309,11 +309,25 @@ validated against the live markup and use **no class names at all** — the page
 utilities and hashed CSS-module names (`richText-module__sMfSca__…`) that rotate on every frontend deploy.
 Prefer semantic elements over classes on any source built this way. Its `<time>` carries no `datetime`
 attribute, so the date comes from the element text ("September 1, 2026"), which `parseArticleDate` handles.
+
+`parseArticleDate` tries three strategies in order: the native `Date` parser, a numeric
+`DD.MM.YYYY`/`M/D/YYYY` fallback, then `parseRelativeDate` for the relative strings listing pages use on
+their newest posts — `"5 days ago"`, `"an hour ago"`, `"2 weeks ago"`, `"yesterday"`, `"today"`, `"just
+now"`. Relative dates resolve against the run clock, so they land within a day of the truth; each
+regeneration recomputes them, which is harmless because ingest dedupes on the link, not the date. Without
+this a site's *most recent* posts are exactly the ones that emit no `pubDate`.
 The listing URL is set to `https://www.deepl.com/en/press-release`; an earlier run against
 `https://www.deepl.com/en/press` returned HTTP 200 but contained no `/press-release/` href anywhere, not
 even via the anchor fallback.
 
 `DATAmundi-Newsroom` was removed on 2026-09-14: datamundi.ai answers `HTTP 403` to the scraper, which is bot protection rather than a selector problem. One older `aparasion.github.io` row also survives, inactive.
+
+**A null or empty `link_selector` silently poisons an `html` feed.** `collectHtmlCandidates` resolves it to
+`''`, every candidate then fails the `!linkRaw.trim()` guard, `primary` ends up empty, and the JSON-LD +
+anchor fallback runs instead — which happily returns every on-origin link with 8+ characters of text. The
+symptom is a feed full of nav and footer links reporting a healthy item count, which is what
+`RWS-media-centre` did for weeks. Set `linkSelector` on every `html` feed, or the literal string `'self'`
+when the article element *is* the anchor.
 
 A `/api/feeds/<name>` row only works if the scrape source is `active` **and** has non-empty `generated_xml` — otherwise the route 404s. When adding one, run the generator first and confirm `last_status='success'` **and a non-zero `last_item_count`** (see the silent-empty-feed trap above).
 
@@ -324,6 +338,7 @@ Known weak scrapes as of 2026-09-14, all reporting `success`:
 | `LingopalAI` | 0 | no | Extracting nothing from `lingopal.ai/industrynews-blog`; now on `/api/feeds` regardless. Needs new selectors |
 | `DeepL-Press-Releases` | 0 | no | Extracting nothing yet; URL retried at `/en/press-release` |
 | `PRNewswire-L10N` | 0 | yes | Suspect — the keyword filter could legitimately exclude everything, but not at PR Newswire's volume |
+| `RWS-media-centre` | 20 → reconfigured | no | Was pointed at the media centre with `link_selector = null`, so **every** candidate was skipped, the anchor fallback ran, and the 20 "items" were general site links. Now scrapes `https://www.rws.com/blog/` with selectors validated against the live markup. The row name is now a misnomer — it serves the blog, not the media centre |
 | `XTM-Blog` | 1 | no | Suspect — a blog index should yield more than one |
 | `OpenAI-News-L10N` | 0 | yes | Plausible; narrow keywords over a low-volume feed |
 | `Cohere-Newsroom-L10N` | 1 | yes | Plausible |
