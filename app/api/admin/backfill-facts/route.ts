@@ -1,137 +1,159 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { fetchArticleText } from '@/lib/rss'
-import { getOpenAI } from '@/lib/openai'
-import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_FACTFLOW_PROMPT } from '@/lib/prompts'
-import { parseDistilledFacts } from '@/lib/facts'
+import { ensureArticleFact } from '@/lib/factFlow'
 
-export const maxDuration = 60
+export const maxDuration = 300
 
-async function getPrompt(supabase: ReturnType<typeof createServiceClient>, key: string, fallback: string): Promise<string> {
-  try {
-    const { data } = await supabase.from('settings').select('value').eq('key', key).single()
-    return data?.value || fallback
-  } catch {
-    return fallback
+// Monthly reports are syntheses of facts Fact Flow has already carried, and the
+// Fact Flow prompt bans meta-commentary about reports outright — so they are not
+// part of the one-fact-per-article guarantee.
+const EXCLUDED_TYPES = ['monthly-summary']
+
+const BATCH_LIMIT = 10
+
+type ArticleRow = {
+  id: string
+  title: string
+  content: string | null
+  source_url: string | null
+  slug: string
+  draft_id: string | null
+  published_at: string | null
+}
+
+const ARTICLE_COLUMNS = 'id, title, content, source_url, slug, draft_id, published_at'
+
+/**
+ * Give one article its Fact Flow fact, reusing the draft's pinned Stage 1 sheet
+ * where there is one and re-fetching the source article text where there isn't.
+ */
+async function backfillOne(svc: ReturnType<typeof createServiceClient>, article: ArticleRow) {
+  let factSheet: string | null = null
+  let sourceName: string | null = null
+
+  if (article.draft_id) {
+    const { data: draft } = await svc
+      .from('drafts')
+      .select('extracted_facts, source_feed_id')
+      .eq('id', article.draft_id)
+      .maybeSingle()
+    factSheet = draft?.extracted_facts ?? null
+
+    if (draft?.source_feed_id) {
+      const { data: src } = await svc
+        .from('rss_sources')
+        .select('name')
+        .eq('id', draft.source_feed_id)
+        .maybeSingle()
+      sourceName = src?.name ?? null
+    }
   }
+
+  // Prefer the original source over the rewritten article body — it is the same
+  // material ingest would have distilled from.
+  let content = article.content
+  if (!factSheet && article.source_url) {
+    const fetched = await fetchArticleText(article.source_url)
+    if (fetched && fetched.length >= 200) content = fetched
+  }
+
+  return ensureArticleFact(svc, {
+    articleId: article.id,
+    title: article.title,
+    content,
+    sourceUrl: article.source_url,
+    sourceName,
+    draftId: article.draft_id,
+    factSheet,
+    // Backdate to publication so a backfill slots into Fact Flow chronologically
+    // instead of dropping months of old news at the top of the stream.
+    createdAt: article.published_at,
+  })
 }
 
 // POST /api/admin/backfill-facts
-// Body: { article_id?: string, slug?: string }
-// Re-fetches source, runs extractor, saves facts linked to the article.
+// Body: { article_id?, slug? }        — one article
+//       { all: true, limit?: number } — the next batch of articles with no fact
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await req.json()
-  const { article_id, slug } = body
-
+  const body = await req.json().catch(() => ({}))
+  const { article_id, slug, all } = body
   const svc = createServiceClient()
 
-  let query = svc.from('articles').select('id, title, content, source_url, slug, draft_id')
-  if (article_id) query = query.eq('id', article_id)
-  else if (slug) query = query.eq('slug', slug)
-  else return NextResponse.json({ error: 'Provide article_id or slug' }, { status: 400 })
+  if (all) {
+    const limit = Math.min(Math.max(Number(body.limit) || BATCH_LIMIT, 1), 25)
+
+    // Articles that already have a fact, so they can be excluded below.
+    const { data: linked, error: linkedError } = await svc
+      .from('facts')
+      .select('article_id')
+      .not('article_id', 'is', null)
+    if (linkedError) return NextResponse.json({ error: linkedError.message }, { status: 500 })
+    const done = new Set((linked ?? []).map(f => f.article_id as string))
+
+    const { data: candidates, error: candidatesError } = await svc
+      .from('articles')
+      .select(ARTICLE_COLUMNS)
+      .not('article_type', 'in', `(${EXCLUDED_TYPES.join(',')})`)
+      .order('published_at', { ascending: false })
+    if (candidatesError) return NextResponse.json({ error: candidatesError.message }, { status: 500 })
+
+    const pending = (candidates as ArticleRow[] ?? []).filter(a => !done.has(a.id))
+    const batch = pending.slice(0, limit)
+
+    const results: { slug: string; status: string; content?: string; reason?: string }[] = []
+    for (const article of batch) {
+      const result = await backfillOne(svc, article)
+      results.push({
+        slug: article.slug,
+        status: result.status,
+        content: 'content' in result ? result.content : undefined,
+        reason: 'reason' in result ? result.reason : undefined,
+      })
+    }
+
+    const created = results.filter(r => r.status === 'created' || r.status === 'promoted').length
+
+    return NextResponse.json({
+      created,
+      skipped: results.length - created,
+      processed: results.length,
+      remaining: Math.max(pending.length - batch.length, 0),
+      results,
+    })
+  }
+
+  if (!article_id && !slug) {
+    return NextResponse.json({ error: 'Provide article_id, slug, or all: true' }, { status: 400 })
+  }
+
+  let query = svc.from('articles').select(ARTICLE_COLUMNS)
+  query = article_id ? query.eq('id', article_id) : query.eq('slug', slug)
 
   const { data: article, error: articleError } = await query.single()
   if (articleError || !article) return NextResponse.json({ error: 'Article not found' }, { status: 404 })
 
-  // Check if facts already exist for this article
-  const { count } = await svc
-    .from('facts')
-    .select('id', { count: 'exact', head: true })
-    .eq('article_id', article.id)
+  const result = await backfillOne(svc, article as ArticleRow)
 
-  if ((count ?? 0) > 0) {
-    return NextResponse.json({ message: `Already has ${count} facts — skipping. Delete existing facts first to re-run.`, count })
+  if (result.status === 'exists') {
+    return NextResponse.json({
+      message: `Already on Fact Flow — skipping. Delete the existing fact first to re-run.`,
+      count: result.count,
+    })
+  }
+  if (result.status === 'skipped') {
+    return NextResponse.json({ error: result.reason }, { status: 422 })
   }
 
-  const extractorPrompt = await getPrompt(svc, 'prompt_extractor', DEFAULT_EXTRACTOR_PROMPT)
-  const openai = getOpenAI()
-
-  // Try source URL first; fall back to the published article body
-  let extractText: string | null = null
-  let textSource = 'source'
-
-  if (article.source_url) {
-    const fetched = await fetchArticleText(article.source_url)
-    if (fetched && fetched.length >= 200) {
-      extractText = fetched
-    }
-  }
-
-  if (!extractText) {
-    // Use the published article content (strip markdown for cleaner extraction)
-    extractText = article.content ?? null
-    textSource = 'article body'
-  }
-
-  if (!extractText || extractText.length < 200) {
-    return NextResponse.json({ error: 'No usable text found in source or article body' }, { status: 422 })
-  }
-
-  const extractInput = [
-    article.source_url ? `Source URL: ${article.source_url}` : '',
-    `Title: ${article.title}`,
-    `Article content:\n${extractText}`,
-  ].filter(Boolean).join('\n\n')
-
-  const extractRes = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: extractorPrompt },
-      { role: 'user', content: extractInput },
-    ],
+  return NextResponse.json({
+    ok: true,
+    article_slug: (article as ArticleRow).slug,
+    facts_saved: 1,
+    fact: result.content,
+    status: result.status,
   })
-  const raw = extractRes.choices[0].message.content ?? ''
-
-  if (raw.trim() === 'UNUSABLE_CONTENT') {
-    return NextResponse.json({ error: `UNUSABLE_CONTENT from ${textSource}` }, { status: 422 })
-  }
-
-  // Distil into 2-3 curated news bullets
-  const factFlowPrompt = await getPrompt(svc, 'prompt_factflow', DEFAULT_FACTFLOW_PROMPT)
-  const distilRes = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: factFlowPrompt },
-      { role: 'user', content: raw },
-    ],
-  })
-  const distilled = parseDistilledFacts(distilRes.choices[0].message.content ?? '')
-  if (distilled.length === 0) {
-    return NextResponse.json({ error: 'No facts parsed after distillation', raw }, { status: 422 })
-  }
-
-  // Resolve source_name from rss_sources via draft linkage if available
-  const { data: draft } = await svc
-    .from('drafts')
-    .select('source_feed_id')
-    .eq('id', article.draft_id ?? '')
-    .maybeSingle()
-
-  let sourceName: string | null = null
-  if (draft?.source_feed_id) {
-    const { data: src } = await svc
-      .from('rss_sources')
-      .select('name')
-      .eq('id', draft.source_feed_id)
-      .single()
-    sourceName = src?.name ?? null
-  }
-
-  const { error: insertError } = await svc.from('facts').insert(
-    distilled.map(content => ({
-      content,
-      category: 'news',
-      source_url: article.source_url,
-      source_name: sourceName,
-      article_id: article.id,
-    }))
-  )
-
-  if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
-
-  return NextResponse.json({ ok: true, article_slug: article.slug, facts_saved: distilled.length, text_source: textSource })
 }

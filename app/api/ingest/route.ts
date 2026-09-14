@@ -3,10 +3,10 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { fetchFeed, fetchArticleText } from '@/lib/rss'
 import { getOpenAI } from '@/lib/openai'
 import { slugify, uniqueSlug } from '@/lib/slugify'
-import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, DEFAULT_FACTFLOW_PROMPT } from '@/lib/prompts'
+import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT } from '@/lib/prompts'
 import { classifyArticle } from '@/lib/classify'
 import { extractTeaser } from '@/lib/utils'
-import { parseDistilledFacts } from '@/lib/facts'
+import { distillHeadlineFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 
 async function getPrompt(supabase: ReturnType<typeof createServiceClient>, key: string, fallback: string): Promise<string> {
@@ -199,25 +199,25 @@ export async function POST(req: NextRequest) {
               console.error(`[ingest] could not store extracted facts for ${item.link}:`, factsError)
             }
 
-            const factFlowPrompt = await getPrompt(supabase, 'prompt_factflow', DEFAULT_FACTFLOW_PROMPT)
-            const distilRes = await openai.chat.completions.create({
-              model: 'gpt-4o-mini',
-              messages: [
-                { role: 'system', content: factFlowPrompt },
-                { role: 'user', content: facts },
-              ],
-            })
-            const distilled = parseDistilledFacts(distilRes.choices[0].message.content ?? '')
-            if (distilled.length > 0) {
-              await supabase.from('facts').insert(
-                distilled.map(content => ({
-                  content,
-                  category: 'news',
-                  source_url: item.link,
-                  source_name: source.name,
-                  draft_id: draftRow.id,
-                }))
-              )
+            // Fact Flow carries one fact per article — the most important one.
+            // It is distilled here, off the pristine Stage 1 sheet, and stays
+            // parked on the draft until approval promotes it onto the article.
+            // If this comes back empty the approval step distils again rather
+            // than publishing the article with nothing on Fact Flow.
+            const headline = await distillHeadlineFact(supabase, facts)
+            if (headline) {
+              const { error: factError } = await supabase.from('facts').insert({
+                content: headline,
+                category: 'news',
+                source_url: item.link,
+                source_name: source.name,
+                draft_id: draftRow.id,
+              })
+              if (factError) {
+                console.error(`[ingest] fact insert failed for ${item.link}:`, factError)
+              }
+            } else {
+              console.warn(`[ingest] no publishable fact distilled for ${item.link}`)
             }
           }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import { embedAndStoreArticle } from '@/lib/embeddings'
+import { ensureArticleFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 
 export async function GET(req: NextRequest) {
@@ -38,6 +39,13 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  // Same guarantee as the draft-approval path: an article never goes live
+  // without its one Fact Flow entry. No draft here, so it distils from the body.
+  await ensureArticleFact(supabase, {
+    articleId: data.id,
+    title,
+    content: linkedContent,
+  })
   await embedAndStoreArticle(supabase, data.id)
   return NextResponse.json(data, { status: 201 })
 }
