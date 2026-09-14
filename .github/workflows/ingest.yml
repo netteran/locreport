@@ -1,7 +1,17 @@
-name: Daily Ingest
+name: Ingest
 on:
   schedule:
-    - cron: '30 10 * * *'
+    # Three runs on workdays — 10am, 1pm and 5pm Warsaw time (Europe/Warsaw, CET/CEST).
+    # GitHub Actions cron is UTC-only and ignores DST, so each target hour is scheduled at
+    # both possible UTC offsets and the job itself decides which firing is live (see
+    # "Check DST offset"). None of these conversions cross midnight, so the weekday range
+    # is the same 1-5 for every entry.
+    - cron: '0 8 * * 1-5'  # 10am CEST (UTC+2, roughly late Mar–late Oct)
+    - cron: '0 9 * * 1-5'  # 10am CET  (UTC+1, roughly late Oct–late Mar)
+    - cron: '0 11 * * 1-5' # 1pm CEST
+    - cron: '0 12 * * 1-5' # 1pm CET
+    - cron: '0 15 * * 1-5' # 5pm CEST
+    - cron: '0 16 * * 1-5' # 5pm CET
   workflow_dispatch:
 
 jobs:
@@ -9,7 +19,43 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Check DST offset
+        id: dst
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          SCHEDULE="${{ github.event.schedule }}"
+          # GitHub Actions can delay a scheduled run by hours under load, so matching on
+          # the exact target hour is unreliable — a late-firing run would see the wrong
+          # local hour and skip every time. Match on which DST offset is currently active
+          # instead: that only flips twice a year, so a delayed run still resolves correctly.
+          CURRENT_OFFSET="$(TZ='Europe/Warsaw' date +%z)"
+
+          case "$SCHEDULE" in
+            "0 8 * * 1-5")  LOCAL_TIME="10:00"; EXPECTED_OFFSET="+0200" ;;
+            "0 9 * * 1-5")  LOCAL_TIME="10:00"; EXPECTED_OFFSET="+0100" ;;
+            "0 11 * * 1-5") LOCAL_TIME="13:00"; EXPECTED_OFFSET="+0200" ;;
+            "0 12 * * 1-5") LOCAL_TIME="13:00"; EXPECTED_OFFSET="+0100" ;;
+            "0 15 * * 1-5") LOCAL_TIME="17:00"; EXPECTED_OFFSET="+0200" ;;
+            "0 16 * * 1-5") LOCAL_TIME="17:00"; EXPECTED_OFFSET="+0100" ;;
+            *)
+              echo "Unrecognized schedule: $SCHEDULE" >&2
+              exit 1
+              ;;
+          esac
+
+          if [ "$CURRENT_OFFSET" = "$EXPECTED_OFFSET" ]; then
+            echo "Running the $LOCAL_TIME Warsaw slot (offset $CURRENT_OFFSET)."
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping: this entry covers $LOCAL_TIME Warsaw at $EXPECTED_OFFSET, but the current offset is $CURRENT_OFFSET."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Run ingest
+        if: steps.dst.outputs.proceed == 'true'
         run: |
           curl -f --max-time 300 -X POST https://locreport.com/api/ingest \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \

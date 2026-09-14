@@ -545,18 +545,22 @@ implementation detail the route itself doesn't care about:
 
 | Schedule | Trigger | Purpose |
 |---|---|---|
-| `30 10 * * *` (10:30 UTC daily) | GitHub Actions `ingest.yml` | POST `/api/ingest` with `CRON_SECRET` header |
+| Workdays (Mon–Fri) 10am, 1pm and 5pm Warsaw time | GitHub Actions `ingest.yml` | POST `/api/ingest` with `CRON_SECRET` header — three runs a day, each scheduled at both DST offsets (`0 8/9,11/12,15/16 * * 1-5` UTC) with a runtime guard picking the live one |
 | Fridays 1pm Central European time | GitHub Actions `digest.yml` | POST `/api/digest/send?frequency=weekly` |
 | Workdays (Mon–Fri) 4pm Central European time | GitHub Actions `digest.yml` | POST `/api/digest/send?frequency=daily` (only reaches daily-frequency subscribers) |
-| `0 10 * * *` (10:00 UTC daily) | **Vercel Cron** (`vercel.json`) | POST `/api/scraped-sources/run` — refreshes every active feed-generator source, 30 min before the ingest run above reads them |
+| `0 10 * * *` (10:00 UTC daily) | **Vercel Cron** (`vercel.json`) | POST `/api/scraped-sources/run` — refreshes every active feed-generator source once a day. It lands between the morning and midday ingest runs, so the midday and evening runs read same-day XML while the morning run reads the previous day's |
 | On-demand | `workflow_dispatch` on both GitHub workflows | Manual trigger from GitHub Actions UI (digest has a frequency picker) |
 | On-demand | `/admin` dashboard | Ingest, feed generator, and Daily/Weekly digest (dry-run preview, then confirm to send) all have manual buttons |
 
-GitHub Actions cron is UTC-only and ignores DST, so `digest.yml` schedules **both** possible UTC offsets for each target local time (e.g. `0 11 * * 5` and `0 12 * * 5` for 1pm Friday) and a runtime guard checks the actual `Europe/Berlin` clock to decide which firing should actually send — the other is a no-op. This keeps the send time pinned to 1pm/4pm local wall-clock time year-round instead of drifting an hour across the DST boundary. The feed generator doesn't need this: it isn't wall-clock sensitive, so it's one Vercel Cron entry rather than a DST-aware pair.
+GitHub Actions cron is UTC-only and ignores DST, so both `digest.yml` and `ingest.yml` schedule **both** possible UTC offsets for each target local time (e.g. `0 11 * * 5` and `0 12 * * 5` for 1pm Friday) and a runtime guard decides which firing is live — the other is a no-op. This keeps each run pinned to local wall-clock time year-round instead of drifting an hour across the DST boundary.
+
+The guard matches on the **current UTC offset** of the target zone (`TZ=... date +%z`, compared against the offset each cron entry was written for, keyed off `github.event.schedule`) rather than on the local hour. Actions can delay a scheduled run by hours under load, and a late-firing run would read the wrong local hour and skip every single time; the offset only flips twice a year, so a delayed run still resolves correctly. `workflow_dispatch` bypasses the guard entirely. `digest.yml` reads `Europe/Berlin` and `ingest.yml` reads `Europe/Warsaw` — the same CET/CEST offsets, so the two agree.
+
+The feed generator doesn't need this: it isn't wall-clock sensitive, so it's one Vercel Cron entry rather than a DST-aware pair.
 
 The `CRON_SECRET` env var must be set in Vercel (Vercel attaches it as `Authorization: Bearer $CRON_SECRET` automatically on cron requests, and the API routes validate it the same way for manually-configured callers) and in the GitHub repository secrets (for the two workflows above to authenticate their own `curl` calls).
 
-Vercel's Hobby plan caps each cron job at once-per-day cadence (and fires within the scheduled hour, not to the minute) — fine for a daily job, but the reason ingest/digest weren't just moved to Vercel Cron too: digest needs the DST-pair trick above, which needs a pre-request decision step Vercel Cron can't run (it just GETs the path).
+Vercel's Hobby plan caps each cron job at once-per-day cadence (and fires within the scheduled hour, not to the minute) — fine for a daily job, but the reason ingest/digest weren't just moved to Vercel Cron too: both need the DST-pair trick above, which needs a pre-request decision step Vercel Cron can't run (it just GETs the path), and ingest's three-runs-a-day cadence exceeds the Hobby cap outright.
 
 Monthly reports are triggered manually from the admin dashboard.
 
