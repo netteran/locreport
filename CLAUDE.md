@@ -43,7 +43,10 @@ app/
 components/
   ui/                    — Primitive UI components (Button, Card, Input, Badge, Textarea, Label)
   Nav.tsx                — Site header with dropdown nav + search + theme toggle
-  SubscribeForm.tsx      — Digest email capture (homepage, article footer, /intelligence)
+  DigestPopup.tsx        — The site's ONLY digest signup. Modal rendered once from
+                           (public)/layout.tsx; auto-opens once per visitor, reopenable forever
+                           from the footer trigger. See Digest Signup below
+  DigestPopupTrigger.tsx — Footer button that reopens DigestPopup via a window event
   SignalSparkline.tsx    — Tiny weekly-volume area chart (signals index/detail + MomentumStrip; Recharts, client)
   MomentumStrip.tsx      — Homepage strip: 4 signals by coverage momentum + sparklines
   BackfillEmbeddingsButton.tsx — Admin one-click embeddings backfill loop
@@ -114,7 +117,7 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 
 | Path | File | Notes |
 |---|---|---|
-| `/` | `page.tsx` | Split hero (gradient wash + orbs, Explore-tools panel) → sources marquee → "Highlighted story" briefing + high-impact rail → momentum strip → day-grouped stream (3 days) → digest band → CTA; sidebar carries Fact Flow, reports, active signals. **Runs the pre-2026-08-17 visual system — see Design System below.** |
+| `/` | `page.tsx` | Split hero (gradient wash + orbs, Explore-tools panel) → sources marquee → "Highlighted story" briefing + high-impact rail → momentum strip → day-grouped stream (3 days) → CTA; sidebar carries Fact Flow, reports, active signals. **Runs the pre-2026-08-17 visual system — see Design System below.** |
 | `/articles` | `articles/page.tsx` | All articles — server-side filters + pagination via URL params (`topic`, `impact`, `category`, `from`, `to`, `sort`, `page`) |
 | `/articles/[slug]` | `articles/[...slug]/page.tsx` | Article detail, 24h ISR revalidation |
 | `/intelligence` | `intelligence/page.tsx` | Signals dashboard + stats |
@@ -524,6 +527,32 @@ Working on it:
   out to global selectors — that is what would bleed this palette onto the rest of the site.
 
 **Theme:** `data-theme="dark"` on `<html>` activates dark mode via CSS variable overrides.
+
+### Digest Signup
+
+`components/DigestPopup.tsx` is the **only** signup surface on the site. The inline forms it replaced —
+the homepage and `/intelligence` `.subscribe-band` sections and the article-footer `.post-subscribe`
+block, all driven by a since-deleted `SubscribeForm.tsx` — were removed on 2026-09-14. Do not reintroduce
+an inline form; add entry points by dispatching to this popup instead.
+
+It mounts once in `app/(public)/layout.tsx`, so it renders **outside** the `.home-v1` scope and therefore
+reads the global institutional tokens on every page, homepage included. Keep its CSS global for that
+reason — scoping it would give the homepage a second visual treatment of the same component.
+
+Auto-open rules (all tunable via the constants at the top of the file):
+- Fires at `DELAY_MS` (45s) **or** `SCROLL_FRACTION` (50% scroll depth), whichever lands first.
+- Gated behind `MIN_PAGE_VIEWS` (2) views in the session, counted in `sessionStorage` on each pathname
+  change. At 2 it never interrupts a landing page — the trade-off is that a **single-page visit never
+  sees it**. Set it to 1 to reach those visitors.
+- Fires at most once per page load (`armedRef`), and once per visitor overall.
+
+`localStorage['locreport.digest']` holds `{status, at}`: `dismissed` suppresses the auto-open for
+`DISMISS_DAYS` (60), `subscribed` suppresses it permanently. Every storage read/write is wrapped in
+try/catch — private windows and blocked site data throw, and the page must still render.
+
+The footer trigger dispatches the `locreport:digest-open` window event, which **bypasses every
+suppression rule** — the visitor asked for it. That event is the supported way to open the popup from
+anywhere; it needs no shared provider, so Server Components can host a trigger.
 
 **TailwindCSS 4:** Configured through PostCSS. Custom CSS vars integrate with Tailwind utility classes.
 

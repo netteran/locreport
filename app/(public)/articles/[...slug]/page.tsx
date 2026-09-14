@@ -8,7 +8,6 @@ import { Article, ARTICLE_COLUMNS } from '@/lib/types'
 import { articleHref, estimateReadMinutes, safeImageUrl } from '@/lib/utils'
 import { SIGNAL_MAP } from '@/lib/signals'
 import { ShareButton } from '@/components/ShareButton'
-import { SubscribeForm } from '@/components/SubscribeForm'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -253,11 +252,6 @@ export default async function ArticlePage({ params }: Props) {
             )}
           </section>
         )}
-
-        <div className="post-subscribe">
-          <p className="post-subscribe__title">Get stories like this in your inbox</p>
-          <SubscribeForm compact />
-        </div>
 
         {hasRelated && (
           <section className="post-related" aria-label="Related reading">
