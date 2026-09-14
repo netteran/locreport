@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   const { error: emailError } = await getResend().emails.send({
     from: digestFrom(),
     to: email,
-    subject: 'Confirm your LocReport digest subscription',
+    subject: 'Confirm your spot on The Weekly',
     html: confirmEmail({ confirmUrl }),
   })
   if (emailError) {

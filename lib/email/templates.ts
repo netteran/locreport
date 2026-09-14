@@ -56,13 +56,14 @@ function shell(bodyHtml: string, footerHtml: string): string {
 
 export function confirmEmail({ confirmUrl }: { confirmUrl: string }): string {
   const body = `
-    <h1 style="margin:0 0 12px;font-size:22px;letter-spacing:-0.01em;">Confirm your subscription</h1>
+    <h1 style="margin:0 0 12px;font-size:22px;letter-spacing:-0.01em;">One click and you’re in</h1>
     <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:${BRAND.muted};">
-      You asked to receive the LocReport digest — curated language-industry
-      intelligence with impact scoring and signal tracking. Click below to confirm.
+      You asked to join The Weekly — what’s moving in translation, localization
+      and language AI, and what it means for your work. Confirm below and the
+      next issue is yours.
     </p>
     <a href="${confirmUrl}" style="display:inline-block;background:${BRAND.accent};color:#ffffff;font-size:15px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">
-      Confirm subscription
+      Confirm and join
     </a>
     <p style="margin:20px 0 0;font-size:13px;line-height:1.6;color:${BRAND.muted};">
       If you didn't request this, ignore this email and nothing will be sent.
@@ -125,13 +126,13 @@ export function digestEmail({ periodLabel, topStory, sections, roundup, roundupH
       </p>`).join('')}` : ''
 
   const body = `
-    <p style="margin:0 0 20px;font-size:13px;color:${BRAND.muted};">Your language-industry intelligence digest · ${escapeHtml(periodLabel)}</p>
+    <p style="margin:0 0 20px;font-size:13px;color:${BRAND.muted};">The Weekly · ${escapeHtml(periodLabel)}</p>
     ${topHtml}
     ${sectionsHtml}
     ${roundupHtml}`
 
   const footer = `
-    You're receiving this because you subscribed to the LocReport digest.<br>
+    You're receiving this because you joined The Weekly from LocReport.<br>
     <a href="${manageUrl}" style="color:${BRAND.muted};">Manage preferences</a> ·
     <a href="${unsubscribeUrl}" style="color:${BRAND.muted};">Unsubscribe</a><br>
     LocReport · locreport.com`

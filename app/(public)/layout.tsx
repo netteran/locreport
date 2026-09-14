@@ -22,7 +22,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               </Link>
               <p className="footer-tagline">The pulse of the language services industry.</p>
               <DigestPopupTrigger className="footer-digest-link">
-                Get the weekly digest →
+                Join The Weekly →
               </DigestPopupTrigger>
               <a href="https://x.com/locreport" className="footer-x-link" target="_blank" rel="noopener" aria-label="LocReport on X">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
