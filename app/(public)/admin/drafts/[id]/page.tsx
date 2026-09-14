@@ -7,6 +7,7 @@ import { ImageDropzone } from '@/components/ImageDropzone'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 
 function clientSlugify(text: string): string {
   return text
@@ -43,6 +44,10 @@ export default function DraftReviewPage() {
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [rerunning, setRerunning] = useState(false)
   const [confirmRerun, setConfirmRerun] = useState(false)
+  // Optional extra direction for Stage 2 only — kept between re-runs so the wording can be
+  // iterated on without retyping it.
+  const [rerunInstruction, setRerunInstruction] = useState('')
+  const [rerunNote, setRerunNote] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -132,12 +137,18 @@ export default function DraftReviewPage() {
   }
 
   async function rerun() {
+    const instruction = rerunInstruction.trim()
     setConfirmRerun(false)
     setRerunning(true)
     setError('')
+    setRerunNote('')
     setDraft(d => d ? { ...d, status: 'rerunning' } : d)
     try {
-      const res = await fetch(`/api/drafts/${id}/rerun`, { method: 'POST' })
+      const res = await fetch(`/api/drafts/${id}/rerun`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instruction }),
+      })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         setError(d.error ?? `Re-run failed (${res.status})`)
@@ -145,7 +156,7 @@ export default function DraftReviewPage() {
         setRerunning(false)
         return
       }
-      const updated: Draft = await res.json()
+      const updated: Draft & { facts_reused?: boolean } = await res.json()
       setDraft(updated)
       setContent(updated.content)
       const h1 = updated.content.match(/^#\s+(.+)$/m)?.[1]?.trim()
@@ -153,6 +164,12 @@ export default function DraftReviewPage() {
       setEditTitle(resolvedTitle)
       setSlugManuallyEdited(false)
       setTab('preview')
+      setRerunNote([
+        instruction ? 'Re-run with your extra instruction.' : 'Re-run with the prompt as is.',
+        updated.facts_reused
+          ? 'Stage 1 facts reused unchanged.'
+          : 'No stored fact sheet — facts were extracted once and pinned to this draft for future re-runs.',
+      ].join(' '))
     } catch {
       setError('Network error during re-run.')
       setDraft(d => d ? { ...d, status: 'pending' } : d)
@@ -315,7 +332,10 @@ export default function DraftReviewPage() {
       {rerunning ? (
         <div className="py-12 text-center text-sm" style={{ color: 'var(--muted)' }}>
           <div className="mb-3 text-2xl">⟳</div>
-          Re-running article through the full generation pipeline…
+          Re-writing the article from the stored facts…
+          {rerunInstruction.trim() && (
+            <div className="mt-2 text-xs">Applying your extra Stage 2 instruction.</div>
+          )}
         </div>
       ) : tab === 'preview' ? (
         <div className="prose" dangerouslySetInnerHTML={{ __html: marked.parse(content) as string }} />
@@ -331,13 +351,52 @@ export default function DraftReviewPage() {
 
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
+      {rerunNote && !rerunning && !error && (
+        <p className="mt-4 text-xs" style={{ color: 'var(--muted)' }}>{rerunNote}</p>
+      )}
+
       {confirmRerun && (
-        <div className="mt-4 p-4 rounded-lg text-sm flex items-center justify-between gap-4"
+        <div className="mt-4 p-4 rounded-lg text-sm"
           style={{ background: '#fefce8', border: '1px solid #fde68a', color: '#92400e' }}>
-          <span>Re-run this article through the full 2-stage pipeline? The current content will be replaced.</span>
-          <div className="flex gap-2 shrink-0">
-            <Button onClick={rerun}>Confirm</Button>
+          <p className="font-semibold mb-1">Re-run this article? The current content will be replaced.</p>
+          <p className="mb-4 text-xs" style={{ color: '#78350f' }}>
+            {draft.extracted_facts
+              ? 'The Stage 1 facts stay exactly as they were extracted — only the Stage 2 write-up is regenerated.'
+              : 'This draft has no stored fact sheet yet, so Stage 1 runs once and is pinned to the draft; later re-runs reuse it unchanged.'}
+          </p>
+
+          <Label htmlFor="rerun-instruction" style={{ color: '#92400e' }}>
+            Extra Stage 2 instruction <span className="font-normal opacity-70">— optional</span>
+          </Label>
+          <Textarea
+            id="rerun-instruction"
+            value={rerunInstruction}
+            onChange={e => setRerunInstruction(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            placeholder="Leave blank to just re-run as is. Or shape the write-up, e.g. “Lead with the pricing change, cut the analyst quote, keep it under 400 words, more sceptical tone.”"
+            className="font-mono text-xs"
+          />
+          <p className="mt-1 text-xs" style={{ color: '#78350f' }}>
+            Applies to this run only. It shapes angle, structure, emphasis and length — it cannot add,
+            drop or alter a fact.
+          </p>
+
+          <div className="flex gap-2 mt-3 items-center flex-wrap">
+            <Button onClick={rerun}>
+              {rerunInstruction.trim() ? 'Re-run with instruction' : 'Re-run as is'}
+            </Button>
             <Button variant="ghost" onClick={() => setConfirmRerun(false)}>Cancel</Button>
+            {rerunInstruction.trim() && (
+              <button
+                type="button"
+                onClick={() => setRerunInstruction('')}
+                className="text-xs underline"
+                style={{ color: '#92400e' }}
+              >
+                Clear instruction
+              </button>
+            )}
           </div>
         </div>
       )}
