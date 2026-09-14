@@ -10,9 +10,15 @@ const BASE_URL = 'https://locreport.com'
 export async function GET() {
   const supabase = await createClient()
 
+  // Only facts attached to a published article. A fact is created at ingest time,
+  // before its draft is reviewed, so an unattached fact belongs to a draft that was
+  // rejected or is still pending — it must not reach a public feed. The /fact-flow
+  // page, the homepage strip and the tweet job all filter the same way; this route
+  // did not, so rejected material was being served here.
   const { data: facts } = await supabase
     .from('facts')
     .select('id, content, category, article_id, created_at')
+    .not('article_id', 'is', null)
     .order('created_at', { ascending: false })
     .limit(100)
 

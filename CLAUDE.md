@@ -338,7 +338,7 @@ Known weak scrapes as of 2026-09-14, all reporting `success`:
 | `LingopalAI` | 0 | no | Extracting nothing from `lingopal.ai/industrynews-blog`; now on `/api/feeds` regardless. Needs new selectors |
 | `DeepL-Press-Releases` | 0 | no | Extracting nothing yet; URL retried at `/en/press-release` |
 | `PRNewswire-L10N` | 0 | yes | Suspect — the keyword filter could legitimately exclude everything, but not at PR Newswire's volume |
-| `RWS-media-centre` | 20 → reconfigured | no | Was pointed at the media centre with `link_selector = null`, so **every** candidate was skipped, the anchor fallback ran, and the 20 "items" were general site links. Now scrapes `https://www.rws.com/blog/` with selectors validated against the live markup. The row name is now a misnomer — it serves the blog, not the media centre |
+| `RWS-Blog` | 20 → reconfigured | no | Was `RWS-media-centre`, pointed at the media centre with `link_selector = null`, so **every** candidate was skipped, the anchor fallback ran, and the 20 "items" were product and marketing pages. Renamed and re-pointed at `https://www.rws.com/blog/` with selectors validated against the live markup (`.list__results__wrapper` / `h2` / `a[href*='/blog/']` / `.blog_item__subtitle` / `time`, pattern `/blog/`). The `rss_sources` row was **updated in place**, not recreated, so its 12 existing drafts kept their `source_feed_id` |
 | `XTM-Blog` | 1 | no | Suspect — a blog index should yield more than one |
 | `OpenAI-News-L10N` | 0 | yes | Plausible; narrow keywords over a low-volume feed |
 | `Cohere-Newsroom-L10N` | 1 | yes | Plausible |
@@ -383,6 +383,19 @@ resend_id text
 sent_at timestamptz
 ```
 Audit trail + idempotency for digest runs (re-runs skip subscribers with `last_sent_at` inside the period).
+
+### `facts` visibility rule
+
+A fact row is written by **ingest**, before its draft is reviewed, and only gets an `article_id` when that
+draft is approved (`/api/drafts/[id]` links them on the approve branch). So `article_id IS NULL` means the
+fact belongs to a draft that was rejected or is still pending, and **must not be shown publicly**. Every
+public consumer filters on `.not('article_id', 'is', null)`: the `/fact-flow` page, the homepage strip,
+`/fact-flow/feed.xml` and `/api/tweet-facts`. `/admin/fact-flow` deliberately does not filter, so orphans
+stay curatable.
+
+`/fact-flow/feed.xml` was missing that filter until 2026-09-14 and was serving rejected material — at the
+time there were 222 orphan facts against 343 linked ones, 220 of the orphans from rejected drafts. Nothing
+had been tweeted, since the tweet job filtered correctly. **Add the filter to any new facts consumer.**
 
 ### `llm_pricing_quotes`
 ```
