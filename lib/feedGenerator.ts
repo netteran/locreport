@@ -5,11 +5,11 @@ import { escapeXml } from '@/lib/utils'
 import type { ContentFilter, ScrapedSource } from '@/lib/types'
 
 // Ported from aparasion/rss-generator's generate.js. Two simplifications vs.
-// the original, both a consequence of moving from an hourly Action to a
-// once-daily run (see vercel.json): no ETag/Last-Modified 304 short-circuit
-// on the listing page itself (a day-old page is worth re-parsing regardless),
-// and no retry/backoff/429 handling (a single fetch with a timeout, matching
-// lib/rss.ts's existing fetch helpers). The per-article relevance memo
+// the original, both a consequence of running a few times a day rather than
+// hourly (it is invoked by ingest.yml immediately before each ingest run): no
+// ETag/Last-Modified 304 short-circuit on the listing page itself (a hours-old
+// page is worth re-parsing regardless), and no retry/backoff/429 handling (a
+// single fetch with a timeout, matching lib/rss.ts's existing fetch helpers). The per-article relevance memo
 // (classified_links) is kept — it still saves a full-page re-fetch per
 // article on every run, independent of cadence.
 

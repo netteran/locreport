@@ -295,7 +295,7 @@ export default function AdminDashboard() {
 
         <ActionRow
           title="Run feed generator"
-          description="Refreshes every active scraped source — HTML listing pages read via CSS selectors, or existing feeds re-filtered by keyword — and republishes each one at /api/feeds/<name> for the sources above to pull from. Runs automatically via Vercel Cron once a day. Manage sources, see per-source status, and run one individually at /admin/scraped-sources."
+          description="Refreshes every active scraped source — HTML listing pages read via CSS selectors, or existing feeds re-filtered by keyword — and republishes each one at /api/feeds/<name> for the sources above to pull from. Runs automatically at the start of every scheduled ingest run (10am/1pm/5pm Warsaw, workdays), so ingest always reads freshly generated XML. Manage sources, see per-source status, and run one individually at /admin/scraped-sources."
           controls={
             <RunFeedButton
               label="Run"
