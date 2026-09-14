@@ -70,6 +70,9 @@ lib/
   topics.ts              — Topic definitions (signals + keywords) shared by /articles filters and badges
   email/
     templates.ts         — Inline-styled HTML email builders (confirm + digest)
+    digest.ts            — Pure digest composition: selectForSubscriber() narrows the week's
+                           articles to one subscriber's preferences, composeDigest() splits the
+                           result into top story / signal briefings / roundup
     send.ts              — Resend client helper, SITE_URL, digest from-address
   prompts.ts             — LLM system prompts (also editable in DB settings table)
   classify.ts            — Article classification logic (impact, signals, segments, implications)
@@ -128,7 +131,7 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 | `/compass/directory` | `compass/directory/page.tsx` | 31 localization tech vendors |
 | `/search` | `search/page.tsx` | Hybrid semantic + full-text search (`?q=...`), RRF-ranked via `hybrid_search_articles` RPC with keyword/ilike fallbacks |
 | `/subscribe/confirm` | `subscribe/confirm/page.tsx` | Double-opt-in confirmation (`?token=`), noindex |
-| `/subscribe/manage` | `subscribe/manage/page.tsx` | Tokenized digest preferences (signals, min impact, frequency), noindex |
+| `/subscribe/manage` | `subscribe/manage/page.tsx` | Tokenized digest preferences (week-in-brief roundup on/off, signal briefings, min impact), noindex |
 | `/subscribe/unsubscribed` | `subscribe/unsubscribed/page.tsx` | Post-unsubscribe confirmation, noindex |
 | `/feed.xml` | `feed.xml/route.ts` | Articles RSS feed (latest 50) |
 | `/about` | `about/page.tsx` | About page |
@@ -151,7 +154,7 @@ Several Compass and other sections use co-located client components:
 
 | Path | Purpose |
 |---|---|
-| `/admin` | Dashboard: stats banner + a compact action list (`.admin-actions` in `style.css`). Each row is title + controls; the long description collapses behind the title toggle, while confirmation panels and result messages always render inline. Actions: ingest, embeddings backfill, monthly report, digest send (daily/weekly), Fact Flow backfill, market quotes, LLM pricing |
+| `/admin` | Dashboard: stats banner + a compact action list (`.admin-actions` in `style.css`). Each row is title + controls; the long description collapses behind the title toggle, while confirmation panels and result messages always render inline. Actions: ingest, embeddings backfill, monthly report, digest send (weekly), Fact Flow backfill, market quotes, LLM pricing |
 | `/admin/articles` | Article list management |
 | `/admin/articles/[id]` | Edit individual article |
 | `/admin/drafts` | Draft review queue (pending/approved/rejected) |
@@ -197,9 +200,9 @@ Several Compass and other sections use co-located client components:
 | `/api/admin/backfill-embeddings` | POST | Embed articles with null embedding, batched; returns `{embedded, remaining}` (admin session or CRON_SECRET) |
 | `/api/uploads/article-image` | POST | Admin-only: validates type/size, ensures the `images` storage bucket exists, returns a signed upload URL + public URL. The bytes never pass through the route |
 | `/api/subscribe` | POST | Digest signup → pending subscriber + Resend confirm email (double opt-in) |
-| `/api/subscribe/preferences` | POST | Token-authenticated preference updates / unsubscribe |
+| `/api/subscribe/preferences` | POST | Token-authenticated preference updates (`signal_prefs`, `include_summary`, `min_impact`) / unsubscribe. Rejects a combination that would select nothing — summary off with no signals picked |
 | `/api/subscribe/unsubscribe` | GET/POST | One-click unsubscribe (`?token=`); POST is the RFC 8058 List-Unsubscribe target |
-| `/api/digest/send` | POST | Compose + send personalized digest via Resend batch (`?frequency=weekly\|daily`, CRON_SECRET or admin). `?dry=1` resolves the recipient list without emailing or recording a send — powers the admin dashboard's preview-then-confirm buttons |
+| `/api/digest/send` | POST | Compose + send the personalized weekly digest via Resend batch (CRON_SECRET or admin). Always a 7-day period — there is no frequency parameter. `?dry=1` resolves the recipient list without emailing or recording a send — powers the admin dashboard's preview-then-confirm button |
 
 ---
 
@@ -348,15 +351,29 @@ Populated from legacy Jekyll migration to prevent re-ingesting old content.
 id uuid PK
 email text UNIQUE
 status 'pending' | 'active' | 'unsubscribed'
-signal_prefs text[]        — signal ids from lib/signals.ts; empty = all signals
+signal_prefs text[]        — signal ids from lib/signals.ts to get a dedicated briefing section
+                             for; empty = no briefings (the general roundup alone)
+include_summary boolean    — carry "the week in brief", an impact-ranked roundup of everything
+                             published in the period, alongside any signal briefings
 min_impact int (1–5)
-frequency 'weekly' | 'daily'
 confirm_token uuid         — double-opt-in link
 manage_token uuid          — preferences/unsubscribe links
 confirmed_at / unsubscribed_at / last_sent_at timestamptz
 created_at timestamptz
 ```
 RLS enabled with no policies — service-role access only. Same for `digest_sends`.
+
+**The digest is weekly-only.** The `frequency` column and the daily cadence were removed on
+2026-09-14 (`supabase/migrations/20260914_weekly_digest_prefs.sql`); do not reintroduce a per-subscriber
+cadence without also restoring the second `digest.yml` schedule pair and its DST guard entries.
+
+`signal_prefs` no longer acts as a filter on its own — it selects *extra* briefing sections. What a
+subscriber receives is the union of (the whole period, if `include_summary`) and (anything tagged with a
+followed signal), with `min_impact` as a floor on both. A `subscribers_digest_content_check` constraint
+forbids the empty combination (`include_summary` false with no signals), and both
+`/api/subscribe/preferences` and the manage form refuse it before it reaches the DB. The migration
+switched `include_summary` off for anyone who already had signal picks, so no existing digest silently
+widened.
 
 ### `digest_sends`
 ```
@@ -598,11 +615,10 @@ has no `crons` key** — Vercel only builds and serves:
 | Schedule | Trigger | Purpose |
 |---|---|---|
 | Workdays (Mon–Fri) 10am, 1pm and 5pm Warsaw time | GitHub Actions `ingest.yml` | Two steps per run: POST `/api/scraped-sources/run` to regenerate every scrape source, then POST `/api/ingest`. Three runs a day, each scheduled at both DST offsets (`0 8/9,11/12,15/16 * * 1-5` UTC) with a runtime guard picking the live one |
-| Fridays 1pm Central European time | GitHub Actions `digest.yml` | POST `/api/digest/send?frequency=weekly` |
-| Workdays (Mon–Fri) 4pm Central European time | GitHub Actions `digest.yml` | POST `/api/digest/send?frequency=daily` (only reaches daily-frequency subscribers) |
+| Fridays 1pm Central European time | GitHub Actions `digest.yml` | POST `/api/digest/send` — the only digest run; there is no daily cadence |
 | `0 6,9,12,14,16 * * 1-5` Europe/Warsaw | **GitLab CI** (external `aparasion/rss-generator`, outside this repo) | Regenerates `https://aparasion.gitlab.io/rss-generator/rss/DeepL-Press-Releases.xml` — the one remaining feed not yet served by the embedded generator. Not part of the GitHub→Vercel setup; from ingest's side it is an ordinary feed URL |
-| On-demand | `workflow_dispatch` on both GitHub workflows | Manual trigger from GitHub Actions UI (digest has a frequency picker) |
-| On-demand | `/admin` dashboard | Ingest, feed generator, and Daily/Weekly digest (dry-run preview, then confirm to send) all have manual buttons |
+| On-demand | `workflow_dispatch` on both GitHub workflows | Manual trigger from GitHub Actions UI |
+| On-demand | `/admin` dashboard | Ingest, feed generator, and the weekly digest (dry-run preview, then confirm to send) all have manual buttons |
 
 GitHub Actions cron is UTC-only and ignores DST, so both `digest.yml` and `ingest.yml` schedule **both** possible UTC offsets for each target local time (e.g. `0 11 * * 5` and `0 12 * * 5` for 1pm Friday) and a runtime guard decides which firing is live — the other is a no-op. This keeps each run pinned to local wall-clock time year-round instead of drifting an hour across the DST boundary.
 

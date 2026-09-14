@@ -85,11 +85,12 @@ export interface DigestSection {
   articles: DigestArticle[]
 }
 
-export function digestEmail({ periodLabel, topStory, sections, radar, manageUrl, unsubscribeUrl }: {
+export function digestEmail({ periodLabel, topStory, sections, roundup, roundupHeading, manageUrl, unsubscribeUrl }: {
   periodLabel: string
   topStory: DigestArticle | null
   sections: DigestSection[]
-  radar: DigestArticle[]
+  roundup: DigestArticle[]
+  roundupHeading: string
   manageUrl: string
   unsubscribeUrl: string
 }): string {
@@ -116,9 +117,9 @@ export function digestEmail({ periodLabel, topStory, sections, radar, manageUrl,
     `).join('')}
     <hr style="border:none;border-top:1px solid ${BRAND.border};margin:16px 0 24px;">`).join('')
 
-  const radarHtml = radar.length ? `
-    <p style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.muted};">Also on the radar</p>
-    ${radar.map(a => `
+  const roundupHtml = roundup.length ? `
+    <p style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.muted};">${escapeHtml(roundupHeading)}</p>
+    ${roundup.map(a => `
       <p style="margin:0 0 8px;font-size:13px;line-height:1.5;">
         <a href="${a.url}" style="color:${BRAND.text};text-decoration:underline;text-decoration-color:${BRAND.border};">${escapeHtml(a.title)}</a>
       </p>`).join('')}` : ''
@@ -127,7 +128,7 @@ export function digestEmail({ periodLabel, topStory, sections, radar, manageUrl,
     <p style="margin:0 0 20px;font-size:13px;color:${BRAND.muted};">Your language-industry intelligence digest · ${escapeHtml(periodLabel)}</p>
     ${topHtml}
     ${sectionsHtml}
-    ${radarHtml}`
+    ${roundupHtml}`
 
   const footer = `
     You're receiving this because you subscribed to the LocReport digest.<br>

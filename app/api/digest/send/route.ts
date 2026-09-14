@@ -1,71 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { SIGNAL_MAP } from '@/lib/signals'
-import { articleHref } from '@/lib/utils'
-import { digestEmail, DigestArticle, DigestSection } from '@/lib/email/templates'
+import { digestEmail } from '@/lib/email/templates'
 import { digestFrom, getResend, SITE_URL } from '@/lib/email/send'
+import { composeDigest, selectForSubscriber, DigestPrefs, DigestSourceArticle } from '@/lib/email/digest'
 
 export const maxDuration = 300
 
 const BATCH_SIZE = 100
 
-interface DigestSourceArticle {
-  id: string
-  title: string
-  slug: string
-  excerpt: string | null
-  impact_score: number | null
-  signal_ids: string[] | null
-  business_implications: string[] | null
-  published_at: string
-}
-
-function toDigestArticle(a: DigestSourceArticle): DigestArticle {
-  return {
-    id: a.id,
-    title: a.title,
-    url: `${SITE_URL}${articleHref(a.slug)}`,
-    excerpt: a.excerpt,
-    impact_score: a.impact_score,
-    business_implications: a.business_implications,
-  }
-}
-
-// Compose Top Story + per-signal sections + a one-liner radar from a set of
-// articles (already filtered to the subscriber's preferences).
-function composeDigest(articles: DigestSourceArticle[]) {
-  const byImpact = [...articles].sort(
-    (a, b) => (b.impact_score ?? 0) - (a.impact_score ?? 0) || b.published_at.localeCompare(a.published_at)
-  )
-  const topStory = byImpact[0] ?? null
-  const used = new Set<string>(topStory ? [topStory.id] : [])
-
-  // Group remaining articles by signal, keep the 3 busiest signals
-  const bySignal = new Map<string, DigestSourceArticle[]>()
-  for (const a of byImpact) {
-    if (used.has(a.id)) continue
-    for (const sid of a.signal_ids ?? []) {
-      if (!SIGNAL_MAP.has(sid)) continue
-      if (!bySignal.has(sid)) bySignal.set(sid, [])
-      bySignal.get(sid)!.push(a)
-    }
-  }
-
-  const sections: DigestSection[] = []
-  const topSignals = [...bySignal.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 3)
-  for (const [sid, sigArticles] of topSignals) {
-    const fresh = sigArticles.filter(a => !used.has(a.id)).slice(0, 3)
-    if (fresh.length === 0) continue
-    fresh.forEach(a => used.add(a.id))
-    sections.push({
-      heading: SIGNAL_MAP.get(sid)!.title,
-      articles: fresh.map(toDigestArticle),
-    })
-  }
-
-  const radar = byImpact.filter(a => !used.has(a.id)).slice(0, 6).map(toDigestArticle)
-  return { topStory: topStory ? toDigestArticle(topStory) : null, sections, radar }
-}
+// The digest is weekly-only — there is no daily cadence any more.
+const PERIOD_DAYS = 7
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('Authorization')
@@ -79,14 +23,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const frequency = req.nextUrl.searchParams.get('frequency') === 'daily' ? 'daily' : 'weekly'
   // Dry run resolves recipients exactly as a real send would but stops before
   // Resend, so the admin dashboard can preview a send before committing to it.
   // Nothing is emailed and no send is recorded.
   const dryRun = req.nextUrl.searchParams.get('dry') === '1'
-  const days = frequency === 'daily' ? 1 : 7
   const periodEnd = new Date()
-  const periodStart = new Date(periodEnd.getTime() - days * 24 * 60 * 60 * 1000)
+  const periodStart = new Date(periodEnd.getTime() - PERIOD_DAYS * 24 * 60 * 60 * 1000)
 
   const service = createServiceClient()
 
@@ -102,7 +44,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       dryRun,
-      frequency,
       recipients: 0,
       sent: 0,
       skipped: 0,
@@ -113,15 +54,12 @@ export async function POST(req: NextRequest) {
 
   const { data: subscribers, error: subsError } = await service
     .from('subscribers')
-    .select('id, email, signal_prefs, min_impact, manage_token, last_sent_at')
+    .select('id, email, signal_prefs, include_summary, min_impact, manage_token, last_sent_at')
     .eq('status', 'active')
-    .eq('frequency', frequency)
 
   if (subsError) return NextResponse.json({ error: subsError.message }, { status: 500 })
 
-  const periodLabel = frequency === 'daily'
-    ? periodEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-    : `Week of ${periodStart.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`
+  const periodLabel = `Week of ${periodStart.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`
 
   type Payload = {
     from: string
@@ -142,18 +80,19 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    const prefs: string[] = sub.signal_prefs ?? []
-    const matched = (articles as DigestSourceArticle[]).filter(a => {
-      if ((a.impact_score ?? 0) < (sub.min_impact ?? 1)) return false
-      if (prefs.length === 0) return true
-      return (a.signal_ids ?? []).some(sid => prefs.includes(sid))
-    })
+    const prefs: DigestPrefs = {
+      signalPrefs: sub.signal_prefs ?? [],
+      // Rows written before the preference existed default to the roundup.
+      includeSummary: sub.include_summary ?? true,
+      minImpact: sub.min_impact ?? 1,
+    }
+    const matched = selectForSubscriber(articles as DigestSourceArticle[], prefs)
     if (matched.length === 0) {
       skipped++
       continue
     }
 
-    const { topStory, sections, radar } = composeDigest(matched)
+    const { topStory, sections, roundup, roundupHeading } = composeDigest(matched, prefs)
     const manageUrl = `${SITE_URL}/subscribe/manage?token=${sub.manage_token}`
     const unsubscribeUrl = `${SITE_URL}/api/subscribe/unsubscribe?token=${sub.manage_token}`
 
@@ -162,8 +101,8 @@ export async function POST(req: NextRequest) {
       to: sub.email,
       subject: topStory
         ? `LocReport digest: ${topStory.title}`
-        : `Your LocReport ${frequency} digest`,
-      html: digestEmail({ periodLabel, topStory, sections, radar, manageUrl, unsubscribeUrl }),
+        : 'Your LocReport weekly digest',
+      html: digestEmail({ periodLabel, topStory, sections, roundup, roundupHeading, manageUrl, unsubscribeUrl }),
       headers: {
         'List-Unsubscribe': `<${unsubscribeUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
@@ -177,7 +116,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       dryRun: true,
-      frequency,
       recipients: payloads.length,
       sent: 0,
       skipped,
@@ -217,7 +155,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     dryRun: false,
-    frequency,
     recipients: payloads.length,
     sent,
     skipped,
