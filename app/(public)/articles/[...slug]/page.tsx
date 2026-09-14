@@ -14,6 +14,17 @@ import type { Metadata } from 'next'
 
 export const revalidate = 86400
 
+// Deliberately empty: prerendering ~1,200 articles would make every deploy
+// depend on Supabase being healthy, which is the thing that keeps failing.
+// Declaring it at all is what matters — a dynamic route with no
+// generateStaticParams stays dynamic in Next.js 15, so `revalidate` above was
+// being ignored and every article view hit the database. With this, and
+// dynamicParams defaulting to true, each article is rendered on first request
+// and then served from cache until it revalidates.
+export async function generateStaticParams() {
+  return []
+}
+
 type Props = { params: Promise<{ slug: string[] }> }
 
 const IMPACT_LABEL: Record<number, string> = { 1: 'Routine', 2: 'Notable', 3: 'Significant', 4: 'Major', 5: 'Disruptive' }
