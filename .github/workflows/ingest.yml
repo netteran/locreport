@@ -66,9 +66,23 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json")"
           echo "$RESPONSE"
+
           FAILED="$(printf '%s' "$RESPONSE" | grep -o '"failed":[0-9]*' | head -1 | cut -d: -f2)"
           if [ -n "$FAILED" ] && [ "$FAILED" -gt 0 ]; then
-            echo "::warning::$FAILED scrape source(s) failed to regenerate — see /admin/scraped-sources"
+            echo "::warning::$FAILED scrape source(s) errored while regenerating — see /admin/scraped-sources"
+          fi
+
+          # A source that reports success with zero items is the dangerous case: it
+          # still writes a valid but empty RSS channel, so /api/feeds serves 200 and
+          # ingest reads nothing without any error being raised. Surface those by name.
+          # Guarded on jq so a missing binary can never fail the run and block ingest.
+          if command -v jq >/dev/null 2>&1; then
+            EMPTY="$(printf '%s' "$RESPONSE" | jq -r \
+              '[.results[] | select(.status=="success" and ((.itemCount // 0) == 0)) | .name] | join(", ")' \
+              2>/dev/null || true)"
+            if [ -n "$EMPTY" ]; then
+              echo "::warning::Scrape sources returned 0 items (empty feed, no error): $EMPTY"
+            fi
           fi
       - name: Run ingest
         if: steps.dst.outputs.proceed == 'true'
