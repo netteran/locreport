@@ -69,7 +69,7 @@ jobs:
 
           FAILED="$(printf '%s' "$RESPONSE" | grep -o '"failed":[0-9]*' | head -1 | cut -d: -f2)"
           if [ -n "$FAILED" ] && [ "$FAILED" -gt 0 ]; then
-            echo "::warning::$FAILED scrape source(s) errored while regenerating — see /admin/scraped-sources"
+            echo "::warning::$FAILED generated feed(s) errored while regenerating — see /admin/scraped-feeds"
           fi
 
           # A source that reports success with zero items is the dangerous case: it
@@ -81,7 +81,7 @@ jobs:
               '[.results[] | select(.status=="success" and ((.itemCount // 0) == 0)) | .name] | join(", ")' \
               2>/dev/null || true)"
             if [ -n "$EMPTY" ]; then
-              echo "::warning::Scrape sources returned 0 items (empty feed, no error): $EMPTY"
+              echo "::warning::Generated feeds returned 0 items (empty feed, no error): $EMPTY"
             fi
           fi
       - name: Run ingest

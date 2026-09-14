@@ -33,6 +33,9 @@ export interface ScrapedSource {
   feed_title: string | null
   feed_description: string | null
   content_filter: ContentFilter | null
+  // Ingest-level keyword filter, copied onto rss_sources.keywords when this feed is
+  // added to Sources. Distinct from content_filter, which gates generation itself.
+  keywords: string[]
   classified_links: Record<string, { relevant: boolean; checkedAt: string }>
   generated_xml: string | null
   last_run_at: string | null
@@ -60,6 +63,16 @@ export interface Draft {
   created_at: string
   updated_at: string
 }
+
+// A generated feed plus whether an rss_sources row actually points at it. Generating
+// a feed does nothing on its own, so /api/scraped-sources reports this per row.
+export interface ScrapedFeedLinkStatus {
+  in_sources: boolean
+  source_id: string | null
+  source_active: boolean | null
+}
+
+export type ScrapedFeedWithStatus = ScrapedSource & ScrapedFeedLinkStatus
 
 export interface Article {
   id: string

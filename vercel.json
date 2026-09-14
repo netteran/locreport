@@ -3,6 +3,7 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "redirects": [
+    { "source": "/admin/scraped-sources", "destination": "/admin/scraped-feeds", "permanent": true },
     { "source": "/market", "destination": "/compass/locstock", "permanent": true },
     { "source": "/market/", "destination": "/compass/locstock", "permanent": true },
     { "source": "/events", "destination": "/compass/events", "permanent": true },
