@@ -21,11 +21,12 @@ const selectStyle: React.CSSProperties = {
   color: 'var(--text)',
 }
 
-export function ScrapedSourceForm({ onAdded }: { onAdded: () => void }) {
+export function ScrapedFeedForm({ onAdded }: { onAdded: () => void }) {
   const [name, setName] = useState('')
   const [type, setType] = useState<'html' | 'rss'>('html')
   const [url, setUrl] = useState('')
   const [configRaw, setConfigRaw] = useState('')
+  const [keywordsRaw, setKeywordsRaw] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -47,16 +48,23 @@ export function ScrapedSourceForm({ onAdded }: { onAdded: () => void }) {
     const res = await fetch('/api/scraped-sources', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, type, url, ...configJsonToFields(config) }),
+      body: JSON.stringify({
+        name,
+        type,
+        url,
+        keywords: keywordsRaw.split(',').map(k => k.trim()).filter(Boolean),
+        ...configJsonToFields(config),
+      }),
     })
     if (res.ok) {
       setName('')
       setUrl('')
       setConfigRaw('')
+      setKeywordsRaw('')
       onAdded()
     } else {
       const data = await res.json()
-      setError(data.error ?? 'Failed to add source')
+      setError(data.error ?? 'Failed to add feed')
     }
     setLoading(false)
   }
@@ -81,8 +89,25 @@ export function ScrapedSourceForm({ onAdded }: { onAdded: () => void }) {
         </select>
       </div>
       <div>
-        <Label htmlFor="ss-url">Source URL</Label>
+        <Label htmlFor="ss-url">URL to scrape</Label>
         <Input id="ss-url" type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://example.com/blog/" required />
+      </div>
+      <div>
+        <Label htmlFor="ss-keywords">
+          Ingest keywords <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(comma-separated, optional)</span>
+        </Label>
+        <Input
+          id="ss-keywords"
+          value={keywordsRaw}
+          onChange={e => setKeywordsRaw(e.target.value)}
+          placeholder="translation, localization, LSP"
+        />
+        <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+          Copied onto the Sources row when you add this feed to Sources, and applied by ingest against
+          each item&apos;s title plus full article text. Leave empty to ingest everything the feed carries.
+          This is <strong>not</strong> the same as <code>contentFilter</code> below, which drops items while
+          the feed is being generated.
+        </p>
       </div>
       <div>
         <Label htmlFor="ss-config">
@@ -104,7 +129,7 @@ export function ScrapedSourceForm({ onAdded }: { onAdded: () => void }) {
         </p>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
-      <Button type="submit" disabled={loading}>{loading ? 'Adding…' : 'Add source'}</Button>
+      <Button type="submit" disabled={loading}>{loading ? 'Adding…' : 'Add feed'}</Button>
     </form>
   )
 }

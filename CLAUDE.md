@@ -57,7 +57,7 @@ components/
   IngestButton.tsx       — Manual RSS ingest trigger button (admin)
   SourceForm.tsx         — Form for adding/editing RSS sources
   RunFeedButton.tsx      — Manual trigger for /api/scraped-sources/run (one source or all active; admin)
-  ScrapedSourceForm.tsx  — Form for adding a feed-generator scrape source (JSON config textarea)
+  ScrapedFeedForm.tsx    — Form for adding a generated feed (name, type, URL, ingest keywords, JSON config)
 
 lib/
   supabase/server.ts     — SSR Supabase client (use in Server Components/API routes)
@@ -79,7 +79,9 @@ lib/
                            RSS XML served at /api/feeds/[name]. Replaces the external
                            aparasion/rss-generator for all but one feed — see scraped_sources
   scrapedSourceConfig.ts — camelCase JSON (config.json-shaped) ↔ scraped_sources column mapping, shared by
-                           ScrapedSourceForm and the /admin/scraped-sources inline editor
+                           ScrapedFeedForm and the /admin/scraped-feeds inline editor
+  feedUrl.ts             — feedUrl(name) → the canonical https://locreport.com/api/feeds/<name>. Shared by the
+                           generator's atom:link and the admin "Add to Sources" button so they cannot disagree
   slugify.ts             — URL-safe slug generation
   storage.ts             — Supabase Storage constants for article images (bucket name, size/MIME limits, object key builder)
   utils.ts               — articleHref(), extractTeaser(), cn() (Tailwind merge), escapeXml() (shared by every RSS-emitting route)
@@ -157,7 +159,7 @@ Several Compass and other sections use co-located client components:
 | `/admin/compose` | Manually write a new article |
 | `/admin/prompts` | Edit LLM system prompts stored in DB |
 | `/admin/sources` | Manage RSS feed sources |
-| `/admin/scraped-sources` | Feed generator: scrape sources (HTML selectors or keyword-refiltered feeds) that publish to `/api/feeds/[name]` for an `/admin/sources` row to point at. Per-source and run-all triggers, inline JSON config editor |
+| `/admin/scraped-feeds` | Feed generator: generated **feeds** (HTML selectors or keyword-refiltered feeds) published at `/api/feeds/[name]`. Deliberately says "feeds", never "sources", so it is not confused with `/admin/sources` — the old `/admin/scraped-sources` path 301s here via `vercel.json`. Per-feed and run-all triggers, inline JSON config editor, an **Add to Sources** button per feed, and a badge showing whether ingest can see it (`in Sources` / `not in Sources` / `0 items`) |
 | `/admin/direct` | Direct article ingestion tool |
 | `/admin/events` | Event management |
 
@@ -182,7 +184,8 @@ Several Compass and other sections use co-located client components:
 | `/api/sources/[id]` | PATCH/DELETE | Single RSS source |
 | `/api/scraped-sources` | GET/POST | Feed-generator scrape source management |
 | `/api/scraped-sources/[id]` | GET/PATCH/DELETE | Single scrape source CRUD |
-| `/api/scraped-sources/run` | GET/POST | Regenerates every active scrape source (or one, via `?id=`) and stores the resulting XML on the row (admin session or CRON_SECRET). Called by `ingest.yml` immediately before each ingest run, and by the `/admin` + `/admin/scraped-sources` run buttons. Always answers 200 — per-source failures are reported in the body (`failed`, `results[]`), so one broken scrape never blocks ingest |
+| `/api/scraped-sources/[id]/link` | POST | Admin-only: promotes a generated feed into an `rss_sources` row so ingest reads it, copying the feed's `keywords` across. Builds the URL server-side from `SITE_URL` (ingest fetches it from a serverless function, so a `window.location` origin would break outside production) and is idempotent — a second call returns the existing row with `already_linked: true` |
+| `/api/scraped-sources/run` | GET/POST | Regenerates every active scrape source (or one, via `?id=`) and stores the resulting XML on the row (admin session or CRON_SECRET). Called by `ingest.yml` immediately before each ingest run, and by the `/admin` + `/admin/scraped-feeds` run buttons. Always answers 200 — per-source failures are reported in the body (`failed`, `results[]`), so one broken scrape never blocks ingest |
 | `/api/feeds/[name]` | GET | Public: serves one scrape source's most recently generated RSS XML — this is the URL an `rss_sources` row points at |
 | `/api/stats` | GET | Dashboard stats: article/draft/source counts |
 | `/api/seen-urls` | GET | Legacy Jekyll URLs (deduplication) |
@@ -273,13 +276,16 @@ active boolean
 article_selector / title_selector / link_selector / description_selector / date_selector text  — html type only
 link_pattern text           — substring a candidate link must contain
 feed_title / feed_description text
-content_filter jsonb        — { keywords: string[], minMatches?, checkFullContent?, maxScan? }; null = no filter
+content_filter jsonb        — { keywords: string[], minMatches?, checkFullContent?, maxScan? }; null = no filter — GENERATION-time filter
+keywords text[]             — INGEST-time filter, copied to rss_sources.keywords by the Add to Sources button
 classified_links jsonb      — per-article relevance memo so a content-filtered source isn't re-classified every run
 generated_xml text          — most recent output; served as-is by GET /api/feeds/[name]
 last_run_at / last_status ('success'|'error') / last_error / last_item_count
 created_at / updated_at timestamptz
 ```
-RLS enabled with no policies — service-role access only. Regenerated by `/api/scraped-sources/run` (lib/feedGenerator.ts). An `rss_sources` row consumes a scrape source by pointing its `url` at `/api/feeds/<name>`.
+RLS enabled with no policies — service-role access only. Regenerated by `/api/scraped-sources/run` (lib/feedGenerator.ts). An `rss_sources` row consumes a generated feed by pointing its `url` at `/api/feeds/<name>` — created for you by the **Add to Sources** button on `/admin/scraped-feeds`.
+
+**Naming:** the user-facing surface says **"feeds"** throughout (`/admin/scraped-feeds`, `ScrapedFeedForm`, "Add feed") so it is never mistaken for the `/admin/sources` section, while the table and API paths keep their original `scraped_sources` spelling. That split is deliberate — renaming the table and routes would buy nothing and would break the `ingest.yml` curl during a deploy window. Don't "fix" the inconsistency by half.
 
 **This generator replaced the external `aparasion/rss-generator` on 2026-09-14.** Twelve active `rss_sources` rows now point at `/api/feeds/<name>`, and `/api/scraped-sources/run` is invoked by `ingest.yml` immediately before each ingest run, so the XML is always minutes old when read.
 
@@ -667,11 +673,19 @@ Monthly reports are triggered manually from the admin dashboard.
 - These are hardcoded TypeScript arrays — edit the file directly
 
 ### Add a feed-generator scrape source (a site with no usable RSS feed)
-1. `/admin/scraped-sources` → Add source: name, type (`html` or `rss`), source URL, and a JSON config
-   (CSS selectors for `html`; `contentFilter` keywords for either) — see `lib/feedGenerator.ts` for the
-   selector/filter semantics
-2. Click **Run now** to confirm it extracts items, then copy its `/api/feeds/<name>` URL
-3. Add an `/admin/sources` row whose URL is that `/api/feeds/<name>` address, so ingest picks it up
+1. `/admin/scraped-feeds` → Add feed: name, type (`html` or `rss`), the URL to scrape, optional **ingest
+   keywords**, and a JSON config (CSS selectors for `html`; `contentFilter` keywords for either) — see
+   `lib/feedGenerator.ts` for the selector/filter semantics
+2. Click **Run now** and confirm a **non-zero item count** — `success` alone only means the fetch worked
+3. Click **Add to Sources** on the feed. That creates the `rss_sources` row pointing at `/api/feeds/<name>`
+   and copies the ingest keywords across. Until this step, the feed is generated but nothing reads it — the
+   row badge shows `not in Sources` and a banner counts unlinked feeds
+
+**Two kinds of keyword filter, easy to confuse:**
+- `scraped_sources.keywords` — the *ingest* filter. Copied to `rss_sources.keywords` by Add to Sources, then
+  applied by `/api/ingest` against each item's title + fetched article text.
+- `scraped_sources.content_filter.keywords` — the *generation* filter. Drops items while the feed is being
+  built, optionally fetching each article (`checkFullContent`) and memoising verdicts in `classified_links`.
 
 ---
 

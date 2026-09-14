@@ -2,6 +2,7 @@ import * as cheerio from 'cheerio'
 import type { Cheerio, CheerioAPI } from 'cheerio'
 import type { AnyNode } from 'domhandler'
 import { escapeXml } from '@/lib/utils'
+import { feedUrl } from '@/lib/feedUrl'
 import type { ContentFilter, ScrapedSource } from '@/lib/types'
 
 // Ported from aparasion/rss-generator's generate.js. Two simplifications vs.
@@ -17,7 +18,6 @@ const MAX_ITEMS = 20
 const MAX_DESCRIPTION_LENGTH = 500
 const REQUEST_TIMEOUT_MS = 20000
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
-const BASE_URL = 'https://locreport.com'
 
 interface RawArticle {
   title: string
@@ -386,7 +386,7 @@ async function collectRssCandidates(source: ScrapedSource): Promise<RawArticle[]
 function buildFeedXml(source: ScrapedSource, items: RawArticle[]): string {
   const title = source.feed_title || `${source.name} Feed`
   const description = source.feed_description || `Feed generated for ${source.name}`
-  const selfUrl = `${BASE_URL}/api/feeds/${encodeURIComponent(source.name)}`
+  const selfUrl = feedUrl(source.name)
 
   const itemsXml = items.map(item => `
     <item>
