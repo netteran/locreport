@@ -541,9 +541,11 @@ reason — scoping it would give the homepage a second visual treatment of the s
 
 Auto-open rules (all tunable via the constants at the top of the file):
 - Fires at `DELAY_MS` (45s) **or** `SCROLL_FRACTION` (50% scroll depth), whichever lands first.
-- Gated behind `MIN_PAGE_VIEWS` (2) views in the session, counted in `sessionStorage` on each pathname
-  change. At 2 it never interrupts a landing page — the trade-off is that a **single-page visit never
-  sees it**. Set it to 1 to reach those visitors.
+- Gated behind `MIN_PAGE_VIEWS` (**1**) views in the session, counted in `sessionStorage` on each
+  pathname change. At 1 the popup can fire on the landing page, so single-page visits (search → article
+  → leave) are reached and the delay/scroll thresholds are the real gate. The counter is written by an
+  effect declared above the arming effect, so it is already 1 when the gate is read on a first load.
+  Raise to 2 to require a second page view on top of the thresholds.
 - Fires at most once per page load (`armedRef`), and once per visitor overall.
 
 `localStorage['locreport.digest']` holds `{status, at}`: `dismissed` suppresses the auto-open for

@@ -16,12 +16,12 @@ const DELAY_MS = 45_000
 /** …or has scrolled this far down a page, whichever lands first. */
 const SCROLL_FRACTION = 0.5
 /**
- * Page views in this session before the popup may auto-open. At 2 the popup
- * never interrupts a landing page — the trade-off is that a single-page visit
- * (search → article → leave) never sees it. Drop to 1 to reach those visitors,
- * in which case DELAY_MS/SCROLL_FRACTION alone gate it.
+ * Page views in this session before the popup may auto-open. At 1 it can fire
+ * on the landing page, so the single-page visit (search → article → leave) —
+ * a large share of traffic — is reached, and DELAY_MS/SCROLL_FRACTION are the
+ * real gate. Raise to 2 to require a second page view on top of those.
  */
-const MIN_PAGE_VIEWS = 2
+const MIN_PAGE_VIEWS = 1
 /** How long a dismissal suppresses the auto-open. Subscribing suppresses it for good. */
 const DISMISS_DAYS = 60
 
@@ -120,7 +120,7 @@ export function DigestPopup() {
     } catch {
       return // no sessionStorage means no view count to gate on — stay quiet
     }
-    if (views < MIN_PAGE_VIEWS) return
+    if (views < MIN_PAGE_VIEWS) return // the effect above already counted this view
 
     const timer = window.setTimeout(show, DELAY_MS)
 
