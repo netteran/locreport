@@ -17,15 +17,15 @@ export default async function ManagePage({ searchParams }: { searchParams: Promi
     email: string
     status: string
     signal_prefs: string[]
+    include_summary: boolean
     min_impact: number
-    frequency: string
   } | null = null
 
   if (token && /^[0-9a-f-]{36}$/i.test(token)) {
     const supabase = createServiceClient()
     const { data } = await supabase
       .from('subscribers')
-      .select('email, status, signal_prefs, min_impact, frequency')
+      .select('email, status, signal_prefs, include_summary, min_impact')
       .eq('manage_token', token)
       .maybeSingle()
     subscriber = data
@@ -55,8 +55,8 @@ export default async function ManagePage({ searchParams }: { searchParams: Promi
         token={token}
         initial={{
           signal_prefs: subscriber.signal_prefs,
+          include_summary: subscriber.include_summary ?? true,
           min_impact: subscriber.min_impact,
-          frequency: subscriber.frequency,
         }}
       />
     </div>

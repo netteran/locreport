@@ -5,15 +5,20 @@ import { SIGNALS } from '@/lib/signals'
 
 interface Prefs {
   signal_prefs: string[]
+  include_summary: boolean
   min_impact: number
-  frequency: string
 }
 
 export default function ManageForm({ token, initial }: { token: string; initial: Prefs }) {
   const [signalPrefs, setSignalPrefs] = useState<string[]>(initial.signal_prefs)
+  const [includeSummary, setIncludeSummary] = useState(initial.include_summary)
   const [minImpact, setMinImpact] = useState(initial.min_impact)
-  const [frequency, setFrequency] = useState(initial.frequency)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'unsubscribed' | 'error'>('idle')
+  const [error, setError] = useState('')
+
+  // The digest can't be empty: without the general summary, at least one
+  // signal briefing has to be selected. The API enforces this too.
+  const empty = !includeSummary && signalPrefs.length === 0
 
   function toggleSignal(id: string) {
     setSignalPrefs(prev => (prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]))
@@ -21,14 +26,27 @@ export default function ManageForm({ token, initial }: { token: string; initial:
   }
 
   async function save() {
+    if (empty) return
     setStatus('saving')
+    setError('')
     try {
       const res = await fetch('/api/subscribe/preferences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, signal_prefs: signalPrefs, min_impact: minImpact, frequency }),
+        body: JSON.stringify({
+          token,
+          signal_prefs: signalPrefs,
+          include_summary: includeSummary,
+          min_impact: minImpact,
+        }),
       })
-      setStatus(res.ok ? 'saved' : 'error')
+      if (res.ok) {
+        setStatus('saved')
+        return
+      }
+      const data = await res.json().catch(() => ({}))
+      setError(data.error ?? '')
+      setStatus('error')
     } catch {
       setStatus('error')
     }
@@ -36,6 +54,7 @@ export default function ManageForm({ token, initial }: { token: string; initial:
 
   async function unsubscribe() {
     setStatus('saving')
+    setError('')
     try {
       const res = await fetch('/api/subscribe/preferences', {
         method: 'POST',
@@ -60,9 +79,32 @@ export default function ManageForm({ token, initial }: { token: string; initial:
   return (
     <div className="manage-form">
       <section className="manage-form__section">
-        <h2 className="manage-form__heading">Signals</h2>
+        <h2 className="manage-form__heading">What you receive</h2>
         <p className="manage-form__hint">
-          Pick the trends you want covered. Leave everything unchecked to receive all signals.
+          Every digest leads with the week’s top story. Choose what follows it.
+        </p>
+
+        <label className="manage-form__option">
+          <input
+            type="checkbox"
+            checked={includeSummary}
+            onChange={e => { setIncludeSummary(e.target.checked); setStatus('idle') }}
+          />
+          <span>
+            <span className="manage-form__option-title">The week in brief</span>
+            <span className="manage-form__option-desc">
+              A general summary — everything we published that week, impact-ranked.
+            </span>
+          </span>
+        </label>
+      </section>
+
+      <section className="manage-form__section">
+        <h2 className="manage-form__heading">Signal briefings</h2>
+        <p className="manage-form__hint">
+          Add a dedicated section for each trend you follow. Leave them all
+          unchecked to receive the general summary only.
+          {!includeSummary && ' With the summary switched off, your digest covers these signals only.'}
         </p>
         <div className="manage-form__signals">
           {SIGNALS.map(s => (
@@ -98,19 +140,21 @@ export default function ManageForm({ token, initial }: { token: string; initial:
       </section>
 
       <section className="manage-form__section">
-        <h2 className="manage-form__heading">Frequency</h2>
-        <select
-          className="filter-select"
-          value={frequency}
-          onChange={e => { setFrequency(e.target.value); setStatus('idle') }}
-        >
-          <option value="weekly">Weekly (Fridays)</option>
-          <option value="daily">Daily (workdays)</option>
-        </select>
+        <h2 className="manage-form__heading">Delivery</h2>
+        <p className="manage-form__hint manage-form__hint--last">
+          One email a week, sent on Fridays.
+        </p>
       </section>
 
+      {empty && (
+        <p className="manage-form__status manage-form__status--error" role="alert">
+          Pick at least one signal, or keep the week in brief switched on — otherwise
+          there would be nothing to send.
+        </p>
+      )}
+
       <div className="manage-form__actions">
-        <button className="btn btn--primary" onClick={save} disabled={status === 'saving'}>
+        <button className="btn btn--primary" onClick={save} disabled={status === 'saving' || empty}>
           {status === 'saving' ? 'Saving…' : 'Save preferences'}
         </button>
         <button className="btn btn--ghost manage-form__unsub" onClick={unsubscribe} disabled={status === 'saving'}>
@@ -118,7 +162,11 @@ export default function ManageForm({ token, initial }: { token: string; initial:
         </button>
       </div>
       {status === 'saved' && <p className="manage-form__status" role="status">Preferences saved.</p>}
-      {status === 'error' && <p className="manage-form__status manage-form__status--error" role="alert">Something went wrong — please try again.</p>}
+      {status === 'error' && (
+        <p className="manage-form__status manage-form__status--error" role="alert">
+          {error || 'Something went wrong — please try again.'}
+        </p>
+      )}
     </div>
   )
 }

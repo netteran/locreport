@@ -1,36 +1,24 @@
 name: Digest Send
 on:
   schedule:
-    # Weekly digest — Fridays 1pm Central European time.
+    # Weekly digest — Fridays 1pm Central European time. It is the only
+    # cadence; there is no daily digest.
     # GitHub Actions cron is UTC-only and ignores DST, so we schedule both
     # possible UTC offsets and let the job itself decide which one is live
-    # by checking the actual Europe/Berlin clock (see "Determine frequency").
+    # by checking the actual Europe/Berlin clock (see "Check schedule").
     - cron: '0 11 * * 5' # 1pm CEST (UTC+2, roughly late Mar–late Oct)
     - cron: '0 12 * * 5' # 1pm CET (UTC+1, roughly late Oct–late Mar)
-    # Daily digest — 4pm Central European time, workdays only.
-    - cron: '0 14 * * 1-5' # 4pm CEST (UTC+2)
-    - cron: '0 15 * * 1-5' # 4pm CET (UTC+1)
   workflow_dispatch:
-    inputs:
-      frequency:
-        description: 'Digest frequency to send'
-        required: true
-        default: 'weekly'
-        type: choice
-        options:
-          - weekly
-          - daily
 
 jobs:
   digest:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Determine frequency
-        id: freq
+      - name: Check schedule
+        id: guard
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "value=${{ inputs.frequency }}" >> "$GITHUB_OUTPUT"
             echo "proceed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -44,29 +32,22 @@ jobs:
           CURRENT_OFFSET="$(TZ='Europe/Berlin' date +%z)"
 
           case "$SCHEDULE" in
-            "0 11 * * 5")
-              FREQUENCY="weekly"; EXPECTED_OFFSET="+0200" ;;
-            "0 12 * * 5")
-              FREQUENCY="weekly"; EXPECTED_OFFSET="+0100" ;;
-            "0 14 * * 1-5")
-              FREQUENCY="daily"; EXPECTED_OFFSET="+0200" ;;
-            "0 15 * * 1-5")
-              FREQUENCY="daily"; EXPECTED_OFFSET="+0100" ;;
+            "0 11 * * 5") EXPECTED_OFFSET="+0200" ;;
+            "0 12 * * 5") EXPECTED_OFFSET="+0100" ;;
             *)
               echo "Unrecognized schedule: $SCHEDULE" >&2
               exit 1
               ;;
           esac
 
-          echo "value=$FREQUENCY" >> "$GITHUB_OUTPUT"
           if [ "$CURRENT_OFFSET" = "$EXPECTED_OFFSET" ]; then
             echo "proceed=true" >> "$GITHUB_OUTPUT"
           else
             echo "proceed=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Send digest
-        if: steps.freq.outputs.proceed == 'true'
+        if: steps.guard.outputs.proceed == 'true'
         run: |
-          curl -f --max-time 300 -X POST "https://locreport.com/api/digest/send?frequency=${{ steps.freq.outputs.value }}" \
+          curl -f --max-time 300 -X POST "https://locreport.com/api/digest/send" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json"

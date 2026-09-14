@@ -7,8 +7,7 @@ import { BackfillEmbeddingsButton } from '@/components/BackfillEmbeddingsButton'
 import { RunFeedButton, type RunFeedResult } from '@/components/RunFeedButton'
 
 type Confirm = 'ingest' | 'monthly' | 'monthly-force' | null
-type Frequency = 'daily' | 'weekly'
-type DigestPreview = { frequency: Frequency; recipients: number; skipped: number; articles: number }
+type DigestPreview = { recipients: number; skipped: number; articles: number }
 type RowKey = 'ingest' | 'feeds' | 'monthly' | 'digest' | 'facts' | 'quotes' | 'pricing'
 
 // One row of the action list. The title doubles as the toggle for its
@@ -61,7 +60,7 @@ export default function AdminDashboard() {
   const [monthlyRunning, setMonthlyRunning] = useState(false)
   const [quotesRunning, setQuotesRunning] = useState(false)
   const [pricingRunning, setPricingRunning] = useState(false)
-  const [digestPreviewing, setDigestPreviewing] = useState<Frequency | null>(null)
+  const [digestPreviewing, setDigestPreviewing] = useState(false)
   const [digestSending, setDigestSending] = useState(false)
   const [digestPreview, setDigestPreview] = useState<DigestPreview | null>(null)
   const [backfillRunning, setBackfillRunning] = useState(false)
@@ -180,19 +179,18 @@ export default function AdminDashboard() {
   // Sending a digest emails real subscribers and can't be undone, so the
   // buttons resolve the recipient list first (dry run) and only send once the
   // admin confirms against those numbers.
-  async function previewDigest(frequency: Frequency) {
-    setDigestPreviewing(frequency)
+  async function previewDigest() {
+    setDigestPreviewing(true)
     setDigestPreview(null)
     clearFlash()
     try {
-      const res = await fetch(`/api/digest/send?frequency=${frequency}&dry=1`, { method: 'POST' })
+      const res = await fetch('/api/digest/send?dry=1', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
         flash('digest', data.error ?? 'Digest preview failed.', 'error')
         return
       }
       setDigestPreview({
-        frequency,
         recipients: data.recipients ?? 0,
         skipped: data.skipped ?? 0,
         articles: data.articles ?? 0,
@@ -200,15 +198,15 @@ export default function AdminDashboard() {
     } catch {
       flash('digest', 'Digest preview failed.', 'error')
     } finally {
-      setDigestPreviewing(null)
+      setDigestPreviewing(false)
     }
   }
 
-  async function sendDigest(frequency: Frequency) {
+  async function sendDigest() {
     setDigestSending(true)
     clearFlash()
     try {
-      const res = await fetch(`/api/digest/send?frequency=${frequency}`, { method: 'POST' })
+      const res = await fetch('/api/digest/send', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
         flash('digest', data.error ?? 'Digest send failed.', 'error')
@@ -217,7 +215,7 @@ export default function AdminDashboard() {
       const errors: string[] = data.errors ?? []
       flash(
         'digest',
-        `${frequency === 'daily' ? 'Daily' : 'Weekly'} digest sent to ${data.sent} subscriber${data.sent !== 1 ? 's' : ''}` +
+        `Weekly digest sent to ${data.sent} subscriber${data.sent !== 1 ? 's' : ''}` +
           ` — ${data.skipped} skipped, ${data.articles} article${data.articles !== 1 ? 's' : ''} in period.` +
           (errors.length ? ` ${errors.length} error${errors.length !== 1 ? 's' : ''}: ${errors.join('; ')}` : ''),
         errors.length ? 'error' : 'ok',
@@ -358,24 +356,23 @@ export default function AdminDashboard() {
 
         <ActionRow
           title="Send digest"
-          description="Composes a personalised email for every confirmed subscriber on that frequency — top story, the busiest signals, then a radar list — filtered by each subscriber’s signal preferences and minimum impact score, and sends it through Resend. Clicking Daily or Weekly only counts recipients; nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically: weekly Fridays 1pm, daily workdays 4pm (Central European time)."
-          controls={(['daily', 'weekly'] as Frequency[]).map(frequency => (
+          description="Composes a personalised email for every confirmed subscriber covering the last 7 days — top story, a dedicated section per signal they follow, then the week-in-brief roundup for anyone who keeps it — all filtered by their minimum impact score, and sends it through Resend. Clicking Preview only counts recipients; nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
+          controls={
             <Button
-              key={frequency}
               size="sm"
               variant="secondary"
-              onClick={() => previewDigest(frequency)}
-              disabled={!!digestPreviewing || digestSending}
+              onClick={previewDigest}
+              disabled={digestPreviewing || digestSending}
             >
-              {digestPreviewing === frequency ? 'Checking…' : frequency === 'daily' ? 'Daily' : 'Weekly'}
+              {digestPreviewing ? 'Checking…' : 'Preview'}
             </Button>
-          ))}
+          }
         >
           {digestPreview && (digestPreview.recipients === 0 ? (
             <ActionPanel
               text={
                 <>
-                  Nobody would receive the <strong>{digestPreview.frequency}</strong> digest right now
+                  Nobody would receive the weekly digest right now
                   {' '}({digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period,
                   {' '}{digestPreview.skipped} subscriber{digestPreview.skipped !== 1 ? 's' : ''} skipped).
                 </>
@@ -387,14 +384,14 @@ export default function AdminDashboard() {
               tone="warn"
               text={
                 <>
-                  This sends real email. The <strong>{digestPreview.frequency}</strong> digest will go to{' '}
+                  This sends real email. The weekly digest will go to{' '}
                   <strong>{digestPreview.recipients} subscriber{digestPreview.recipients !== 1 ? 's' : ''}</strong>
                   {' '}({digestPreview.skipped} skipped, {digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period).
                 </>
               }
               actions={
                 <>
-                  <Button size="sm" onClick={() => sendDigest(digestPreview.frequency)} disabled={digestSending}>
+                  <Button size="sm" onClick={sendDigest} disabled={digestSending}>
                     {digestSending ? 'Sending…' : `Send to ${digestPreview.recipients}`}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setDigestPreview(null)} disabled={digestSending}>Cancel</Button>
