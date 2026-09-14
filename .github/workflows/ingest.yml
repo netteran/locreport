@@ -54,6 +54,22 @@ jobs:
             echo "Skipping: this entry covers $LOCAL_TIME Warsaw at $EXPECTED_OFFSET, but the current offset is $CURRENT_OFFSET."
             echo "proceed=false" >> "$GITHUB_OUTPUT"
           fi
+      # Regenerate the scraped feeds first, so /api/feeds/<name> serves fresh XML
+      # by the time ingest reads it moments later. The route reports per-source
+      # failures in its JSON body but always answers 200, so a single broken
+      # scrape can't block the ingest step below — the response is echoed here so
+      # a failure is visible in the job log rather than silent.
+      - name: Refresh generated feeds
+        if: steps.dst.outputs.proceed == 'true'
+        run: |
+          RESPONSE="$(curl -f --max-time 300 -X POST https://locreport.com/api/scraped-sources/run \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")"
+          echo "$RESPONSE"
+          FAILED="$(printf '%s' "$RESPONSE" | grep -o '"failed":[0-9]*' | head -1 | cut -d: -f2)"
+          if [ -n "$FAILED" ] && [ "$FAILED" -gt 0 ]; then
+            echo "::warning::$FAILED scrape source(s) failed to regenerate — see /admin/scraped-sources"
+          fi
       - name: Run ingest
         if: steps.dst.outputs.proceed == 'true'
         run: |
