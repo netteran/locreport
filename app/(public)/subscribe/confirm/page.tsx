@@ -52,8 +52,9 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
         <>
           <h1>{state === 'confirmed' ? 'You’re subscribed' : 'Already subscribed'}</h1>
           <p className="subscribe-status__text">
-            The LocReport digest will land in your inbox with the industry’s
-            top stories, ranked by impact and mapped to the signals we track.
+            The Weekly will land in your inbox with what’s moving in
+            translation, localization and language AI — and what it means
+            for your work.
           </p>
           <div className="subscribe-status__actions">
             {manageToken && (

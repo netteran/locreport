@@ -100,8 +100,8 @@ export async function POST(req: NextRequest) {
       from: digestFrom(),
       to: sub.email,
       subject: topStory
-        ? `LocReport digest: ${topStory.title}`
-        : 'Your LocReport weekly digest',
+        ? `The Weekly: ${topStory.title}`
+        : 'The Weekly from LocReport',
       html: digestEmail({ periodLabel, topStory, sections, roundup, roundupHeading, manageUrl, unsubscribeUrl }),
       headers: {
         'List-Unsubscribe': `<${unsubscribeUrl}>`,

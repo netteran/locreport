@@ -187,7 +187,7 @@ export default function AdminDashboard() {
       const res = await fetch('/api/digest/send?dry=1', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
-        flash('digest', data.error ?? 'Digest preview failed.', 'error')
+        flash('digest', data.error ?? 'Preview failed.', 'error')
         return
       }
       setDigestPreview({
@@ -196,7 +196,7 @@ export default function AdminDashboard() {
         articles: data.articles ?? 0,
       })
     } catch {
-      flash('digest', 'Digest preview failed.', 'error')
+      flash('digest', 'Preview failed.', 'error')
     } finally {
       setDigestPreviewing(false)
     }
@@ -209,20 +209,20 @@ export default function AdminDashboard() {
       const res = await fetch('/api/digest/send', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
-        flash('digest', data.error ?? 'Digest send failed.', 'error')
+        flash('digest', data.error ?? 'Send failed.', 'error')
         return
       }
       const errors: string[] = data.errors ?? []
       flash(
         'digest',
-        `Weekly digest sent to ${data.sent} subscriber${data.sent !== 1 ? 's' : ''}` +
+        `The Weekly sent to ${data.sent} subscriber${data.sent !== 1 ? 's' : ''}` +
           ` — ${data.skipped} skipped, ${data.articles} article${data.articles !== 1 ? 's' : ''} in period.` +
           (errors.length ? ` ${errors.length} error${errors.length !== 1 ? 's' : ''}: ${errors.join('; ')}` : ''),
         errors.length ? 'error' : 'ok',
       )
       setDigestPreview(null)
     } catch {
-      flash('digest', 'Digest send failed — it may still have gone out. Check Resend before retrying.', 'error')
+      flash('digest', 'Send failed — it may still have gone out. Check Resend before retrying.', 'error')
     } finally {
       setDigestSending(false)
     }
@@ -355,8 +355,8 @@ export default function AdminDashboard() {
         </ActionRow>
 
         <ActionRow
-          title="Send digest"
-          description="Composes a personalised email for every confirmed subscriber covering the last 7 days — top story, a dedicated section per signal they follow, then the week-in-brief roundup for anyone who keeps it — all filtered by their minimum impact score, and sends it through Resend. Clicking Preview only counts recipients; nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
+          title="Send The Weekly"
+          description="Composes a personalised issue of The Weekly for every confirmed subscriber covering the last 7 days — top story, a dedicated section per signal they follow, then the week-in-brief roundup for anyone who keeps it — all filtered by their minimum impact score, and sends it through Resend. Clicking Preview only counts recipients; nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
           controls={
             <Button
               size="sm"
@@ -372,7 +372,7 @@ export default function AdminDashboard() {
             <ActionPanel
               text={
                 <>
-                  Nobody would receive the weekly digest right now
+                  Nobody would receive The Weekly right now
                   {' '}({digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period,
                   {' '}{digestPreview.skipped} subscriber{digestPreview.skipped !== 1 ? 's' : ''} skipped).
                 </>
@@ -384,7 +384,7 @@ export default function AdminDashboard() {
               tone="warn"
               text={
                 <>
-                  This sends real email. The weekly digest will go to{' '}
+                  This sends real email. The Weekly will go to{' '}
                   <strong>{digestPreview.recipients} subscriber{digestPreview.recipients !== 1 ? 's' : ''}</strong>
                   {' '}({digestPreview.skipped} skipped, {digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period).
                 </>

@@ -6,7 +6,7 @@ import ManageForm from './ManageForm'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Manage digest preferences',
+  title: 'Manage your preferences',
   robots: { index: false, follow: false },
 }
 
@@ -37,7 +37,7 @@ export default async function ManagePage({ searchParams }: { searchParams: Promi
         <h1>Link not valid</h1>
         <p className="subscribe-status__text">
           This preferences link is invalid. Use the “Manage preferences” link
-          from any digest email, or subscribe again from the homepage.
+          from any issue of The Weekly, or sign up again from the homepage.
         </p>
         <Link href="/" className="btn btn--primary">Back to LocReport</Link>
       </div>
@@ -46,7 +46,7 @@ export default async function ManagePage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="container subscribe-manage-page">
-      <h1>Digest preferences</h1>
+      <h1>Your Weekly preferences</h1>
       <p className="subscribe-status__text">
         Subscribed as <strong>{subscriber.email}</strong>
         {subscriber.status === 'unsubscribed' && ' (currently unsubscribed — saving preferences re-activates your subscription)'}

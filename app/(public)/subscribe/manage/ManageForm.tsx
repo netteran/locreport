@@ -81,7 +81,7 @@ export default function ManageForm({ token, initial }: { token: string; initial:
       <section className="manage-form__section">
         <h2 className="manage-form__heading">What you receive</h2>
         <p className="manage-form__hint">
-          Every digest leads with the week’s top story. Choose what follows it.
+          Every issue leads with the week’s top story. Choose what follows it.
         </p>
 
         <label className="manage-form__option">
@@ -104,7 +104,7 @@ export default function ManageForm({ token, initial }: { token: string; initial:
         <p className="manage-form__hint">
           Add a dedicated section for each trend you follow. Leave them all
           unchecked to receive the general summary only.
-          {!includeSummary && ' With the summary switched off, your digest covers these signals only.'}
+          {!includeSummary && ' With the summary switched off, your issues cover these signals only.'}
         </p>
         <div className="manage-form__signals">
           {SIGNALS.map(s => (

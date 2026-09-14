@@ -235,11 +235,12 @@ export function DigestPopup() {
           </>
         ) : (
           <>
-            <p className="digest-popup__eyebrow">Weekly digest</p>
-            <h2 className="digest-popup__title" id="digest-popup-title">The industry, digested</h2>
+            <p className="digest-popup__eyebrow">The Weekly</p>
+            <h2 className="digest-popup__title" id="digest-popup-title">One email. Everything that mattered.</h2>
             <p className="digest-popup__text">
-              One email a week: impact-ranked stories mapped to the signals
-              shaping language services. No noise.
+              Each week we pull together what’s happening in translation,
+              localization and language AI — what changed, and what it means
+              for your work. Five minutes to read, free to join, easy to leave.
             </p>
             <form className="digest-popup__form" onSubmit={submit} noValidate>
               <input
@@ -257,14 +258,14 @@ export function DigestPopup() {
                 className="btn btn--primary digest-popup__btn"
                 disabled={status === 'sending'}
               >
-                {status === 'sending' ? 'Subscribing…' : 'Get the digest'}
+                {status === 'sending' ? 'Signing you up…' : 'Sign me up'}
               </button>
             </form>
             {status === 'error' && (
               <p className="digest-popup__error" role="alert">{message}</p>
             )}
             <p className="digest-popup__note">
-              Free. Unsubscribe anytime. We never share your address.
+              Free, always. One email a week. Leave in one click.
             </p>
           </>
         )}

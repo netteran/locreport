@@ -528,7 +528,16 @@ Working on it:
 
 **Theme:** `data-theme="dark"` on `<html>` activates dark mode via CSS variable overrides.
 
-### Digest Signup
+### The Weekly (digest signup)
+
+**The reader-facing name of the email is "The Weekly".** It is never called a *digest* or a *newsletter*
+anywhere a subscriber can see — not in the popup, the footer link, the confirm/manage/unsubscribed pages,
+the email subjects, or the email bodies. Keep it that way when touching any of that copy.
+
+Internals still say `digest` throughout — `/api/digest/send`, the `digest_sends` table, `DigestPopup`,
+`composeDigest`, `lib/email/digest.ts`, `DIGEST_FROM_EMAIL`. That split is deliberate: renaming routes,
+tables and env vars would buy nothing and would break the `digest.yml` curl during a deploy window. Don't
+"fix" the inconsistency by half — change reader-facing strings only.
 
 `components/DigestPopup.tsx` is the **only** signup surface on the site. The inline forms it replaced —
 the homepage and `/intelligence` `.subscribe-band` sections and the article-footer `.post-subscribe`
