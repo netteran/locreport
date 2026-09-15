@@ -47,7 +47,12 @@ export function LogoUpload({ slug, currentUrl, onUploaded }: Props) {
     }
 
     const { data } = supabase.storage.from('directory-logos').getPublicUrl(path)
-    const url = data.publicUrl
+    // The object key is stable (`<slug>.<ext>`) so an upsert reuses the same
+    // public URL, and Supabase serves storage objects through a CDN with a
+    // max-age. Without a version marker, replacing a logo keeps serving the
+    // previous bytes until that expires. A stable key plus a versioned URL
+    // gets both: no orphaned objects, and a replacement that shows up at once.
+    const url = `${data.publicUrl}?v=${Date.now()}`
     setPreview(url)
     onUploaded(url)
     setUploading(false)

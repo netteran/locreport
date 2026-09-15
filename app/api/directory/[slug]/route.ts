@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { DIRECTORY } from '@/lib/data/directory'
+import { revalidateDirectorySurfaces } from '@/lib/revalidate'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -41,7 +42,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
     .maybeSingle()
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
-  if (updated) return NextResponse.json(updated)
+  if (updated) {
+    // Both slugs: the form allows renaming, which leaves the old URL cached.
+    revalidateDirectorySurfaces(slug, updated.slug)
+    return NextResponse.json(updated)
+  }
 
   // No override row yet: materialize one from the static entry with the
   // submitted fields applied on top, so editing a curated company works
@@ -57,6 +62,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
     .single()
 
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
+
+  revalidateDirectorySurfaces(slug, inserted.slug)
   return NextResponse.json(inserted)
 }
 
@@ -66,5 +73,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { error } = await supabase.from('directory').delete().eq('slug', slug)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Dropping an override row makes the static entry render again — still a change.
+  revalidateDirectorySurfaces(slug)
   return NextResponse.json({ ok: true })
 }
