@@ -4,6 +4,7 @@ import { slugify, uniqueSlug } from '@/lib/slugify'
 import { embedAndStoreArticle } from '@/lib/embeddings'
 import { ensureArticleFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
+import { revalidateArticleSurfaces } from '@/lib/revalidate'
 
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get('slug')
@@ -47,5 +48,6 @@ export async function POST(req: NextRequest) {
     content: linkedContent,
   })
   await embedAndStoreArticle(supabase, data.id)
+  revalidateArticleSurfaces({ slug })
   return NextResponse.json(data, { status: 201 })
 }

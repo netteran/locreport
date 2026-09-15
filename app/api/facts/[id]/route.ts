@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { revalidateFactSurfaces } from '@/lib/revalidate'
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -31,6 +32,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { error } = await svc.from('facts').update(patch).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // A patch can link, relink or unlink the fact, so either the old or the new
+  // state may have been public. Not worth a read to find out — this is a rare
+  // admin edit and revalidating just marks two cache entries stale.
+  revalidateFactSurfaces()
+
   return NextResponse.json({ ok: true })
 }
 
@@ -42,6 +48,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const svc = createServiceClient()
   const { error } = await svc.from('facts').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  revalidateFactSurfaces()
 
   return NextResponse.json({ ok: true })
 }

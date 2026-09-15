@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { classifyArticle } from '@/lib/classify'
 import { getOpenAI } from '@/lib/openai'
+import { revalidateArticleSurfaces } from '@/lib/revalidate'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -72,6 +73,10 @@ export async function POST(req: NextRequest) {
 
     results[article.slug] = updateError ? `error: ${updateError.message}` : 'updated'
   }
+
+  // Impact scores and signal tags drive what the intelligence pages list, so a
+  // reclassify changes their contents even though no article was published.
+  if (Object.values(results).some(r => r === 'updated')) revalidateArticleSurfaces()
 
   const hasMore = allArticles && articles.length === batchSize
   return NextResponse.json({

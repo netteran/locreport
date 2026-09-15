@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { revalidateFactSurfaces } from '@/lib/revalidate'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -34,6 +35,9 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Only a fact with an article_id is public, so an unlinked one changes nothing.
+  if (article_id) revalidateFactSurfaces()
 
   return NextResponse.json(data, { status: 201 })
 }
