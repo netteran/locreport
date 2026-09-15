@@ -73,3 +73,27 @@ export function revalidateArticleSurfaces(opts: { slug?: string | null; monthlyR
 export function revalidateFactSurfaces() {
   revalidateAll(FACT_PATHS)
 }
+
+/** The cached page that renders the whole directory listing. */
+const DIRECTORY_PATHS = ['/compass/directory']
+
+/**
+ * A directory entry changed. Both public directory surfaces read through the
+ * cookie-free `createPublicClient()` and export `revalidate = 3600`, so they are
+ * genuinely static — and nothing invalidated them, which made an admin edit
+ * (an uploaded logo above all) invisible for an hour or more even though the
+ * row and the storage object were both already correct.
+ *
+ * Pass every slug the write touched. The admin form lets the slug be edited, so
+ * a rename changes one row but two paths — the URL it used to live at and the
+ * one it lives at now — and callers pass both. As with articles, the
+ * `[slug]` segment is never revalidated wholesale: that would stampede
+ * regeneration across every entry in the directory.
+ */
+export function revalidateDirectorySurfaces(...slugs: (string | null | undefined)[]) {
+  const paths = new Set<string>(DIRECTORY_PATHS)
+  for (const slug of slugs) {
+    if (slug) paths.add(`/compass/directory/${slug}`)
+  }
+  revalidateAll(paths)
+}

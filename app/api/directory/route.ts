@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { fetchDirectoryEntries } from '@/lib/directory'
+import { revalidateDirectorySurfaces } from '@/lib/revalidate'
 
 export async function GET() {
   const supabase = await createClient()
@@ -28,5 +29,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  revalidateDirectorySurfaces(data.slug)
   return NextResponse.json(data, { status: 201 })
 }
