@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { revalidateArticleSurfaces } from '@/lib/revalidate'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -54,6 +55,11 @@ export async function POST(req: NextRequest) {
     acc[author] = (acc[author] ?? 0) + 1
     return acc
   }, {})
+
+  // Bylines render in the listings, so the cached pages have to turn over.
+  // Individual detail pages are left on their own 24h window — invalidating a
+  // slug apiece would stampede regeneration across the whole archive.
+  if (succeeded > 0) revalidateArticleSurfaces()
 
   return NextResponse.json({ updated: succeeded, failed: failed.length, breakdown })
 }

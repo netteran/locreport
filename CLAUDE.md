@@ -95,6 +95,9 @@ lib/
   slugify.ts             — URL-safe slug generation
   storage.ts             — Supabase Storage constants for article images (bucket name, size/MIME limits, object key builder)
   utils.ts               — articleHref(), extractTeaser(), cn() (Tailwind merge), escapeXml() (shared by every RSS-emitting route)
+  revalidate.ts          — revalidateArticleSurfaces()/revalidateFactSurfaces(): on-demand cache
+                           invalidation every article/fact write path calls, so a publish appears at once
+                           instead of waiting out the page's ISR window. See ISR Revalidation below
   data/
     events.ts            — 2026 industry calendar (11 events, hardcoded)
     directory.ts         — 31 localization tech vendors (hardcoded)
@@ -684,6 +687,23 @@ and `/search` read `searchParams` and so are dynamic by nature no matter which c
 homepage, article pages, `/intelligence/*`, `/fact-flow`, `/reports/monthly` and `/compass/*` are cached.
 `/articles/[...slug]` has no `generateStaticParams`, so the ~1,200 article pages are generated on first
 request and then cached, rather than at build time.
+
+**Every route that writes an article or a fact must invalidate the cached pages, via `lib/revalidate.ts`.**
+`revalidateArticleSurfaces({ slug?, monthlyReport? })` after publishing, editing or deleting an article;
+`revalidateFactSurfaces()` when only a fact changed. Without this, a page's `revalidate` window is the
+*only* thing that publishes it: approving a draft put the article on `/articles` instantly (dynamic) but
+left it off the homepage and `/fact-flow` for up to an hour, and because `revalidate` is
+stale-while-revalidate, the first visitor after expiry still got the stale page and merely triggered the
+rebuild — so the real delay ran past the hour. Lowering the windows instead would re-open the
+request-volume problem `createPublicClient()` was introduced to solve; invalidating on write keeps the
+pages fully cached for anonymous traffic and still publishes immediately.
+
+Pass the article's `slug` so its own 24h detail page turns over too — the helper routes it through
+`articleHref()`, since a legacy multi-segment slug is served at a clean path and interpolating it raw
+would revalidate a path nothing is cached under and fail silently. The helper deliberately does *not*
+invalidate the `/intelligence/signals/[id]` or `/articles/[...slug]` dynamic segments wholesale: that
+would stampede regeneration across every signal and all ~1,200 article pages. `/articles`, `/search` and
+both `feed.xml` routes need nothing — they are already dynamic.
 
 **A page's primary query must throw on error, not fall back to `[]`.** `lib/supabase/required.ts` exists for
 this. Swallowing the error renders an empty page at HTTP 200 — which reads as "there is nothing here" to

@@ -7,6 +7,7 @@ import { getOpenAI } from '@/lib/openai'
 import { embedAndStoreArticle } from '@/lib/embeddings'
 import { ensureArticleFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
+import { revalidateArticleSurfaces } from '@/lib/revalidate'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -110,6 +111,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       await embedAndStoreArticle(supabase, articleRow.id)
     }
+
+    // The article and its fact are live in the database, but the homepage and
+    // /fact-flow are statically cached for an hour. Turn them over now so
+    // approving a draft publishes it immediately rather than up to an hour
+    // later. (/articles is dynamic and needs no help.)
+    revalidateArticleSurfaces({ slug })
   }
 
   const patch: Record<string, unknown> = {}

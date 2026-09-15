@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { fetchArticleText } from '@/lib/rss'
 import { ensureArticleFact } from '@/lib/factFlow'
+import { revalidateFactSurfaces } from '@/lib/revalidate'
 
 export const maxDuration = 300
 
@@ -117,6 +118,7 @@ export async function POST(req: NextRequest) {
     }
 
     const created = results.filter(r => r.status === 'created' || r.status === 'promoted').length
+    if (created > 0) revalidateFactSurfaces()
 
     return NextResponse.json({
       created,
@@ -148,6 +150,8 @@ export async function POST(req: NextRequest) {
   if (result.status === 'skipped') {
     return NextResponse.json({ error: result.reason }, { status: 422 })
   }
+
+  revalidateFactSurfaces()
 
   return NextResponse.json({
     ok: true,

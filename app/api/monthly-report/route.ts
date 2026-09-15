@@ -4,6 +4,7 @@ import { getOpenAI } from '@/lib/openai'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import { DEFAULT_MONTHLY_PROMPT } from '@/lib/prompts'
 import { embedAndStoreArticle } from '@/lib/embeddings'
+import { revalidateArticleSurfaces } from '@/lib/revalidate'
 
 async function getPrompt(): Promise<string> {
   try {
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
   }
 
   await embedAndStoreArticle(service, article.id)
+  revalidateArticleSurfaces({ slug, monthlyReport: true })
 
   return NextResponse.json({ ok: true, period, article_count: articles.length, id: article.id, title })
 }
