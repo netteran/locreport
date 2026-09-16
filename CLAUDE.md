@@ -351,6 +351,18 @@ even via the anchor fallback.
 
 A `/api/feeds/<name>` row only works if the scrape source is `active` **and** has non-empty `generated_xml` — otherwise the route 404s. When adding one, run the generator first and confirm `last_status='success'` **and a non-zero `last_item_count`** (see the silent-empty-feed trap above).
 
+`Acclaro-Press` was added on 2026-09-16 from a pasted card snippet, not a live fetch — the agent
+environment had no general outbound network access at the time, so neither the listing URL nor the
+selectors were verified against the real page. `url` is `https://www.acclaro.com/press`, inferred from
+the item link path (`/press/<slug>`); confirm it resolves before relying on this source. Selectors:
+`.w-dyn-item` / `h4` / `a.mv-rc-link-wrap[href*='/press/']`, pattern `/press/` — Webflow's generic
+collection-item wrapper, narrowed by the link's own class and href since `resource-card` (the visible
+card class) reads like a shared component that could be reused for more than press releases. The card
+carries no date anywhere (no `<time>`, no date text), so `date_selector` is unset and every item
+publishes with no `pubDate` — harmless, since `/api/ingest` treats a missing date as "don't filter out"
+rather than dropping it. **Not yet linked to `rss_sources`** — run it and confirm a non-zero
+`last_item_count` before clicking Add to Sources.
+
 Known weak scrapes as of 2026-09-14, all reporting `success`:
 
 | Source | Items | Filter? | Read as |
