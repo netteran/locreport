@@ -291,6 +291,18 @@ export function Nav() {
           ) : null}
         </div>
       </div>
+
+      {isAdmin && (
+        <nav className="admin-subnav" aria-label="Admin">
+          <div className="admin-subnav-inner">
+            <span className="admin-subnav-label">Admin</span>
+            {ADMIN_LINKS.map(({ href, label }) => (
+              <Link key={href} href={href}>{label}</Link>
+            ))}
+          </div>
+        </nav>
+      )}
+
       <ReadingProgress />
     </header>
   )

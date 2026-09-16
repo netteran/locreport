@@ -419,16 +419,19 @@ ul.nav-dropdown-menu {
   margin: 8px;
 }
 
-/* ── Admin Menu ─────────────────────────────────────────────
+/* ── Admin Menu (mobile only — see .admin-subnav for desktop) ─
    Lives in .nav-actions rather than .site-nav (it's account-scoped,
    not primary site nav), so it can't just share .nav-dropdown-menu —
    that class gets restyled for the mobile hamburger panel at 640px,
    and this control isn't part of that panel. Instead it clones the
    desktop trigger/menu look 1:1 and reuses .nav-has-dropdown (for
    position + the hover gap-bridge) and openMenu/scheduleClose (for
-   the identical hover-intent open/close timing) from the main nav. */
+   the identical hover-intent open/close timing) from the main nav.
+   Hidden by default — the mobile media query below turns it back on
+   for narrow viewports, where .admin-subnav has no room to render. */
 .admin-menu {
   position: relative;
+  display: none;
 }
 .admin-menu > button {
   display: inline-flex;
@@ -494,6 +497,53 @@ ul.nav-dropdown-menu {
   transition: color 0.2s ease, background 0.2s ease;
 }
 .admin-menu-dropdown a:hover {
+  color: var(--text);
+  background: var(--accent-soft);
+}
+
+/* ── Admin Sub-nav (desktop only — see .admin-menu for mobile) ─
+   A slim strip nested inside .site-header, directly under
+   .header-shell, so it rides along with the header's own
+   `position: sticky` instead of needing one of its own — glued
+   to the main nav rather than floating as a flyout. Hidden below
+   640px, where there's no room for it and .admin-menu's dropdown
+   takes over instead (see the mobile media query). */
+.admin-subnav {
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.admin-subnav-inner {
+  width: 100%;
+  max-width: var(--site-max-width);
+  margin: 0 auto;
+  padding: 0 var(--page-gutter);
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+}
+.admin-subnav-label {
+  flex-shrink: 0;
+  margin-right: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.admin-subnav a {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--text) 72%, var(--muted));
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.admin-subnav a:hover {
   color: var(--text);
   background: var(--accent-soft);
 }
@@ -2454,6 +2504,8 @@ article.page > h1 {
 
 @media (max-width: 640px) {
   .nav-toggle { display: flex; }
+  .admin-menu { display: block; }
+  .admin-subnav { display: none; }
   .header-shell { height: 56px; grid-template-columns: auto 1fr auto; }
   .site-nav { position: static; justify-content: flex-start; }
   .site-nav > #site-menu {
