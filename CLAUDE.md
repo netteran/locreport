@@ -789,6 +789,21 @@ Monthly reports are triggered manually from the admin dashboard.
 
 ---
 
+## Deployment Notes
+
+The Vercel project (`aggreagators/locreport`, Hobby plan) sits on a **public** GitHub repo. On
+2026-09-16 a production deploy — triggered by merging a PR whose commits were pushed by the Claude
+Code GitHub App rather than the account owner directly — was **BLOCKED** with *"the commit author did
+not have contributing access to the project... The Hobby Plan does not support collaboration for
+private repositories."* A manual "Redeploy" click from the dashboard, by the account owner, hit the
+same block. The repo was private at the time; it was switched to public the same day to test whether
+that was the gate. See `https://vercel.com/docs/deployments/troubleshoot-project-collaboration#team-configuration`
+(Vercel's own link for this error) if it recurs. If a production deploy blocks with this message
+again on a Hobby-plan project, check repo visibility first before assuming the fix requires a paid
+Pro upgrade.
+
+---
+
 ## SEO Infrastructure
 
 - **Metadata API:** Next.js metadata exports on every public page
