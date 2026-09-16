@@ -4,10 +4,23 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { marked } from 'marked'
 import { Draft } from '@/lib/types'
 import { ImageDropzone } from '@/components/ImageDropzone'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+
+// The draft's Fact Flow fact, as returned alongside the draft by GET/PATCH
+// /api/drafts/[id] (see lib/factFlow.ts findDraftFact). Not part of the Draft
+// type itself — the facts table is a separate row joined in for this screen.
+interface DraftFact {
+  id: string
+  content: string
+  source_url: string | null
+  source_name: string | null
+  article_id: string | null
+  created_at: string
+}
 
 function clientSlugify(text: string): string {
   return text
@@ -50,10 +63,17 @@ export default function DraftReviewPage() {
   const [rerunNote, setRerunNote] = useState('')
   const [error, setError] = useState('')
 
+  // The draft's Fact Flow fact — reviewed and edited alongside the article body.
+  // Kept as plain state (not read off `draft.fact` at render time) because a
+  // re-run replaces `draft` wholesale with a response that carries no `fact`
+  // field, and the fact is untouched by a re-run (only Stage 2 prose changes).
+  const [factContent, setFactContent] = useState('')
+  const [factPublished, setFactPublished] = useState(false)
+
   useEffect(() => {
     fetch(`/api/drafts/${id}`)
       .then(r => r.json())
-      .then((d: Draft) => {
+      .then((d: Draft & { fact: DraftFact | null }) => {
         setDraft(d)
         // Strip leading H1 from content (legacy drafts may still have it)
         const strippedContent = d.content.replace(/^#\s+.+\n?/, '').trimStart()
@@ -63,6 +83,8 @@ export default function DraftReviewPage() {
         setEditSourceUrl(d.source_url ?? '')
         setEditImageUrl(d.image_url ?? '')
         setEditImageAlt(d.image_alt ?? '')
+        setFactContent(d.fact?.content ?? '')
+        setFactPublished(!!d.fact?.article_id)
       })
       .catch(() => setError('Failed to load draft.'))
   }, [id])
@@ -87,12 +109,15 @@ export default function DraftReviewPage() {
           source_url: editSourceUrl || null,
           image_url: editImageUrl.trim() || null,
           image_alt: editImageAlt.trim() || null,
+          fact: factContent,
         }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         setError(d.error ?? `Save failed (${res.status})`)
       } else {
+        const updated: Draft & { fact: DraftFact | null } = await res.json()
+        setFactPublished(!!updated.fact?.article_id)
         setSavedAt(new Date())
       }
     } catch {
@@ -120,6 +145,7 @@ export default function DraftReviewPage() {
           impact_score: impactScore ? Number(impactScore) : null,
           time_horizon: timeHorizon || null,
           content_type: contentType,
+          fact: factContent,
         }),
       })
       if (!res.ok) {
@@ -295,6 +321,42 @@ export default function DraftReviewPage() {
             </select>
           </div>
         </div>
+      </div>
+
+      {/* Fact Flow — the one headline fact this article publishes alongside itself.
+          Reviewed and edited here so it goes out approved, not merely inherited
+          from ingest's distillation; Save draft / Approve & publish send it in the
+          same request as the article body (see saveDraft/action below). */}
+      <div className="mb-6 rounded-lg p-4" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <Label htmlFor="edit-fact" className="mb-0">Fact Flow fact</Label>
+          {factPublished && <Badge variant="success">Live on Fact Flow</Badge>}
+        </div>
+        <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>
+          The single headline sentence this article publishes to <code>/fact-flow</code>. Approving the
+          draft publishes this sentence exactly as written here.
+          {!factPublished && ' Leave it blank to let the system distil one automatically on approval.'}
+        </p>
+        <Textarea
+          id="edit-fact"
+          value={factContent}
+          onChange={e => setFactContent(e.target.value)}
+          rows={2}
+          maxLength={500}
+          placeholder="e.g. “DeepL appointed Morten Gram as CFO effective October 2026.”"
+          className="text-sm"
+        />
+        {factPublished ? (
+          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+            Already published — this box can&apos;t be cleared to unpublish it, only edited. Changes save
+            with the draft.
+          </p>
+        ) : !factContent.trim() && (
+          <p className="text-xs mt-1" style={{ color: '#92400e' }}>
+            No fact parked yet — write one, or approve as is and the system will try to distil one from
+            this article automatically. An article is never published without one.
+          </p>
+        )}
       </div>
 
       {/* Confabulation guard — flag every number for source cross-check */}
