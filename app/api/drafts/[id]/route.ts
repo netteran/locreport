@@ -5,9 +5,9 @@ import { extractTeaser } from '@/lib/utils'
 import { classifyArticle } from '@/lib/classify'
 import { getOpenAI } from '@/lib/openai'
 import { embedAndStoreArticle } from '@/lib/embeddings'
-import { ensureArticleFact } from '@/lib/factFlow'
+import { ensureArticleFact, findDraftFact, saveDraftFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
-import { revalidateArticleSurfaces } from '@/lib/revalidate'
+import { revalidateArticleSurfaces, revalidateFactSurfaces } from '@/lib/revalidate'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -16,13 +16,29 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const supabase = createServiceClient()
   const { data, error } = await supabase.from('drafts').select('*').eq('id', id).single()
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
-  return NextResponse.json(data)
+  // The draft's Fact Flow fact, reviewed and edited alongside the article body —
+  // see saveDraftFact below for how an edit here reaches the same row.
+  const fact = await findDraftFact(supabase, id)
+  return NextResponse.json({ ...data, fact })
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params
   const body = await req.json()
   const supabase = createServiceClient()
+
+  // Save the reviewer's edit to the draft's Fact Flow fact before anything else.
+  // This must run before the approve branch below, which promotes whatever is
+  // currently parked on the draft — so an edit submitted together with the
+  // approval has to land first for approval to publish the edited sentence
+  // rather than the original distillation.
+  let draftFactResult: Awaited<ReturnType<typeof saveDraftFact>> | null = null
+  if (body.fact !== undefined) {
+    draftFactResult = await saveDraftFact(supabase, { draftId: id, content: body.fact })
+    if (draftFactResult.status === 'refused' || draftFactResult.status === 'failed') {
+      return NextResponse.json({ error: draftFactResult.reason ?? 'Could not save fact' }, { status: 400 })
+    }
+  }
 
   if (body.status === 'approved') {
     const { data: draft, error: draftError } = await supabase
@@ -119,6 +135,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     revalidateArticleSurfaces({ slug })
   }
 
+  // A fact edit on an already-published article (post-approval correction) writes
+  // straight to the live row, so it needs its own cache turnover. When approval
+  // just ran, revalidateArticleSurfaces() above already covers the fact pages.
+  if (draftFactResult?.published && body.status !== 'approved') {
+    revalidateFactSurfaces()
+  }
+
   const patch: Record<string, unknown> = {}
   if (body.status !== undefined) patch.status = body.status
   if (body.content !== undefined) patch.content = body.content
@@ -135,5 +158,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json(data)
+  // Echo back the fact state too, so the client can sync without a second round
+  // trip — mirrors the shape GET returns.
+  const fact = await findDraftFact(supabase, id)
+  return NextResponse.json({ ...data, fact })
 }
