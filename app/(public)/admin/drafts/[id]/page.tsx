@@ -353,8 +353,9 @@ export default function DraftReviewPage() {
           </p>
         ) : !factContent.trim() && (
           <p className="text-xs mt-1" style={{ color: '#92400e' }}>
-            No fact parked yet — write one, or approve as is and the system will try to distil one from
-            this article automatically. An article is never published without one.
+            {draft.extracted_facts
+              ? 'This article did not produce any qualified facts — Fact Flow found nothing publishable in it. Leave it blank to publish without one, or write one by hand.'
+              : 'No fact parked yet — write one, or approve as is and the system will try to distil one from this article automatically.'}
           </p>
         )}
       </div>
