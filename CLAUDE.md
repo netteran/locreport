@@ -34,8 +34,10 @@
 
 ```
 app/
-  (auth)/login/          — Supabase email/password login
-  (public)/              — All public-facing pages (see Route Map below)
+  (public)/              — All public-facing pages (see Route Map below), including admin and login
+  (public)/login/        — Supabase email/password login. Lives under (public), not a separate
+                           (auth) group, so it renders inside the normal Nav + footer chrome like
+                           every other page (including /admin/*)
   api/                   — API routes (REST handlers + admin utilities)
   layout.tsx             — Root layout: global metadata, GA4 scripts, next/font, pre-paint theme script
   globals.css            — Tailwind imports
@@ -153,6 +155,7 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 | `/contact` | `contact/page.tsx` | Contact form (uses Resend) |
 | `/privacy` | `privacy/page.tsx` | Privacy policy |
 | `/terms` | `terms/page.tsx` | Terms of service |
+| `/login` | `login/page.tsx` | Supabase email/password sign-in — the only way into `/admin`. Blocked from crawlers via `robots.ts`, no in-page noindex meta |
 
 > Note: `/language-science` no longer exists as a route — it redirects to `/articles` via vercel.json.
 
