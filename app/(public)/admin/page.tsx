@@ -390,16 +390,32 @@ export default function AdminDashboard() {
 
         <ActionRow
           title="Send The Weekly"
-          description="Composes a personalised issue of The Weekly for every confirmed subscriber covering the last 7 days — top story, a dedicated section per signal they follow, then the week-in-brief roundup for anyone who keeps it — all filtered by their minimum impact score, and sends it through Resend. Clicking Preview only counts recipients; nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
+          description="Composes a personalised issue of The Weekly for every confirmed subscriber covering the last 7 days — top story, a dedicated section per signal they follow, then the week-in-brief roundup for anyone who keeps it — all filtered by their minimum impact score, and sends it through Resend. Preview only counts recipients; View sample opens the fullest possible version of the current issue in a new tab (every signal section populated) so you can check layout and wording — an individual subscriber's email is a filtered subset of it. Nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
           controls={
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={previewDigest}
-              disabled={digestPreviewing || digestSending}
-            >
-              {digestPreviewing ? 'Checking…' : 'Preview'}
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={previewDigest}
+                disabled={digestPreviewing || digestSending}
+              >
+                {digestPreviewing ? 'Checking…' : 'Preview'}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => window.open('/api/digest/preview', '_blank', 'noopener,noreferrer')}
+              >
+                View sample
+              </Button>
+              <Link
+                href="/admin/digest-history"
+                className="text-sm px-3 py-1.5 rounded-lg transition-colors"
+                style={{ color: 'var(--muted)' }}
+              >
+                Past sends →
+              </Link>
+            </>
           }
         >
           {digestPreview && (digestPreview.recipients === 0 ? (

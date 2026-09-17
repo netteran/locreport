@@ -80,6 +80,9 @@ lib/
     digest.ts            — Pure digest composition: selectForSubscriber() narrows the week's
                            articles to one subscriber's preferences, composeDigest() splits the
                            result into top story / signal briefings / roundup
+    period.ts            — currentPeriod() + fetchPeriodArticles(): the rolling 7-day window and its
+                           article query, shared by /api/digest/send and /api/digest/preview so the
+                           two can't disagree on what "the current issue" contains
     send.ts              — Resend client helper, SITE_URL, digest from-address
   prompts.ts             — LLM system prompts (also editable in DB settings table)
   classify.ts            — Article classification logic (impact, signals, segments, implications)
@@ -166,7 +169,7 @@ Several Compass and other sections use co-located client components:
 
 | Path | Purpose |
 |---|---|
-| `/admin` | Dashboard: stats banner + a compact action list (`.admin-actions` in `style.css`). Each row is title + controls; the long description collapses behind the title toggle, while confirmation panels and result messages always render inline. Actions: ingest, embeddings backfill, monthly report, digest send (weekly), Fact Flow backfill (one slug, or **Backfill all** to walk every article still missing its fact), market quotes, LLM pricing |
+| `/admin` | Dashboard: stats banner + a compact action list (`.admin-actions` in `style.css`). Each row is title + controls; the long description collapses behind the title toggle, while confirmation panels and result messages always render inline. Actions: ingest, embeddings backfill, monthly report, digest send (weekly, with a **View sample** button opening `/api/digest/preview` and a **Past sends →** link to `/admin/digest-history`), Fact Flow backfill (one slug, or **Backfill all** to walk every article still missing its fact), market quotes, LLM pricing |
 | `/admin/articles` | Article list management |
 | `/admin/articles/[id]` | Edit individual article |
 | `/admin/drafts` | Draft review queue (pending/approved/rejected) |
@@ -177,6 +180,7 @@ Several Compass and other sections use co-located client components:
 | `/admin/scraped-feeds` | Feed generator: generated **feeds** (HTML selectors or keyword-refiltered feeds) published at `/api/feeds/[name]`. Deliberately says "feeds", never "sources", so it is not confused with `/admin/sources` — the old `/admin/scraped-sources` path 301s here via `vercel.json`. Per-feed and run-all triggers, inline JSON config editor, an **Add to Sources** button per feed, and a badge showing whether ingest can see it (`in Sources` / `not in Sources` / `0 items`) |
 | `/admin/direct` | Direct article ingestion tool |
 | `/admin/events` | Event management |
+| `/admin/digest-history` | Read-only archive of every past Weekly send, grouped by issue (period) and newest first. Each row is one subscriber's personalised copy — subject, article count, and a **View** link that opens the exact stored HTML in a new tab via `/api/digest/history/[id]`. Rows from before the `subject`/`html` snapshot columns existed (`supabase/migrations/20260917_digest_sends_html.sql`) show with no View link rather than a reconstructed guess |
 
 ### API Routes (`app/api/`)
 
@@ -218,7 +222,9 @@ Several Compass and other sections use co-located client components:
 | `/api/subscribe` | POST | Digest signup → pending subscriber + Resend confirm email (double opt-in) |
 | `/api/subscribe/preferences` | POST | Token-authenticated preference updates (`signal_prefs`, `include_summary`, `min_impact`) / unsubscribe. Rejects a combination that would select nothing — summary off with no signals picked |
 | `/api/subscribe/unsubscribe` | GET/POST | One-click unsubscribe (`?token=`); POST is the RFC 8058 List-Unsubscribe target |
-| `/api/digest/send` | POST | Compose + send the personalized weekly digest via Resend batch (CRON_SECRET or admin). Always a 7-day period — there is no frequency parameter. `?dry=1` resolves the recipient list without emailing or recording a send — powers the admin dashboard's preview-then-confirm button |
+| `/api/digest/send` | POST | Compose + send the personalized weekly digest via Resend batch (CRON_SECRET or admin). Always a 7-day period — there is no frequency parameter. `?dry=1` resolves the recipient list without emailing or recording a send — powers the admin dashboard's preview-then-confirm button. On a real send, each subscriber's exact `subject`/`html` is snapshotted onto its `digest_sends` row |
+| `/api/digest/preview` | GET | Admin-only: renders the fullest possible version of the current period's issue (every signal section populated, full roundup) as `text/html` for the dashboard's **View sample** button. Never sends mail or writes to the DB — pure re-render via `lib/email/period.ts` + `composeDigest`/`digestEmail` |
+| `/api/digest/history/[id]` | GET | Admin-only: re-serves one past send's exact stored `html` as `text/html`, for the **View** link on `/admin/digest-history`. 404s if the row predates the snapshot columns |
 
 ---
 
@@ -413,9 +419,15 @@ subscriber_id uuid FK → subscribers.id
 period_start / period_end timestamptz
 article_ids uuid[]
 resend_id text
+subject text            — exact subject sent; null on rows from before this column existed
+html text                — exact rendered email sent; null on rows from before this column existed
 sent_at timestamptz
 ```
 Audit trail + idempotency for digest runs (re-runs skip subscribers with `last_sent_at` inside the period).
+`subject`/`html` (added `supabase/migrations/20260917_digest_sends_html.sql`) are written only by a real
+send in `/api/digest/send` — they snapshot what actually went out so `/admin/digest-history` can show a
+past issue exactly as sent rather than recomposing it against a subscriber's current (possibly since-changed)
+preferences. Rows written before the migration keep both columns null; nothing backfills them.
 
 ### `llm_pricing_quotes`
 ```

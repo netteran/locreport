@@ -3,13 +3,11 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { digestEmail } from '@/lib/email/templates'
 import { digestFrom, getResend, SITE_URL } from '@/lib/email/send'
 import { composeDigest, selectForSubscriber, DigestPrefs, DigestSourceArticle } from '@/lib/email/digest'
+import { currentPeriod, fetchPeriodArticles } from '@/lib/email/period'
 
 export const maxDuration = 300
 
 const BATCH_SIZE = 100
-
-// The digest is weekly-only — there is no daily cadence any more.
-const PERIOD_DAYS = 7
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('Authorization')
@@ -27,17 +25,11 @@ export async function POST(req: NextRequest) {
   // Resend, so the admin dashboard can preview a send before committing to it.
   // Nothing is emailed and no send is recorded.
   const dryRun = req.nextUrl.searchParams.get('dry') === '1'
-  const periodEnd = new Date()
-  const periodStart = new Date(periodEnd.getTime() - PERIOD_DAYS * 24 * 60 * 60 * 1000)
+  const { periodStart, periodEnd, periodLabel } = currentPeriod()
 
   const service = createServiceClient()
 
-  const { data: articles, error: articlesError } = await service
-    .from('articles')
-    .select('id, title, slug, excerpt, impact_score, signal_ids, business_implications, published_at')
-    .eq('article_type', 'industry')
-    .gte('published_at', periodStart.toISOString())
-    .order('published_at', { ascending: false })
+  const { data: articles, error: articlesError } = await fetchPeriodArticles(service, periodStart)
 
   if (articlesError) return NextResponse.json({ error: articlesError.message }, { status: 500 })
   if (!articles || articles.length === 0) {
@@ -58,8 +50,6 @@ export async function POST(req: NextRequest) {
     .eq('status', 'active')
 
   if (subsError) return NextResponse.json({ error: subsError.message }, { status: 500 })
-
-  const periodLabel = `Week of ${periodStart.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}`
 
   type Payload = {
     from: string
@@ -141,12 +131,17 @@ export async function POST(req: NextRequest) {
     for (let j = 0; j < batch.length; j++) {
       const p = batch[j]
       sent++
+      // subject/html are snapshotted here so a past issue can be viewed later
+      // exactly as sent, rather than recomposed against preferences the
+      // subscriber may have since changed.
       await service.from('digest_sends').insert({
         subscriber_id: p.subscriberId,
         period_start: periodStart.toISOString(),
         period_end: periodEnd.toISOString(),
         article_ids: p.articleIds,
         resend_id: data?.data?.[j]?.id ?? null,
+        subject: p.subject,
+        html: p.html,
       })
       await service.from('subscribers').update({ last_sent_at: now }).eq('id', p.subscriberId)
     }
