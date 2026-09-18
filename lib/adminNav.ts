@@ -13,7 +13,6 @@ export const ADMIN_LINKS: AdminLink[] = [
   { href: '/admin/scraped-feeds', label: 'Feed Generator' },
   { href: '/admin/fact-flow', label: 'Fact Flow' },
   { href: '/admin/digest-history', label: 'Weekly History' },
-  { href: '/admin/events', label: 'Events' },
   { href: '/admin/directory', label: 'Directory' },
   { href: '/admin/compose', label: 'Compose' },
   { href: '/admin/direct', label: 'Direct' },

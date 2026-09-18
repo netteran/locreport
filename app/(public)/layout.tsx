@@ -49,7 +49,6 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               <h4 className="footer-nav-title">Compass</h4>
               <ul className="footer-links" aria-label="Footer tools links">
                 <li><Link href="/compass/locstock">LocStock</Link></li>
-                <li><Link href="/compass/events">Industry events</Link></li>
                 <li><Link href="/compass/llm-pricing">AI cost simulator</Link></li>
                 <li><Link href="/compass/directory">Tech directory</Link></li>
               </ul>
