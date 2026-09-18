@@ -19,11 +19,10 @@ export const metadata: Metadata = {
 const STATIC_PAGES = [
   { title: '2026 Annual Global Market Report', href: '/reports/2026-annual-global-market-report', section: 'Reports', excerpt: 'Data-rich strategic brief covering market evolution, AI disruption, and competitive dynamics.' },
   { title: 'LocStock — Localization Market Index', href: '/compass/locstock', section: 'Compass', excerpt: 'Live equity overview of 38 publicly traded companies in language services and AI translation.' },
-  { title: 'Compass — Industry Tools', href: '/compass', section: 'Compass', excerpt: 'Market intelligence tools: LocStock, industry directory, events, LLM pricing tracker.' },
+  { title: 'Compass — Industry Tools', href: '/compass', section: 'Compass', excerpt: 'Market intelligence tools: LocStock, industry directory, LLM pricing tracker.' },
   { title: 'Intelligence Overview', href: '/intelligence', section: 'Intelligence', excerpt: 'High-impact signals, trends and analysis for the localization industry.' },
   { title: 'Industry Directory', href: '/compass/directory', section: 'Compass', excerpt: 'Directory of companies in language services, translation technology, and localization.' },
   { title: 'LLM Pricing Tracker', href: '/compass/llm-pricing', section: 'Compass', excerpt: 'Comparative pricing for large language models used in translation and localization.' },
-  { title: 'Events', href: '/compass/events', section: 'Compass', excerpt: 'Upcoming and recent industry events in localization and language technology.' },
 ]
 
 interface ArticleResult {

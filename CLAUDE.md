@@ -104,7 +104,6 @@ lib/
                            invalidation every article/fact write path calls, so a publish appears at once
                            instead of waiting out the page's ISR window. See ISR Revalidation below
   data/
-    events.ts            — 2026 industry calendar (11 events, hardcoded)
     directory.ts         — 31 localization tech vendors (hardcoded)
     llm-pricing.ts       — LLM provider pricing (22 models tracked across 9 providers incl. OpenAI, Anthropic, Google, Meta, DeepSeek, Moonshot AI/Kimi, xAI, Alibaba/Qwen, Mistral); static values are the seed/fallback, overlaid at render time with live data from `llm_pricing_quotes`/`llm_pricing_history` (see `/api/llm-pricing`)
 
@@ -141,7 +140,6 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 | `/reports/monthly` | `reports/monthly/page.tsx` | Dynamic monthly reports from DB |
 | `/compass` | `compass/page.tsx` | Tools hub overview |
 | `/compass/locstock` | `compass/locstock/page.tsx` | Market index + Recharts |
-| `/compass/events` | `compass/events/page.tsx` | 2026 industry events calendar |
 | `/compass/llm-pricing` | `compass/llm-pricing/page.tsx` | Interactive LLM pricing simulator + history chart |
 | `/compass/directory` | `compass/directory/page.tsx` | 31 localization tech vendors |
 | `/fact-flow` | `fact-flow/page.tsx` | Day-grouped stream of published facts — one per article. Shows only facts with an `article_id` |
@@ -164,7 +162,6 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 Several Compass and other sections use co-located client components:
 - `compass/locstock/LocStockClient.tsx` + `LocStockChart.tsx`
 - `compass/llm-pricing/PricingClient.tsx` + `PricingHistoryChart.tsx`
-- `compass/events/EventsClient.tsx`
 - `compass/directory/DirectoryClient.tsx`
 - `search/SearchRefine.tsx`
 
@@ -182,7 +179,6 @@ Several Compass and other sections use co-located client components:
 | `/admin/sources` | Manage RSS feed sources |
 | `/admin/scraped-feeds` | Feed generator: generated **feeds** (HTML selectors or keyword-refiltered feeds) published at `/api/feeds/[name]`. Deliberately says "feeds", never "sources", so it is not confused with `/admin/sources` — the old `/admin/scraped-sources` path 301s here via `vercel.json`. Per-feed and run-all triggers, inline JSON config editor, an **Add to Sources** button per feed, and a badge showing whether ingest can see it (`in Sources` / `not in Sources` / `0 items`) |
 | `/admin/direct` | Direct article ingestion tool |
-| `/admin/events` | Event management |
 | `/admin/digest-history` | Read-only archive of every past Weekly send, grouped by issue (period) and newest first. Each row is one subscriber's personalised copy — subject, article count, and a **View** link that opens the exact stored HTML in a new tab via `/api/digest/history/[id]`. Rows from before the `subject`/`html` snapshot columns existed (`supabase/migrations/20260917_digest_sends_html.sql`) show with no View link rather than a reconstructed guess |
 
 ### API Routes (`app/api/`)
@@ -211,8 +207,6 @@ Several Compass and other sections use co-located client components:
 | `/api/feeds/[name]` | GET | Public: serves one scrape source's most recently generated RSS XML — this is the URL an `rss_sources` row points at |
 | `/api/stats` | GET | Dashboard stats: article/draft/source counts |
 | `/api/seen-urls` | GET | Legacy Jekyll URLs (deduplication) |
-| `/api/events` | GET/POST | Events CRUD |
-| `/api/events/[id]` | GET/PATCH/DELETE | Single event |
 | `/api/direct` | POST | Direct article submission |
 | `/api/admin/backfill-authors` | POST | Admin utility: backfill article authors |
 | `/api/admin/reclassify` | POST | Admin utility: reclassify articles via LLM |
@@ -828,7 +822,6 @@ Pro upgrade.
 - **RSS:** `/feed.xml` (all articles) + `/fact-flow/feed.xml` (facts); RSS alternate declared in root layout metadata
 - **301 Redirects:** `vercel.json` — preserves SEO from legacy Jekyll URLs and old route names:
   - `/market` → `/compass/locstock`
-  - `/events` → `/compass/events`
   - `/tools/llm-pricing` → `/compass/llm-pricing`
   - `/tools/directory` → `/compass/directory`
   - `/research`, `/language-science` → `/articles`
@@ -865,8 +858,8 @@ Pro upgrade.
 - Component primitives: `components/ui/`
 - Do NOT modify TailwindCSS config directly — use CSS variables
 
-### Update static data (events, directory, LLM pricing)
-- `lib/data/events.ts`, `lib/data/directory.ts`, `lib/data/llm-pricing.ts`
+### Update static data (directory, LLM pricing)
+- `lib/data/directory.ts`, `lib/data/llm-pricing.ts`
 - These are hardcoded TypeScript arrays — edit the file directly
 
 ### Add a feed-generator scrape source (a site with no usable RSS feed)
