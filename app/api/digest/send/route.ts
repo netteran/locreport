@@ -9,6 +9,17 @@ export const maxDuration = 300
 
 const BATCH_SIZE = 100
 
+// Idempotency guard: how recently a subscriber must have already been sent
+// something before a new run skips them as "covered." Deliberately much
+// shorter than the 7-day period — comparing last_sent_at against periodStart
+// (now - 7 days) meant an off-schedule send (an admin test, a retry) at any
+// point in the last week could land after the *next* run's periodStart and
+// silently suppress that week's real send. A short gap still catches the
+// actual re-run scenarios (same-day retry, duplicate dispatch) without
+// blocking a legitimately separate week's issue that happens to land a few
+// days early or late.
+const MIN_RESEND_GAP_MS = 24 * 60 * 60 * 1000
+
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('Authorization')
   const isCron = auth === `Bearer ${process.env.CRON_SECRET}`
@@ -64,8 +75,8 @@ export async function POST(req: NextRequest) {
   let skipped = 0
 
   for (const sub of subscribers ?? []) {
-    // Idempotency: safe to re-run — anyone already covered this period is skipped
-    if (sub.last_sent_at && new Date(sub.last_sent_at) > periodStart) {
+    // Idempotency: safe to re-run — anyone sent something too recently is skipped
+    if (sub.last_sent_at && periodEnd.getTime() - new Date(sub.last_sent_at).getTime() < MIN_RESEND_GAP_MS) {
       skipped++
       continue
     }
