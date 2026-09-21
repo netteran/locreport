@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
-import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT } from '@/lib/prompts'
+import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, todayLine } from '@/lib/prompts'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 
 type Params = { params: Promise<{ id: string }> }
@@ -90,6 +90,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!factsReused) {
       const extractorPrompt = await getPrompt('prompt_extractor', DEFAULT_EXTRACTOR_PROMPT)
       const extractInput = [
+        todayLine(),
         draft.source_url ? `Source URL: ${draft.source_url}` : '',
         `Article content:\n${draft.content}`,
       ].filter(Boolean).join('\n\n')
