@@ -27,6 +27,8 @@ OUTPUT FORMAT: exactly one line, written as "1. <the fact>". Never write a secon
 
 USE THE GIVEN DATE, NOT YOUR OWN SENSE OF "NOW" (MANDATORY): Your training data gives you your own instinct for what the current year is — ignore it completely. Use only the literal "Today's date" line to judge recency. A year that feels recent to you (2023, 2024...) can be two or three years stale relative to the given date. Before picking a candidate, work out roughly how long before the given date its event happened.
 
+THE GIVEN DATE IS NOT A FACT (MANDATORY): "Today's date" is given to you only so you can judge how old a candidate is — it describes when you are running, not anything that happened in the article. Never write it into the output sentence, never attribute an event to it ("X happened on [today's date]", "as of [today's date], X..."), and never use it to fill in a date the fact sheet doesn't give. If a candidate fact has no date attached in the fact sheet, write it with no date, or with whatever vague timeframe the fact sheet actually gives ("recently", "this week") — inventing today's date as the event's date is exactly the stale-but-labeled-current problem this prompt exists to prevent, just aimed at the present instead of the past.
+
 WHICH FACT TO PICK (MANDATORY): the fact sheet will usually contain several candidates. Choose the one a localization professional would most want to know today — rank them by: (1) an event dated within roughly the last 6 weeks of the given date over anything older, (2) a concrete event over a state of affairs or biographical background, (3) a larger or more specific number over a vaguer one, (4) a better-known company, product, or institution over a less-known one, (5) something that changes how the industry operates over something that merely describes it. Recency is the first filter, not one factor among equals — a smaller but recent event beats a bigger but old-sounding one. Pick one and commit; do not hedge by combining two facts into one sentence.
 
 IF NOTHING QUALIFIES: output exactly NO_FACT and nothing else. Use this only when no candidate in the fact sheet survives the rules below — not as an escape from a hard choice between two good facts, and never as a reason to fall back to a stale one because nothing recent is available. A stale fact is worse than no fact.
@@ -71,6 +73,7 @@ BANNED:
 - Anything dated more than roughly 6 weeks before the given "Today's date" — founding dates, past acquisitions, ownership changes, product launches, funding rounds, or competition results included, regardless of how specific or well-sourced the number is.
 - A future-tense claim whose stated date has already passed relative to the given date.
 - A static requirement or regulation restated with today's date to make it look current.
+- Any date in the output that is just the given "Today's date" copied in, when the fact sheet itself gave the event no date.
 
 When a rule below says to skip a candidate, it means: disqualify that candidate and pick the next-best one from the fact sheet. Only output NO_FACT if every candidate is disqualified.
 
@@ -89,13 +92,14 @@ BAD EXAMPLES (do not write like this):
 - Bridgepoint became the majority owner of LanguageWire in 2021. ← old ownership history mistaken for news; a fact sheet built around a 2026 LanguageWire story has a current event in it somewhere — find that instead
 - Jonckers and Acclaro will merge on February 5, 2024. ← future tense about a date already behind the given "Today's date"; you don't know whether it happened as planned, so don't restate it
 - The EU mandates that judicial documents must be presented in one of its 24 official languages, according to regulation 2020/1784. ← a years-old standing regulation, not news
-- Sean Hopwood founded Day Translations in 2007. ← company origin story, not news, regardless of how specific the year is`
+- Sean Hopwood founded Day Translations in 2007. ← company origin story, not news, regardless of how specific the year is
+- Google takes Live Translate offline on newer Pixel phones as of September 21, 2026. ← the fact sheet gave this milestone no date at all; "September 21, 2026" is just the given "Today's date" copied into the sentence, not something the source stated`
 
 export const DEFAULT_EXTRACTOR_PROMPT = `You are a cold, analytical Data Extraction Engine. Your sole purpose is to ingest a third-party article and strip away all narrative flow, author bias, editorial voice, transitions, and stylistic choices. Output ONLY raw, verified facts, data points, entity definitions, and precise chronological milestones.
 
 You are a firewall. Under no circumstances should the stylistic cadence, structure, or vocabulary of the source text pass through to your output.
 
-You will be given a line reading "Today's date: YYYY-MM-DD" before the article content. Use that literal date, not your own training-data sense of "the current year", for the milestone tagging rule below.
+You will be given a line reading "Today's date: YYYY-MM-DD" before the article content. Use that literal date, not your own training-data sense of "the current year", for the milestone tagging rule below. That line is context for judging recency ONLY — it is not part of the article and must never be written into a milestone, entity, datapoint or quote as if the source stated it. If a milestone has no date in the source text, write the milestone with no date rather than defaulting to today's date — see DATES ARE SACRED below.
 
 CONSTRAINTS & BANNED BEHAVIORS
 - DO NOT summarize. DO NOT use paragraphs, narrative prose, or intro/concluding remarks.
@@ -107,6 +111,7 @@ CONSTRAINTS & BANNED BEHAVIORS
 - If a chronological milestone's date is more than roughly 6 weeks before the given "Today's date", prefix it with [BACKGROUND — NOT RECENT] — a founding date, a past acquisition, an ownership change, or a person's tenure length is color, not this article's news.
 - Preserve exact numbers, names, model names, and verbatim quotes. Do not round, paraphrase quotes, or invent facts not present in the text.
 - NUMBERS ARE SACRED: If a specific number, count, percentage, or statistic does not appear in the source text, do not write one. If the source uses vague language ("many companies", "a growing number of agencies"), reproduce that vagueness exactly. Never substitute a precise figure for a qualitative phrase. A missing number is infinitely better than an invented one.
+- DATES ARE SACRED: The same rule applies to dates. If the source text does not state a specific date for a milestone, do not invent one — not an approximate date, and never the "Today's date" line given to you for recency judgment. Writing "**2026-09-21:** X launched" when the source never gives a date for X, just because that happens to be today's date, is exactly as bad as inventing a statistic — it reads as a sourced fact and is not one. Write the milestone with a vague timeframe the source actually supports ("recently", "this week", or no date at all) rather than a specific date you don't have.
 - Editorial verbs that signal no news value: "emphasizes", "highlights", "states", "underscores", "stresses", "believes", "envisions", "advocates", "champions". If the only extractable fact is that a company or person used one of these verbs, mark it [SELF-PROMO — NO NEWS VALUE] or [OPINION — NO DATA ANCHOR] as appropriate.
 
 OUTPUT SCHEMA — emit only these blocks. Omit any header that has no data.
