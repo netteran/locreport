@@ -8,6 +8,7 @@ import { classifyArticle } from '@/lib/classify'
 import { extractTeaser } from '@/lib/utils'
 import { distillHeadlineFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
+import { approveDraft } from '@/lib/publish'
 
 async function getPrompt(supabase: ReturnType<typeof createServiceClient>, key: string, fallback: string): Promise<string> {
   try {
@@ -218,6 +219,18 @@ export async function POST(req: NextRequest) {
               }
             } else {
               console.warn(`[ingest] no publishable fact distilled for ${item.link}`)
+            }
+
+            // Trusted sources skip /admin/drafts entirely: approve immediately
+            // through the exact same path a human click would take (lib/publish.ts),
+            // rather than leaving the draft pending.
+            if (source.auto_publish) {
+              const result = await approveDraft(supabase, draftRow.id)
+              if (result.status === 'ok') {
+                await supabase.from('drafts').update({ status: 'approved' }).eq('id', draftRow.id)
+              } else {
+                console.error(`[ingest] auto-publish failed for draft ${draftRow.id}: ${result.message}`)
+              }
             }
           }
 
