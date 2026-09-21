@@ -628,20 +628,42 @@ with `{auto_publish}`). New columns default to `false`, and so does every newly-
 is something a source earns, not the default.
 
 **Current policy (set 2026-09-14/21, owner's call):** every source is `auto_publish = true` **except** the
-~17 `Google News – *` sources, which stay on manual review. This was a deliberate choice made with the
-approve/reject history in hand, not a data-driven allowlist — several now-auto-publishing sources have
-historically poor approve rates (EU Translation Centre 83% rejected, all four TechCrunch tag feeds 100%
-rejected, GALA/Crowdin/Phrase Blog roughly coin-flip), on par with or worse than several Google News
-sources. The owner's reasoning: Google News search is the one mechanism shown to surface items with *zero*
-topical connection to language services (see the `keywords` note above) rather than merely low-quality or
-off-format ones, and the owner checks published articles post-publish rather than pre-publish for
-correction. If asked to revisit this list, don't assume the existing pattern ("everything but Google News")
-is the intended long-term rule — it was one explicit trade-off, not a principle to extend to new sources.
+~17 `Google News – *` sources and, as of 2026-09-21, the two `Google Blog` sources (see below) — all stay
+on manual review. This was a deliberate choice made with the approve/reject history in hand, not a
+data-driven allowlist — several now-auto-publishing sources have historically poor approve rates (EU
+Translation Centre 83% rejected, all four TechCrunch tag feeds 100% rejected, GALA/Crowdin/Phrase Blog
+roughly coin-flip), on par with or worse than several Google News sources. The owner's reasoning: Google
+News search is the one mechanism shown to surface items with *zero* topical connection to language services
+(see the `keywords` note above) rather than merely low-quality or off-format ones, and the owner checks
+published articles post-publish rather than pre-publish for correction. If asked to revisit this list,
+don't assume the existing pattern ("everything but Google News") is the intended long-term rule — it was
+one explicit trade-off, not a principle to extend to new sources.
 
 Because ingest already classifies + fact-distills every draft before this runs, an auto-published article
 gets no additional scrutiny beyond what a manually-approved one gets from OpenAI — there is no separate
 "is this good enough" check. If a source's output quality drifts, the fix is flipping its `auto_publish`
 back to `false` (or fixing its `keywords`/selectors), not adding a new gate.
+
+**Google Blog sources reverted to manual review (found + fixed 2026-09-21).** `Google Blog`
+(`blog.google/rss/`) and `Google Blog Models and Research` (`blog.google/innovation-and-ai/models-and-research/rss/`)
+were auto-publishing straight through `matchesKeywords`' full-text substring match (`app/api/ingest/route.ts`),
+and that match turned out to have poor precision against this specific source: blog.google is Google's
+general product/AI blog, not a language-services trade source, and it mentions "language model",
+"multilingual", "nlp" and "translat" in passing on nearly every Gemini-adjacent post regardless of topic — a
+laptop launch, Pixel earbuds, wildfire detection, a dairy-farm case study, a weather-forecasting model, an
+earnings call, a fruit-fly connectome map. Of 38 drafts pulled from `Google Blog`, 17 auto-published fully
+off-topic and 21 more were caught only by hand; `Google Blog Models and Research` had all 5 of its drafts
+hand-rejected. **14 of the 17 auto-published articles were still live** when this was found — only the
+most recent 3 (from the same day) had been deleted — because nothing had surfaced that the other 14, spread
+from June through September, were the same bug. If asked to clean up after a recurrence, check the
+`articles` table for what's still published, not just what the reporter noticed.
+
+Both rows are now `auto_publish = false`, and `Google Blog`'s keyword list dropped the two most generic
+terms (`language model`, `nlp` — both near-guaranteed to match any Gemini post on this exact blog). Don't
+re-enable auto-publish on either on the assumption the keyword list can be tightened enough to fix it: the
+underlying problem is that a general company blog keeps mentioning language/AI terms on unrelated posts no
+matter how the keyword list is worded, so full-text substring matching has a precision ceiling here that
+only human review clears — the same reasoning already applied to Google News above.
 
 ---
 
