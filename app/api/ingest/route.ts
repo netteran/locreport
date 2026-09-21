@@ -3,7 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { fetchFeed, fetchArticleText } from '@/lib/rss'
 import { getOpenAI } from '@/lib/openai'
 import { slugify, uniqueSlug } from '@/lib/slugify'
-import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT } from '@/lib/prompts'
+import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, todayLine } from '@/lib/prompts'
 import { classifyArticle } from '@/lib/classify'
 import { extractTeaser } from '@/lib/utils'
 import { distillHeadlineFact } from '@/lib/factFlow'
@@ -113,6 +113,7 @@ export async function POST(req: NextRequest) {
         }
 
         const extractInput = [
+          todayLine(),
           item.link ? `Source URL: ${item.link}` : '',
           `Title: ${item.title}`,
           `Article content:\n${articleText}`,

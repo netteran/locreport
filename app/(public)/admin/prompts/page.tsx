@@ -8,9 +8,9 @@ import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, DEFAULT_MONTHLY_PROM
 type PromptKey = 'prompt_extractor' | 'prompt_industry' | 'prompt_monthly' | 'prompt_factflow'
 
 const PROMPTS: { key: PromptKey; label: string; hint?: string; default: string }[] = [
-  { key: 'prompt_extractor', label: 'Stage 1 — Extractor (fact extraction)', default: DEFAULT_EXTRACTOR_PROMPT },
+  { key: 'prompt_extractor', label: 'Stage 1 — Extractor (fact extraction)', hint: 'Today’s real date is injected automatically ahead of the article content at call time — no need to add it here.', default: DEFAULT_EXTRACTOR_PROMPT },
   { key: 'prompt_industry', label: 'Stage 2 — Industry editorial (LocReport voice)', default: DEFAULT_INDUSTRY_PROMPT },
-  { key: 'prompt_factflow', label: 'Fact Flow — news signal distillation', hint: 'Runs after Stage 1 to produce 1–3 self-contained news bullets for the Fact Flow page.', default: DEFAULT_FACTFLOW_PROMPT },
+  { key: 'prompt_factflow', label: 'Fact Flow — news signal distillation', hint: 'Runs after Stage 1 to pick the ONE most current, headline-worthy fact for the Fact Flow page. Today’s real date is injected automatically ahead of the fact sheet at call time — no need to add it here.', default: DEFAULT_FACTFLOW_PROMPT },
   { key: 'prompt_monthly', label: 'Monthly report (2000-word synthesis)', hint: 'Used by the Next.js monthly report generator. The Jekyll GitHub Actions script has its own copy — update both if you change the structure.', default: DEFAULT_MONTHLY_PROMPT },
 ]
 

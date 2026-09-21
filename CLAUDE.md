@@ -89,7 +89,9 @@ lib/
                            article query, shared by /api/digest/send and /api/digest/preview so the
                            two can't disagree on what "the current issue" contains
     send.ts              — Resend client helper, SITE_URL, digest from-address
-  prompts.ts             — LLM system prompts (also editable in DB settings table)
+  prompts.ts             — LLM system prompts (also editable in DB settings table) + todayLine(): real
+                           current-date line injected at call time on every extractor/Fact Flow call,
+                           so recency judgments use the actual date, not training-data instinct
   classify.ts            — Article classification logic (impact, signals, segments, implications)
   rss.ts                 — RSS parsing, HTML-to-text, Google News redirect resolution
   feedGenerator.ts       — Feed generator: scrapes an HTML listing page (cheerio + CSS selectors) or
@@ -183,6 +185,7 @@ Several Compass and other sections use co-located client components:
 | `/admin/scraped-feeds` | Feed generator: generated **feeds** (HTML selectors or keyword-refiltered feeds) published at `/api/feeds/[name]`. Deliberately says "feeds", never "sources", so it is not confused with `/admin/sources` — the old `/admin/scraped-sources` path 301s here via `vercel.json`. Per-feed and run-all triggers, inline JSON config editor, an **Add to Sources** button per feed, and a badge showing whether ingest can see it (`in Sources` / `not in Sources` / `0 items`) |
 | `/admin/direct` | Direct article ingestion tool |
 | `/admin/digest-history` | Read-only archive of every past Weekly send, grouped by issue (period) and newest first. Each row is one subscriber's personalised copy — subject, article count, and a **View** link that opens the exact stored HTML in a new tab via `/api/digest/history/[id]`. Rows from before the `subject`/`html` snapshot columns existed (`supabase/migrations/20260917_digest_sends_html.sql`) show with no View link rather than a reconstructed guess |
+| `/admin/fact-flow` | Direct management of the last 200 `facts` rows (`FactFlowAdmin.tsx`): edit content inline, link/unlink to an article by slug, delete, or add a hand-written fact. **The link/add actions do not check whether the target article already has a fact** — using them on an article that already has one creates a second, both now public. This surface predates the one-fact-per-article guarantee and was never updated to respect it; be careful with it (see the duplicate-facts note under Fact Flow) |
 
 ### API Routes (`app/api/`)
 
@@ -573,6 +576,38 @@ on `/admin` (`/api/admin/backfill-facts` with `{all:true}`) — each fact is dat
 `published_at`, so backfilling slots old facts into the stream chronologically instead of dropping months
 of old news at the top. Monthly reports are excluded by design: they synthesise facts Fact Flow already
 carried, and the prompt bans meta-commentary about reports.
+
+**Recency (fixed 2026-09-21).** With most sources now auto-publishing (see Auto-Publish below), Fact Flow
+is a bigger part of what a reader sees unreviewed, and it was surfacing stale or vague sentences: old
+funding rounds, founding dates, ownership history ("Bridgepoint became majority owner of LanguageWire in
+2021") standing in for the actual news, regulations cited by a years-old number, and future-tense claims
+("X will merge with Y on [date]") whose date had already passed. Root cause: neither the Stage 1 extractor
+nor the Fact Flow distillation call was ever told what today's actual date is, so a model judging "is this
+recent" had only its own training-data sense of the current year to go on — 2023/2024 reads as recent to a
+model whose training cutoff is itself around then, regardless of how stale it is relative to the site's
+real "now". `lib/prompts.ts` → `todayLine()` now gets prepended to the user-turn content on every extractor
+and Fact Flow call (`app/api/ingest/route.ts`, `app/api/compose/route.ts`, `app/api/drafts/[id]/rerun/route.ts`,
+and both call sites in `lib/factFlow.ts`) — never baked into the prompt text itself, since that stays
+editable from `/admin/prompts`. `DEFAULT_FACTFLOW_PROMPT` now explicitly tells the model to use that literal
+date instead of its own instincts, with named rules against stale-but-true facts, future-tense claims past
+their date, and biographical/ownership background dressed as news. `DEFAULT_EXTRACTOR_PROMPT` tags any
+milestone older than ~6 weeks as `[BACKGROUND — NOT RECENT]` so Fact Flow's distillation gets a cleaner
+Stage 1 sheet to begin with. If asked to tune Fact Flow further, read the current prompt text before
+changing it — the rules were each written against a real bad fact found in the DB, not hypothetically.
+
+**Duplicate facts (found 2026-09-21, not yet fixed).** The one-fact-per-article guarantee is violated for
+113 articles (124 excess rows as of this writing), some as recent as September 2026 — well after the
+guarantee shipped. `ensureArticleFact()`'s own logic looks race-safe (it checks `count(article_id=X) > 0`
+before ever inserting), so this is not proof of a bug in that function specifically. The clearest known way
+to reproduce a duplicate today is `/admin/fact-flow` (see Admin Routes) — its link/add actions never check
+for an existing fact. Whether that explains all 113 or only some is unconfirmed. Two things should happen
+together, not separately: (1) add `create unique index on facts(article_id) where article_id is not null`
+so a duplicate becomes a constraint violation instead of silent data — `ensureArticleFact` already treats
+an insert error as `{status: 'skipped'}` rather than throwing, so this is a safe addition; (2) resolve the
+existing 124 excess rows first, since a unique index cannot be created over data that already violates it.
+Do not silently delete the "extra" fact per article without checking which one is actually correct — several
+sampled pairs have the *older* row as the stale/background one and the newer as the real news, so "keep
+oldest" is not a safe default rule.
 
 **Publishing to X is a separate, dormant feature.** `/api/tweet-facts` and `facts.tweeted_at` exist and
 look complete, but nothing has ever called the route — there is no workflow, no Vercel cron and no admin

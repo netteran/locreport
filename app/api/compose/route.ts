@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
-import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT } from '@/lib/prompts'
+import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, todayLine } from '@/lib/prompts'
 import { classifyArticle } from '@/lib/classify'
 
 async function getPrompt(key: string, fallback: string): Promise<string> {
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
   if (stage === 'extract') {
     const extractorPrompt = await getPrompt('prompt_extractor', DEFAULT_EXTRACTOR_PROMPT)
     const userContent = [
+      todayLine(),
       sourceUrl ? `Source URL: ${sourceUrl}` : '',
       `Article content:\n${articleContent}`,
     ].filter(Boolean).join('\n\n')

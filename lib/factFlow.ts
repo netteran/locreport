@@ -1,6 +1,6 @@
 import type { createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
-import { DEFAULT_FACTFLOW_PROMPT, DEFAULT_EXTRACTOR_PROMPT } from '@/lib/prompts'
+import { DEFAULT_FACTFLOW_PROMPT, DEFAULT_EXTRACTOR_PROMPT, todayLine } from '@/lib/prompts'
 import { parseHeadlineFact } from '@/lib/facts'
 
 type Service = ReturnType<typeof createServiceClient>
@@ -46,7 +46,7 @@ export async function distillHeadlineFact(supabase: Service, factSheet: string):
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: prompt },
-      { role: 'user', content: factSheet },
+      { role: 'user', content: `${todayLine()}\n\n${factSheet}` },
     ],
   })
   return parseHeadlineFact(res.choices[0].message.content ?? '')
@@ -67,6 +67,7 @@ async function extractFactSheet(supabase: Service, title: string, content: strin
       {
         role: 'user',
         content: [
+          todayLine(),
           sourceUrl ? `Source URL: ${sourceUrl}` : '',
           `Title: ${title}`,
           `Article content:\n${content}`,
