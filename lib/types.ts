@@ -4,6 +4,9 @@ export interface RssSource {
   name: string
   active: boolean
   keywords: string[]
+  // When true, /api/ingest auto-approves every draft from this source via
+  // lib/publish.ts approveDraft() instead of leaving it for /admin/drafts.
+  auto_publish: boolean
   created_at: string
 }
 

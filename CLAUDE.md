@@ -76,6 +76,9 @@ lib/
                            distillation, tolerating numbered/bullet/bare-prose formatting drift
   factFlow.ts            — ensureArticleFact(): the one-fact-per-article guarantee every publish path calls.
                            See Fact Flow below
+  publish.ts             — approveDraft(): draft → article, the one place that logic lives. Called by the
+                           manual approve branch of /api/drafts/[id] and by /api/ingest for sources with
+                           rss_sources.auto_publish. See Auto-Publish below
   topics.ts              — Topic definitions (signals + keywords) shared by /articles filters and badges
   email/
     templates.ts         — Inline-styled HTML email builders (confirm + digest)
@@ -176,7 +179,7 @@ Several Compass and other sections use co-located client components:
 | `/admin/drafts/[id]` | Edit/approve/reject individual draft |
 | `/admin/compose` | Manually write a new article |
 | `/admin/prompts` | Edit LLM system prompts stored in DB |
-| `/admin/sources` | Manage RSS feed sources |
+| `/admin/sources` | Manage RSS feed sources, including the per-source **Auto-publish** toggle — see Auto-Publish below |
 | `/admin/scraped-feeds` | Feed generator: generated **feeds** (HTML selectors or keyword-refiltered feeds) published at `/api/feeds/[name]`. Deliberately says "feeds", never "sources", so it is not confused with `/admin/sources` — the old `/admin/scraped-sources` path 301s here via `vercel.json`. Per-feed and run-all triggers, inline JSON config editor, an **Add to Sources** button per feed, and a badge showing whether ingest can see it (`in Sources` / `not in Sources` / `0 items`) |
 | `/admin/direct` | Direct article ingestion tool |
 | `/admin/digest-history` | Read-only archive of every past Weekly send, grouped by issue (period) and newest first. Each row is one subscriber's personalised copy — subject, article count, and a **View** link that opens the exact stored HTML in a new tab via `/api/digest/history/[id]`. Rows from before the `subject`/`html` snapshot columns existed (`supabase/migrations/20260917_digest_sends_html.sql`) show with no View link rather than a reconstructed guess |
@@ -300,8 +303,22 @@ id uuid PK
 url text
 name text
 active boolean
+keywords text[]        — ingest-time relevance filter; empty = no filter (Google News sources rely on this,
+                          not on Google's own query matching — see Google News keyword filtering below)
+auto_publish boolean    — true skips /admin/drafts entirely; see Auto-Publish below
 created_at timestamptz
 ```
+
+**Google News sources need `keywords` populated, unlike ordinary feeds.** The ~17 `rss_sources` rows
+named `Google News – *` point at `news.google.com/rss/search` queries built as `(topic OR terms) (business
+OR qualifier)`. Google's own search does not reliably enforce that as a strict boolean AND — it has
+surfaced items matching only the generic qualifier half (e.g. "acquisition", "startup funding") with zero
+connection to language services (confirmed 2026-09-21: an M&A-feed draft about a fintech acquisition, a
+Startups-feed draft about an Indian NBFC funding round). Every Google News source now carries `keywords`
+set to its query's topic-specific terms — never the generic qualifier words — so `/api/ingest`'s existing
+keyword filter (`matchesKeywords` in `app/api/ingest/route.ts`, checked against fetched title + full
+article text) re-verifies relevance regardless of how loosely Google matched. Keep this populated on any
+new Google News source; an empty `keywords` array on one of these is a live bug, not a neutral default.
 
 ### `scraped_sources`
 ```
@@ -470,7 +487,7 @@ One row per price change per model (a new row is only inserted when the price di
    → Distil ONE headline fact from the Stage 1 sheet via DEFAULT_FACTFLOW_PROMPT and
      park it on the draft (facts.draft_id set, article_id still null — not yet public)
 
-2. ADMIN REVIEW
+2. ADMIN REVIEW — skipped entirely for a source with `rss_sources.auto_publish = true`; see Auto-Publish below
    /admin/drafts
    → Admin reads draft, edits if needed
    → Approve → status='approved' → triggers article creation
@@ -479,7 +496,8 @@ One row per price change per model (a new row is only inserted when the price di
      from the stored Stage 1 facts (Stage 1 is not re-run). The confirm panel carries an
      optional free-text instruction for Stage 2 — leave it blank to re-run as is.
 
-3. PUBLISH
+3. PUBLISH — via lib/publish.ts approveDraft(), called either by a human PATCHing
+   /api/drafts/[id] or automatically by /api/ingest for an auto_publish source
    Approved draft → article record created with all signal/impact metadata
    → ensureArticleFact() promotes the draft's parked fact onto the article, or
      distils one now if there isn't one. The article is never published without
@@ -562,6 +580,33 @@ button, and it accepts only `Bearer $CRON_SECRET`, so there is no manual path ei
 tweets. Wiring it up means adding a workflow under `.github/workflows/` (not a Vercel cron — see
 Scheduled Jobs) and setting `X_API_KEY`, `X_API_KEY_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`.
 Note it posts oldest-first, so anything that turns it on should deal with the standing backlog.
+
+---
+
+## Auto-Publish
+
+Most `rss_sources` rows skip `/admin/drafts` entirely: `/api/ingest` approves their drafts itself,
+immediately after creating them, via the same `lib/publish.ts` → `approveDraft()` a human approval uses —
+never a separate insert into `articles`. A source opts in via `rss_sources.auto_publish`, toggled from the
+**Auto-publish** / **Require review** button on each row in `/admin/sources` (or `PATCH /api/sources/[id]`
+with `{auto_publish}`). New columns default to `false`, and so does every newly-added source — auto-publish
+is something a source earns, not the default.
+
+**Current policy (set 2026-09-14/21, owner's call):** every source is `auto_publish = true` **except** the
+~17 `Google News – *` sources, which stay on manual review. This was a deliberate choice made with the
+approve/reject history in hand, not a data-driven allowlist — several now-auto-publishing sources have
+historically poor approve rates (EU Translation Centre 83% rejected, all four TechCrunch tag feeds 100%
+rejected, GALA/Crowdin/Phrase Blog roughly coin-flip), on par with or worse than several Google News
+sources. The owner's reasoning: Google News search is the one mechanism shown to surface items with *zero*
+topical connection to language services (see the `keywords` note above) rather than merely low-quality or
+off-format ones, and the owner checks published articles post-publish rather than pre-publish for
+correction. If asked to revisit this list, don't assume the existing pattern ("everything but Google News")
+is the intended long-term rule — it was one explicit trade-off, not a principle to extend to new sources.
+
+Because ingest already classifies + fact-distills every draft before this runs, an auto-published article
+gets no additional scrutiny beyond what a manually-approved one gets from OpenAI — there is no separate
+"is this good enough" check. If a source's output quality drifts, the fix is flipping its `auto_publish`
+back to `false` (or fixing its `keywords`/selectors), not adding a new gate.
 
 ---
 
@@ -883,7 +928,10 @@ Pro upgrade.
 
 - Do not expose `SUPABASE_SERVICE_ROLE_KEY` in client-side code
 - Do not add `use client` to pages that can be Server Components — prefer server-side data fetching
-- Do not bypass the draft approval workflow by inserting directly to `articles` table from the ingest pipeline
+- Do not insert directly to the `articles` table from anywhere except `lib/publish.ts` → `approveDraft()`.
+  Auto-publishing a trusted source (see Auto-Publish) means calling that function automatically instead of
+  leaving the draft pending — it must never mean a second, parallel article-creation code path that could
+  drift from what a human approval does (fact promotion, embedding, cache revalidation)
 - Do not hardcode the OpenAI model string — check `lib/openai.ts` for the current model reference
 - Do not add cron jobs to `vercel.json` — all scheduling belongs in `.github/workflows/` (see Scheduled Jobs)
 - Do not create a `/language-science` page — that route is permanently redirected to `/articles`

@@ -39,6 +39,15 @@ export default function SourcesPage() {
     load()
   }
 
+  async function toggleAutoPublish(id: string, autoPublish: boolean) {
+    await fetch(`/api/sources/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auto_publish: !autoPublish }),
+    })
+    load()
+  }
+
   async function remove(id: string) {
     if (!confirm('Delete this source?')) return
     await fetch(`/api/sources/${id}`, { method: 'DELETE' })
@@ -131,7 +140,18 @@ export default function SourcesPage() {
                       ) : (
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>{source.name}</p>
+                            <p className="font-medium text-sm flex items-center gap-1.5" style={{ color: 'var(--text)' }}>
+                              {source.name}
+                              {source.auto_publish && (
+                                <span
+                                  className="text-xs font-mono px-1.5 py-0.5 rounded"
+                                  style={{ background: 'var(--accent-soft, var(--bg))', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                                  title="Drafts from this source are approved automatically, without human review"
+                                >
+                                  auto-publish
+                                </span>
+                              )}
+                            </p>
                             <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>{source.url}</p>
                             {source.keywords?.length > 0 && (
                               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
@@ -147,6 +167,9 @@ export default function SourcesPage() {
                           <div className="flex gap-2 flex-wrap shrink-0 items-center">
                             <IngestButton label="Ingest" sourceIds={[source.id]} onDone={load} />
                             <Button size="sm" variant="secondary" onClick={() => startEdit(source)}>Edit</Button>
+                            <Button size="sm" variant="secondary" onClick={() => toggleAutoPublish(source.id, source.auto_publish)}>
+                              {source.auto_publish ? 'Require review' : 'Auto-publish'}
+                            </Button>
                             <Button size="sm" variant="secondary" onClick={() => toggle(source.id, source.active)}>Disable</Button>
                             <Button size="sm" variant="danger" onClick={() => remove(source.id)}>Delete</Button>
                           </div>
