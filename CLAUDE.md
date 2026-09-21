@@ -623,9 +623,9 @@ Note it posts oldest-first, so anything that turns it on should deal with the st
 Most `rss_sources` rows skip `/admin/drafts` entirely: `/api/ingest` approves their drafts itself,
 immediately after creating them, via the same `lib/publish.ts` → `approveDraft()` a human approval uses —
 never a separate insert into `articles`. A source opts in via `rss_sources.auto_publish`, toggled from the
-**Auto-publish** / **Require review** button on each row in `/admin/sources` (or `PATCH /api/sources/[id]`
-with `{auto_publish}`). New columns default to `false`, and so does every newly-added source — auto-publish
-is something a source earns, not the default.
+**Auto publishing** checkbox on each row in `/admin/sources` (right-aligned column, header above the batch
+list; or `PATCH /api/sources/[id]` with `{auto_publish}`). New columns default to `false`, and so does every
+newly-added source — auto-publish is something a source earns, not the default.
 
 **Current policy (set 2026-09-14/21, owner's call):** every source is `auto_publish = true` **except** the
 ~17 `Google News – *` sources and, as of 2026-09-21, the two `Google Blog` sources (see below) — all stay
