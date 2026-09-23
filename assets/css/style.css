@@ -5968,54 +5968,95 @@ kbd, code {
   position: fixed; inset: 0; z-index: 1200;
   display: flex; align-items: center; justify-content: center;
   padding: var(--space-4);
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
-  animation: digest-popup-fade 0.2s ease both;
+  background: rgba(10, 12, 20, 0.32);
+  backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+  animation: digest-popup-fade 0.3s ease both;
 }
 .digest-popup {
   position: relative;
-  width: 100%; max-width: 420px; max-height: calc(100vh - var(--space-8));
+  width: 100%; max-width: 400px; max-height: calc(100vh - var(--space-8));
   overflow-y: auto;
-  padding: var(--space-6);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
-  animation: digest-popup-rise 0.24s ease both;
+  padding: 44px 36px 28px;
+  text-align: center;
+  /* A gentle accent wash fading into the plain surface. */
+  background:
+    radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--accent) 11%, transparent) 0%, transparent 70%),
+    var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 24px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 12px 32px rgba(0, 0, 0, 0.10),
+    0 40px 80px rgba(0, 0, 0, 0.12);
+  animation: digest-popup-rise 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
 }
 .digest-popup__close {
-  position: absolute; top: var(--space-2); right: var(--space-2);
-  width: 32px; height: 32px;
+  position: absolute; top: 14px; right: 14px;
+  width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.4rem; line-height: 1;
-  color: var(--muted); background: none; border: none; border-radius: var(--radius-sm);
-  cursor: pointer; transition: color 0.15s, background 0.15s;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border: none; border-radius: 50%;
+  cursor: pointer; transition: color 0.15s, background 0.15s, transform 0.15s;
 }
-.digest-popup__close:hover { color: var(--text); background: var(--accent-soft); }
+.digest-popup__close:hover { color: var(--text); background: color-mix(in srgb, var(--text) 12%, transparent); }
+.digest-popup__close:active { transform: scale(0.92); }
+.digest-popup__icon {
+  width: 56px; height: 56px; margin: 0 auto 18px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  background: linear-gradient(160deg, var(--accent-light), var(--accent));
+  border-radius: 16px;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 30%, transparent);
+}
 .digest-popup__eyebrow {
-  font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--accent); margin: 0 0 var(--space-2);
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--accent); margin: 0 0 6px;
 }
 .digest-popup__title {
-  font-family: var(--font-display); font-size: 1.35rem; font-weight: 600;
-  letter-spacing: -0.01em; line-height: 1.25; margin: 0 0 var(--space-2);
+  font-family: var(--font-display); font-size: 1.45rem; font-weight: 600;
+  letter-spacing: -0.02em; line-height: 1.2; margin: 0 auto 10px;
+  max-width: 17em; text-wrap: balance;
 }
 .digest-popup__text {
-  font-size: 0.88rem; line-height: 1.6; color: var(--muted); margin: 0 0 var(--space-4);
+  font-size: 0.92rem; line-height: 1.55; color: var(--muted);
+  margin: 0 auto 24px; max-width: 30em; text-wrap: pretty;
 }
-.digest-popup__form { display: flex; flex-direction: column; gap: var(--space-2); }
+.digest-popup__form { display: flex; flex-direction: column; gap: 10px; }
 .digest-popup__input {
-  width: 100%; padding: 11px 14px;
-  font-size: 0.9rem; font-family: var(--font-body); color: var(--text);
-  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md);
-  outline: none; transition: border-color 0.15s;
+  width: 100%; height: 48px; padding: 0 18px;
+  font-size: 0.95rem; font-family: var(--font-body); color: var(--text); text-align: center;
+  background: color-mix(in srgb, var(--text) 4%, var(--surface));
+  border: 1px solid transparent; border-radius: 14px;
+  outline: none; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.digest-popup__input:focus { border-color: var(--accent); }
-.digest-popup__btn { width: 100%; justify-content: center; }
-.digest-popup__error { font-size: 0.8rem; color: #dc2626; margin: var(--space-2) 0 0; }
+.digest-popup__input::placeholder { color: color-mix(in srgb, var(--muted) 75%, transparent); }
+.digest-popup__input:focus {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.digest-popup__btn {
+  width: 100%; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.95rem; font-weight: 600; font-family: var(--font-body); letter-spacing: -0.005em;
+  color: #fff; background: var(--accent);
+  border: none; border-radius: 14px; cursor: pointer;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.digest-popup__btn:hover { background: var(--accent-hover); }
+.digest-popup__btn:active { transform: scale(0.98); }
+.digest-popup__btn:focus-visible { outline: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent); }
+.digest-popup__btn:disabled { opacity: 0.7; cursor: default; transform: none; }
+.digest-popup__error { font-size: 0.8rem; color: #dc2626; margin: 10px 0 0; }
 .digest-popup__note {
-  font-size: 0.72rem; color: var(--muted); margin: var(--space-3) 0 0; text-align: center;
+  font-size: 0.75rem; color: var(--muted); margin: 16px 0 0;
+}
+.digest-popup__note span { margin: 0 0.4em; opacity: 0.6; }
+@media (max-width: 480px) {
+  .digest-popup { padding: 40px 22px 24px; border-radius: 20px; }
+  .digest-popup__title { font-size: 1.3rem; }
 }
 .footer-digest-link {
   /* Block + fit-content so the social icons that follow it in the footer
@@ -6029,7 +6070,7 @@ kbd, code {
 
 @keyframes digest-popup-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes digest-popup-rise {
-  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {

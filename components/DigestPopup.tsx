@@ -221,33 +221,48 @@ export function DigestPopup() {
         ref={dialogRef}
       >
         <button type="button" className="digest-popup__close" onClick={close} aria-label="Close">
-          ×
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M1.5 1.5l9 9m0-9l-9 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
         </button>
+
+        <div className="digest-popup__icon" aria-hidden="true">
+          {status === 'sent' ? (
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+              <path d="M5 12.5l4.2 4.2L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : (
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="5.5" width="18" height="13" rx="3" stroke="currentColor" strokeWidth="1.7" />
+              <path d="M4 7.5l8 5.5 8-5.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </div>
 
         {status === 'sent' ? (
           <>
-            <p className="digest-popup__eyebrow">Almost there</p>
             <h2 className="digest-popup__title" id="digest-popup-title">Check your inbox</h2>
             <p className="digest-popup__text" role="status">{message}</p>
-            <button type="button" className="btn btn--primary digest-popup__btn" onClick={close}>
+            <button type="button" className="digest-popup__btn" onClick={close}>
               Done
             </button>
           </>
         ) : (
           <>
             <p className="digest-popup__eyebrow">The Weekly</p>
-            <h2 className="digest-popup__title" id="digest-popup-title">One email. Everything that mattered.</h2>
+            <h2 className="digest-popup__title" id="digest-popup-title">
+              Curious about where translation &amp; AI are heading?
+            </h2>
             <p className="digest-popup__text">
-              Each week we pull together what’s happening in translation,
-              localization and language AI — what changed, and what it means
-              for your work. Five minutes to read, free to join, easy to leave.
+              We send a quick 5-minute roundup of the week’s best stories every
+              Friday. Clean, useful, and zero spam.
             </p>
             <form className="digest-popup__form" onSubmit={submit} noValidate>
               <input
                 ref={inputRef}
                 type="email"
                 className="digest-popup__input"
-                placeholder="you@company.com"
+                placeholder="your.email@address.com"
                 aria-label="Email address"
                 autoComplete="email"
                 value={email}
@@ -255,17 +270,17 @@ export function DigestPopup() {
               />
               <button
                 type="submit"
-                className="btn btn--primary digest-popup__btn"
+                className="digest-popup__btn"
                 disabled={status === 'sending'}
               >
-                {status === 'sending' ? 'Signing you up…' : 'Sign me up'}
+                {status === 'sending' ? 'Joining…' : 'Join in'}
               </button>
             </form>
             {status === 'error' && (
               <p className="digest-popup__error" role="alert">{message}</p>
             )}
             <p className="digest-popup__note">
-              Free, always. One email a week. Leave in one click.
+              Free <span aria-hidden="true">•</span> Unsubscribe in one click
             </p>
           </>
         )}
