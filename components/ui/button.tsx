@@ -3,7 +3,7 @@ import { ButtonHTMLAttributes } from 'react'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'xs' | 'sm' | 'md' | 'lg'
 }
 
 export function Button({ variant = 'primary', size = 'md', className, ...props }: ButtonProps) {
@@ -11,6 +11,7 @@ export function Button({ variant = 'primary', size = 'md', className, ...props }
     <button
       className={cn(
         'inline-flex items-center justify-center rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+        size === 'xs' && 'px-2 py-0.5 text-xs rounded-md',
         size === 'sm' && 'px-3 py-1.5 text-sm',
         size === 'md' && 'px-4 py-2 text-sm',
         size === 'lg' && 'px-6 py-3 text-base',

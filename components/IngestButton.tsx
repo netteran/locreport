@@ -12,9 +12,12 @@ interface Props {
   requireConfirm?: boolean
   confirmMessage?: string
   onDone?: (result: IngestResult) => void
+  compact?: boolean
 }
 
-export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage, onDone }: Props) {
+export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage, onDone, compact }: Props) {
+  const size = compact ? 'xs' : 'sm'
+  const text = compact ? 'text-xs' : 'text-sm'
   const [state, setState] = useState<IngestState>('idle')
   const [result, setResult] = useState<IngestResult | null>(null)
 
@@ -42,18 +45,18 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
   if (state === 'confirm') {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm" style={{ color: 'var(--muted)' }}>
+        <span className={text} style={{ color: 'var(--muted)' }}>
           {confirmMessage ?? 'Fetch all active sources and create pending drafts?'}
         </span>
-        <Button size="sm" onClick={run}>Confirm</Button>
-        <Button size="sm" variant="ghost" onClick={reset}>Cancel</Button>
+        <Button size={size} onClick={run}>Confirm</Button>
+        <Button size={size} variant="ghost" onClick={reset}>Cancel</Button>
       </div>
     )
   }
 
   if (state === 'running') {
     return (
-      <Button size="sm" variant="secondary" disabled>
+      <Button size={size} variant="secondary" disabled>
         <span className="animate-pulse">Running…</span>
       </Button>
     )
@@ -63,7 +66,7 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
     return (
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-sm font-medium" style={{ color: result.processed > 0 ? 'var(--accent)' : 'var(--muted)' }}>
+          <span className={`${text} font-medium`} style={{ color: result.processed > 0 ? 'var(--accent)' : 'var(--muted)' }}>
             {result.processed > 0
               ? `+${result.processed} draft${result.processed !== 1 ? 's' : ''} created`
               : '0 fresh items'}
@@ -71,13 +74,13 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
           {result.processed > 0 && (
             <Link
               href="/admin/drafts"
-              className="text-sm underline underline-offset-2"
+              className={`${text} underline underline-offset-2`}
               style={{ color: 'var(--accent)' }}
             >
               Review drafts →
             </Link>
           )}
-          <Button size="sm" variant="ghost" onClick={reset}>↺</Button>
+          <Button size={size} variant="ghost" onClick={reset}>↺</Button>
         </div>
         {result.errors.length > 0 && (
           <details className="text-xs" style={{ color: 'var(--destructive, #e53e3e)' }}>
@@ -94,14 +97,14 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
   if (state === 'error') {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-sm" style={{ color: 'var(--destructive, #e53e3e)' }}>Failed</span>
-        <Button size="sm" variant="ghost" onClick={reset}>↺</Button>
+        <span className={text} style={{ color: 'var(--destructive, #e53e3e)' }}>Failed</span>
+        <Button size={size} variant="ghost" onClick={reset}>↺</Button>
       </div>
     )
   }
 
   return (
-    <Button size="sm" variant="secondary" onClick={requireConfirm ? () => setState('confirm') : run}>
+    <Button size={size} variant="secondary" onClick={requireConfirm ? () => setState('confirm') : run}>
       {label}
     </Button>
   )

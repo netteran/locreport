@@ -60,8 +60,8 @@ components/
   ReadingProgress.tsx    — Scroll progress indicator
   BackToTop.tsx          — Scroll-to-top button (rendered in (public)/layout.tsx)
   IngestButton.tsx       — Manual RSS ingest trigger button (admin)
-  SourceForm.tsx         — Form for adding/editing RSS sources
-  PodcastSourceCard.tsx  — /admin/sources podcast row: episode list + confirm-to-generate-draft (admin)
+  SourceForm.tsx         — Compact add-source form (feed or podcast), behind the "+ Add" button on /admin/sources
+  PodcastEpisodes.tsx    — Episodes panel under a podcast row on /admin/sources: list + confirm-to-generate-draft (admin)
   RunFeedButton.tsx      — Manual trigger for /api/scraped-sources/run (one source or all active; admin)
   ScrapedFeedForm.tsx    — Form for adding a generated feed (name, type, URL, ingest keywords, JSON config)
 
@@ -81,6 +81,8 @@ lib/
   podcast.ts             — Podcast sources (manual-only): episode listing, Gemini notes (from the YouTube video,
                            audio or a pasted transcript) + write-up, link allow-listing. See Podcasts below
   podcastConfig.ts       — PodcastConfig type, validation and the Signal Room template (client-safe)
+  podcastRun.ts          — The two podcast steps (notes draft, write-up) shared by the manual routes and
+                           autoStep(), the one-unit-at-a-time runner behind /api/podcasts/auto
   publish.ts             — approveDraft(): draft → article, the one place that logic lives. Called by the
                            manual approve branch of /api/drafts/[id] and by /api/ingest for sources with
                            rss_sources.auto_publish. See Auto-Publish below
@@ -186,7 +188,7 @@ Several Compass and other sections use co-located client components:
 | `/admin/drafts/[id]` | Edit/approve/reject individual draft |
 | `/admin/compose` | Manually write a new article |
 | `/admin/prompts` | Edit LLM system prompts stored in DB |
-| `/admin/sources` | Manage RSS feed sources, including the per-source **Auto-publish** toggle — see Auto-Publish below. Podcast sources get their own **Podcasts · manual only** section (outside every ingest batch) — see Podcasts below |
+| `/admin/sources` | One compact, filterable table of every source (feeds + podcasts, active + disabled). Columns: **Batch** (active feeds grouped by 3 in creation order; podcasts/disabled show —), source (name · URL on one line), type, keywords (podcasts: baseline date), drafts in 30 d, **Auto** checkbox, and xs action buttons (Ingest, Episodes for podcasts, Edit, Enable/Disable, ×). Filters: text, type, status (default Active), auto, batch — picking a batch shows an **Ingest batch N** button. Edit and a podcast's Episodes open as a panel row under the source. The add form sits on top behind **+ Add**. See Auto-Publish and Podcasts below |
 | `/admin/scraped-feeds` | Feed generator: generated **feeds** (HTML selectors or keyword-refiltered feeds) published at `/api/feeds/[name]`. Deliberately says "feeds", never "sources", so it is not confused with `/admin/sources` — the old `/admin/scraped-sources` path 301s here via `vercel.json`. Per-feed and run-all triggers, inline JSON config editor, an **Add to Sources** button per feed, and a badge showing whether ingest can see it (`in Sources` / `not in Sources` / `0 items`) |
 | `/admin/direct` | Direct article ingestion tool |
 | `/admin/digest-history` | Read-only archive of every past Weekly send, grouped by issue (period) and newest first. Each row is one subscriber's personalised copy — subject, article count, and a **View** link that opens the exact stored HTML in a new tab via `/api/digest/history/[id]`. Rows from before the `subject`/`html` snapshot columns existed (`supabase/migrations/20260917_digest_sends_html.sql`) show with no View link rather than a reconstructed guess |
@@ -219,6 +221,7 @@ Several Compass and other sections use co-located client components:
 | `/api/podcasts/[id]/episodes` | GET | Admin-only: lists a podcast source's episodes (feed read only, no tokens) with any existing draft/article |
 | `/api/podcasts/[id]/ingest` | POST | Step 1 of 2. Admin session only — **never CRON_SECRET**. Gemini goes through one episode (`{episode_id, transcript?, youtube_url?, force?}`) and the notes are saved on a new **pending** draft (placeholder body); see Podcasts below |
 | `/api/podcasts/[id]/write` | POST | Step 2 of 2. Admin session only. Writes the article into that draft from its stored notes (`{draft_id}`) — text-only, never re-sends the episode |
+| `/api/podcasts/auto` | POST/GET | One unit of automatic podcast work per call (write up a notes-only draft and publish it if Auto, or take one new post-baseline episode through step 1); repeat until `{action:'idle'}`. CRON_SECRET → every active podcast with `auto_publish`; admin `?id=` → that source (the row's Ingest button) |
 | `/api/stats` | GET | Dashboard stats: article/draft/source counts |
 | `/api/seen-urls` | GET | Legacy Jekyll URLs (deduplication) |
 | `/api/direct` | POST | Direct article submission |
@@ -316,7 +319,8 @@ name text
 active boolean
 keywords text[]        — ingest-time relevance filter; empty = no filter (Google News sources rely on this,
                           not on Google's own query matching — see Google News keyword filtering below)
-auto_publish boolean    — true skips /admin/drafts entirely; see Auto-Publish below. Ignored for kind='podcast'
+auto_publish boolean    — true skips /admin/drafts entirely; see Auto-Publish below. For kind='podcast' it also turns on
+                          automatic generation of new episodes on the scheduled runs (see Podcasts)
 kind text               — 'feed' (default) | 'podcast'. /api/ingest skips 'podcast' rows; see Podcasts below
 podcast_config jsonb    — kind='podcast' only: show name, platform links, people + LinkedIn URLs, Gemini model id
 created_at timestamptz
@@ -680,15 +684,23 @@ only human review clears — the same reasoning already applied to Google News a
 ## Podcasts
 
 `rss_sources` rows with `kind = 'podcast'` (migration `supabase/migrations/20260923_rss_sources_podcast.sql`)
-turn podcast episodes into articles in the style of the hand-written Signal Room pieces. **They are
-manual-only, on the owner's call, so no tokens are spent without a click:**
-- `/api/ingest` filters them out in JS (not SQL, so it keeps working before the migration lands) — the
-  schedule, the batch buttons and a hand-picked `?sources=` id all skip them.
-- `/api/podcasts/[id]/ingest` is the only thing that spends tokens on them. It takes an admin session only
-  (CRON_SECRET is deliberately not accepted), handles one episode per call, always writes a `pending` draft
-  (never calls `approveDraft`), and refuses an episode that already has a draft/article unless `force`.
-- `/admin/sources` shows them in their own section with an **Episodes** list (feed read, free) and a
-  **Generate draft… → Confirm** step per episode, which calls step 1 then step 2 back to back.
+turn podcast episodes into articles in the style of the hand-written Signal Room pieces. Tokens are only
+spent on episodes published after the source's `ignore_before` baseline, and only when either a human asks
+or the source's **Auto** box is ticked:
+- `/api/ingest` filters podcast rows out in JS (not SQL, so it keeps working before the migration lands) —
+  the batch buttons and a hand-picked `?sources=` id never touch them.
+- **Manual:** a podcast row's **Episodes** panel lists new full episodes (feed read, free) with a
+  **Generate draft… → Confirm** step per episode → `/api/podcasts/[id]/ingest` then `/write`, admin session
+  only, always a `pending` draft, refused if the episode already has a draft/article unless `force`. The
+  row's **Ingest** button runs the automatic runner for that one source (below), publishing only if Auto is on.
+- **Automatic (Auto ticked; owner's call 2026-09-23, reversing the earlier manual-only rule):** `ingest.yml`'s
+  last step calls `/api/podcasts/auto` with CRON_SECRET up to 6 times per run until it answers `idle`. Each
+  call is ONE Gemini call (`autoStep` in `lib/podcastRun.ts`): finish a placeholder draft (write-up → publish
+  via `approveDraft`), else take the oldest new episode with no draft/article through step 1. A source with no
+  `ignore_before` is refused rather than sweeping its back catalogue; ticking Auto in the table sets
+  `ignore_before` to "now" if missing. A step-1 failure is filed as a **rejected** draft carrying the error, so
+  the schedule doesn't pay for the same failing episode three times a day — "Generate again" retries it by hand.
+  The step never fails the ingest job (`continue-on-error`), and the job timeout is 45 min to leave room for it.
 
 **Why two requests (found 2026-09-23).** The first real run — a ~1 h Signal Room episode via its YouTube URL
 — hit Vercel's 300 s function limit (`504 Task timed out`) and left no draft: notes and write-up were one
@@ -726,8 +738,8 @@ the rest of the site stays on OpenAI). Needs `GEMINI_API_KEY`; the model is `pod
 - **Back catalogue baseline.** `podcast_config.ignore_before` (ISO date-time): episodes published at or before
   it are hidden from the Episodes list (with a count) and refused by `/ingest` **even with `force`** — the
   owner covered them by hand in NotebookLM. The Signal Room source is baselined at `2026-09-23T13:34:34Z`
-  (set 2026-09-23, right after its first Gemini draft). New uploads after that appear in the list; generating
-  them stays a manual click — nothing polls or auto-generates.
+  (set 2026-09-23, right after its first Gemini draft). New uploads after that appear in the Episodes list, and
+  are generated automatically only if the source's Auto box is ticked.
 
 ---
 
@@ -942,7 +954,7 @@ has no `crons` key** — Vercel only builds and serves:
 
 | Schedule | Trigger | Purpose |
 |---|---|---|
-| Workdays (Mon–Fri) 10am, 1pm and 5pm Warsaw time | GitHub Actions `ingest.yml` | Two steps per run: POST `/api/scraped-sources/run` to regenerate every scrape source, then POST `/api/ingest`. Three runs a day, each scheduled at both DST offsets (`0 8/9,11/12,15/16 * * 1-5` UTC) with a runtime guard picking the live one |
+| Workdays (Mon–Fri) 10am, 1pm and 5pm Warsaw time | GitHub Actions `ingest.yml` | Three steps per run: POST `/api/scraped-sources/run` to regenerate every scrape source, POST `/api/ingest`, then POST `/api/podcasts/auto` in a loop for podcasts with Auto ticked (non-blocking). Three runs a day, each scheduled at both DST offsets (`0 8/9,11/12,15/16 * * 1-5` UTC) with a runtime guard picking the live one |
 | Fridays 1pm Central European time | GitHub Actions `digest.yml` | POST `/api/digest/send` — the only digest run; there is no daily cadence |
 | `0 6,9,12,14,16 * * 1-5` Europe/Warsaw | **GitLab CI** (external `aparasion/rss-generator`, outside this repo) | Regenerates `https://aparasion.gitlab.io/rss-generator/rss/DeepL-Press-Releases.xml` — the one remaining feed not yet served by the embedded generator. Not part of the GitHub→Vercel setup; from ingest's side it is an ordinary feed URL |
 | On-demand | `workflow_dispatch` on both GitHub workflows | Manual trigger from GitHub Actions UI |
