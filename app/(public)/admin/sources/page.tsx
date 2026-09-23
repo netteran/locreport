@@ -15,6 +15,21 @@ const FIELD = 'px-2 py-0.5 text-xs rounded-md'
 type SourceWithStats = RssSource & { recent_drafts: number }
 type Row = SourceWithStats & { batch: number | null }
 type Panel = { id: string; kind: 'edit' | 'episodes' } | null
+type SortKey = 'batch' | 'name' | 'type' | 'keywords' | 'drafts' | 'auto'
+type Sort = { key: SortKey; dir: 1 | -1 } | null
+
+// Sort values per column. Rows without a value (no batch, no keywords) always
+// sink to the bottom whichever way the column is sorted.
+function sortValue(r: Row, key: SortKey): string | number | null {
+  switch (key) {
+    case 'batch': return r.batch
+    case 'name': return r.name.toLowerCase()
+    case 'type': return r.kind === 'podcast' ? 'podcast' : 'feed'
+    case 'keywords': return r.kind === 'podcast' ? (r.podcast_config?.ignore_before ?? null) : ((r.keywords ?? []).join(', ').toLowerCase() || null)
+    case 'drafts': return r.recent_drafts
+    case 'auto': return r.auto_publish ? 1 : 0
+  }
+}
 
 const selectStyle = { background: 'var(--surface, var(--bg))', color: 'var(--text)', borderColor: 'var(--border)' }
 
@@ -27,6 +42,8 @@ export default function SourcesPage() {
   const [status, setStatus] = useState<'active' | 'disabled' | 'all'>('active')
   const [auto, setAuto] = useState<'all' | 'on' | 'off'>('all')
   const [batch, setBatch] = useState<'all' | string>('all')
+  // null = the API's order (oldest first), which is also batch order.
+  const [sort, setSort] = useState<Sort>(null)
 
   const load = useCallback(() => {
     fetch('/api/sources').then(r => r.json()).then(setSources)
@@ -47,7 +64,7 @@ export default function SourcesPage() {
   }, [sources])
   const batchCount = Math.max(0, ...rows.map(r => r.batch ?? 0))
 
-  const visible = rows.filter(r => {
+  const filtered = rows.filter(r => {
     const isPodcast = r.kind === 'podcast'
     if (type !== 'all' && (type === 'podcast') !== isPodcast) return false
     if (status !== 'all' && (status === 'active') !== r.active) return false
@@ -59,6 +76,30 @@ export default function SourcesPage() {
     }
     return true
   })
+  const visible = !sort ? filtered : [...filtered].sort((a, b) => {
+    const va = sortValue(a, sort.key)
+    const vb = sortValue(b, sort.key)
+    if (va === null && vb === null) return 0
+    if (va === null) return 1
+    if (vb === null) return -1
+    const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb))
+    return cmp * sort.dir || a.name.localeCompare(b.name)
+  })
+
+  // Click cycles a column: ascending → descending → back to the default order.
+  function sortBy(key: SortKey) {
+    setSort(s => (!s || s.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : null))
+  }
+  function SortTh({ k, label, className, title }: { k: SortKey; label: string; className?: string; title?: string }) {
+    const active = sort?.key === k
+    return (
+      <th className={`px-2 py-0.5 font-medium ${className ?? ''}`} title={title} aria-sort={active ? (sort!.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+        <button type="button" onClick={() => sortBy(k)} className="inline-flex items-center gap-0.5 hover:underline" style={{ color: active ? 'var(--text)' : 'inherit' }}>
+          {label}<span style={{ opacity: active ? 1 : 0.35 }}>{active ? (sort!.dir === 1 ? '▲' : '▼') : '↕'}</span>
+        </button>
+      </th>
+    )
+  }
 
   async function patch(id: string, body: Record<string, unknown>) {
     const res = await fetch(`/api/sources/${id}`, {
@@ -88,7 +129,7 @@ export default function SourcesPage() {
   }
 
   async function remove(r: Row) {
-    if (!confirm(`Delete "${r.name}"?`)) return
+    if (!confirm(`Delete "${r.name}" permanently?\n\nIts URL, keywords and settings are removed. Drafts and articles it produced stay, but lose their link to this source (the 30d count, and for podcasts the podcast-style Re-run on pending drafts).\n\nTo just stop ingesting it, use Disable instead.`)) return
     await fetch(`/api/sources/${r.id}`, { method: 'DELETE' })
     load()
   }
@@ -154,12 +195,12 @@ export default function SourcesPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr style={{ background: 'var(--bg-secondary)', color: 'var(--muted)' }} className="text-left">
-              <th className="px-2 py-0.5 font-medium w-10">Batch</th>
-              <th className="px-2 py-0.5 font-medium">Source</th>
-              <th className="px-2 py-0.5 font-medium w-16">Type</th>
-              <th className="px-2 py-0.5 font-medium hidden md:table-cell">Keywords</th>
-              <th className="px-2 py-0.5 font-medium w-10 text-right" title="Drafts in the last 30 days">30d</th>
-              <th className="px-2 py-0.5 font-medium w-10 text-center" title="Feeds: drafts are approved automatically. Podcasts: new full episodes after the baseline are generated and published on the scheduled runs.">Auto</th>
+              <SortTh k="batch" label="Batch" className="w-10" />
+              <SortTh k="name" label="Source" />
+              <SortTh k="type" label="Type" className="w-16" />
+              <SortTh k="keywords" label="Keywords" className="hidden md:table-cell" />
+              <SortTh k="drafts" label="30d" className="w-10 text-right" title="Drafts in the last 30 days" />
+              <SortTh k="auto" label="Auto" className="w-10 text-center" title="Feeds: drafts are approved automatically. Podcasts: new full episodes after the baseline are generated and published on the scheduled runs." />
               <th className="px-2 py-0.5 font-medium text-right">Actions</th>
             </tr>
           </thead>
@@ -212,8 +253,8 @@ export default function SourcesPage() {
                           </Button>
                         )}
                         <Button size="xs" variant={open === 'edit' ? 'primary' : 'secondary'} onClick={() => setPanel(open === 'edit' ? null : { id: r.id, kind: 'edit' })}>Edit</Button>
-                        <Button size="xs" variant="secondary" onClick={() => patch(r.id, { active: !r.active })}>{r.active ? 'Disable' : 'Enable'}</Button>
-                        <Button size="xs" variant="danger" onClick={() => remove(r)} aria-label={`Delete ${r.name}`} title="Delete">×</Button>
+                        <Button size="xs" variant="secondary" title={r.active ? 'Pause: keep the source and its settings, stop ingesting it. Re-enable any time.' : 'Resume ingesting this source'} onClick={() => patch(r.id, { active: !r.active })}>{r.active ? 'Disable' : 'Enable'}</Button>
+                        <Button size="xs" variant="danger" onClick={() => remove(r)} aria-label={`Delete ${r.name}`} title="Delete permanently (settings are lost; its drafts and articles stay but lose their link to this source)">×</Button>
                       </div>
                     </td>
                   </tr>
