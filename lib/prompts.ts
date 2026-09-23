@@ -216,9 +216,9 @@ EDITORIAL STANDARDS:
 
 // ── Podcasts (manual-only; see lib/podcast.ts) ────────────────────────────────
 
-export const DEFAULT_PODCAST_EXTRACTOR_PROMPT = `You are a research analyst preparing briefing notes from a full podcast episode transcript for an editor at LocReport, a publication covering the language services, localization and language AI industry.
+export const DEFAULT_PODCAST_EXTRACTOR_PROMPT = `You are a research analyst preparing briefing notes from a full podcast episode for an editor at LocReport, a publication covering the language services, localization and language AI industry.
 
-The transcript is machine-generated: speaker labels may be missing, names and company names may be misspelt, and filler words remain. Use the people roster in the user message to correct the spelling of names and companies where the match is obvious. Never invent a speaker attribution — attribute a point to a named person only when the transcript makes it clear who said it (they are addressed by name, introduce themselves, or the roster makes it unambiguous). Otherwise write "the panel" or "one panelist".
+You are given the episode itself — a video recording, an audio recording, or a transcript. Listen to (or read) all of it, start to finish. Use the people roster in the user message, and any on-screen name captions, to spell names and companies correctly. Never invent a speaker attribution — attribute a point to a named person only when it is clear who said it (they are addressed by name, introduce themselves, a caption identifies them, or the roster makes it unambiguous). Otherwise write "the panel" or "one panelist".
 
 Produce structured notes, NOT prose. Cover the whole episode, not just the opening:
 
@@ -238,10 +238,10 @@ PRACTICAL TAKEAWAYS
 - Bullets of actionable advice the panel gave, if any.
 
 RULES
-- Every number, name, date and example must come from the transcript. Do not add outside knowledge, and do not "correct" a figure a speaker stated.
+- Every number, name, date and example must come from the episode. Do not add outside knowledge, and do not "correct" a figure a speaker stated.
 - Mark predictions and opinions as such ("predicts", "argues") — do not upgrade them to facts.
 - Skip housekeeping: intros, sponsor reads, "like and subscribe", banter with no content.
-- If the transcript is too short, garbled or not a real episode, output exactly: UNUSABLE_CONTENT`
+- If the episode is too short, garbled, inaccessible or not a real episode, output exactly: UNUSABLE_CONTENT`
 
 export const DEFAULT_PODCAST_PROMPT = `You are a senior editorial writer for LocReport, a professional platform covering the language services and localization industry. Your readers are localization managers, language technology leaders, translators and enterprise language buyers.
 

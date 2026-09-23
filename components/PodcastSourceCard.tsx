@@ -27,7 +27,7 @@ type Props = {
 
 // One podcast source on /admin/sources. Nothing here runs on its own: listing
 // episodes only reads the feed, and a draft is generated only after the
-// explicit confirm step below — the only path that spends OpenAI tokens.
+// explicit confirm step below — the only path that spends Gemini tokens.
 export function PodcastSourceCard({ source, onChanged, onToggleActive, onDelete }: Props) {
   const [episodes, setEpisodes] = useState<Episode[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -94,7 +94,7 @@ export function PodcastSourceCard({ source, onChanged, onToggleActive, onDelete 
           <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>{source.url}</p>
           {cfg && (
             <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-              {cfg.people.length} people · writer {cfg.writer_model ?? 'gpt-4o-mini'}
+              {cfg.people.length} people · {cfg.model ?? 'gemini-3.5-flash'}
               {!cfg.spotify_url && ' · no Spotify link set'}
             </p>
           )}
@@ -111,10 +111,10 @@ export function PodcastSourceCard({ source, onChanged, onToggleActive, onDelete 
 
       {editingConfig && (
         <div className="px-4 py-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-          <Input value={editUrl} onChange={e => setEditUrl(e.target.value)} placeholder="Podcast audio RSS or YouTube channel feed URL" />
+          <Input value={editUrl} onChange={e => setEditUrl(e.target.value)} placeholder="YouTube channel feed or podcast audio RSS URL" />
           <Textarea value={configText} onChange={e => setConfigText(e.target.value)} rows={16} className="font-mono text-xs" />
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
-            The writer may only use links listed here — any other link it produces is stripped. writer_model: gpt-4o-mini or gpt-4o.
+            The writer may only use links listed here — any other link it produces is stripped. model: any Gemini model id (default gemini-3.5-flash).
           </p>
           <div className="flex gap-2">
             <Button size="sm" onClick={saveConfig}>Save</Button>
@@ -143,7 +143,9 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
   const [message, setMessage] = useState<{ ok: boolean; text: string; draftId?: string } | null>(null)
 
   const done = episode.article || episode.draft
-  const needsPaste = !episode.audioUrl
+  // Gemini watches the YouTube video or listens to the audio; only an episode
+  // with neither needs a transcript pasted in (or a YouTube URL typed above).
+  const needsPaste = !episode.audioUrl && !youtubeUrl.trim()
 
   async function generate() {
     setRunning(true)
@@ -161,7 +163,7 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
-      setMessage({ ok: true, text: `Draft created — ${data.words} words (${data.transcript_source} transcript).`, draftId: data.draft_id })
+      setMessage({ ok: true, text: `Draft created — ${data.words} words, from the ${data.media} with ${data.model}.`, draftId: data.draft_id })
       setOpen(false)
       onGenerated()
     } catch (err) {
@@ -179,8 +181,8 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
             {episode.pubDate ? new Date(episode.pubDate).toISOString().slice(0, 10) : 'no date'}
             {episode.duration && ` · ${episode.duration}`}
-            {episode.audioUrl ? ' · audio' : ' · no audio (paste transcript)'}
-            {episode.youtubeUrl && <> · <a href={episode.youtubeUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>video</a></>}
+            {episode.youtubeUrl ? ' · video' : episode.audioUrl ? ' · audio' : ' · no video/audio (paste transcript)'}
+            {episode.youtubeUrl && <> · <a href={episode.youtubeUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>watch</a></>}
             {episode.article && <> · <Link href={`/articles/${episode.article.slug}`} style={{ color: 'var(--accent)' }}>published</Link></>}
             {!episode.article && episode.draft && <> · <Link href={`/admin/drafts/${episode.draft.id}`} style={{ color: 'var(--accent)' }}>draft ({episode.draft.status})</Link></>}
           </p>
@@ -200,11 +202,11 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
             onChange={e => setTranscript(e.target.value)}
             rows={5}
             placeholder={needsPaste
-              ? 'Paste the transcript (required — this feed has no audio). YouTube: … → Show transcript → copy.'
-              : 'Optional: paste a transcript to skip audio transcription.'}
+              ? 'Paste the transcript, or add the YouTube URL above (one of the two is required).'
+              : 'Optional: paste a transcript instead — Gemini will read it rather than watching/listening.'}
           />
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
-            Spends OpenAI tokens: {transcript.trim() ? 'notes + write-up (a few cents)' : 'audio transcription (~$0.20/hour) + notes + write-up'}.
+            Spends Gemini tokens: {transcript.trim() ? 'notes from the pasted transcript' : youtubeUrl.trim() ? 'Gemini watches the YouTube video' : 'Gemini listens to the audio'} + write-up.
             Creates a pending draft only — nothing is published.
             {done && ' This episode already has a draft/article; a second draft will be created.'}
           </p>

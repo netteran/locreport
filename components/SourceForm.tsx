@@ -76,19 +76,19 @@ export function SourceForm({ onAdded }: { onAdded: () => void }) {
         <Input id="src-name" value={name} onChange={e => setName(e.target.value)} placeholder={kind === 'podcast' ? 'The Signal Room Podcast' : 'SlatorPod'} required />
       </div>
       <div>
-        <Label htmlFor="src-url">{kind === 'podcast' ? 'Podcast audio RSS or YouTube channel feed URL' : 'RSS URL'}</Label>
+        <Label htmlFor="src-url">{kind === 'podcast' ? 'YouTube channel feed or podcast audio RSS URL' : 'RSS URL'}</Label>
         <Input
           id="src-url"
           type="url"
           value={url}
           onChange={e => setUrl(e.target.value)}
-          placeholder={kind === 'podcast' ? 'https://anchor.fm/s/…/podcast/rss' : 'https://slator.com/feed'}
+          placeholder={kind === 'podcast' ? 'https://www.youtube.com/feeds/videos.xml?channel_id=UC…' : 'https://slator.com/feed'}
           required
         />
         {kind === 'podcast' && (
           <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-            An audio RSS feed lets episodes be transcribed automatically. A YouTube channel feed
-            (https://www.youtube.com/feeds/videos.xml?channel_id=UC…) works too, but then each transcript has to be pasted in.
+            Recommended: the YouTube channel feed (https://www.youtube.com/feeds/videos.xml?channel_id=UC…) — Gemini watches
+            each public video directly. A podcast audio RSS feed works too; its MP3 is uploaded to Gemini instead.
           </p>
         )}
       </div>

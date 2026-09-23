@@ -5,7 +5,7 @@ import { listEpisodes, parsePodcastConfig } from '@/lib/podcast'
 type Params = { params: Promise<{ id: string }> }
 
 // Lists a podcast source's episodes and whether each already has a draft or
-// article. Reads the feed only — spends no OpenAI tokens.
+// article. Reads the feed only — spends no Gemini tokens.
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params
 
