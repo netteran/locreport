@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
 import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, todayLine } from '@/lib/prompts'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
+import { isYouTubeUrl, parsePodcastConfig, writePodcastArticle, type PodcastConfig } from '@/lib/podcast'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -69,10 +70,21 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   let sourceName: string | null = null
+  let podcastConfig: PodcastConfig | null = null
   if (draft.source_feed_id) {
     const { data: feed } = await service
-      .from('rss_sources').select('name').eq('id', draft.source_feed_id).single()
+      .from('rss_sources').select('*').eq('id', draft.source_feed_id).single()
     sourceName = feed?.name ?? null
+    if (feed?.kind === 'podcast') {
+      const parsed = parsePodcastConfig(feed.podcast_config)
+      if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+      podcastConfig = parsed.config
+      // Never re-extract a podcast draft: the transcript isn't stored, and the
+      // news extractor run over the draft's own prose would only degrade it.
+      if (typeof draft.extracted_facts !== 'string' || !draft.extracted_facts.trim()) {
+        return NextResponse.json({ error: 'Podcast draft has no stored episode notes to re-run from' }, { status: 400 })
+      }
+    }
   }
 
   // Mark as rerunning
@@ -103,6 +115,26 @@ export async function POST(req: NextRequest, { params }: Params) {
         ],
       })
       facts = (extractRes.choices[0].message.content ?? '').trim()
+    }
+
+    // Podcast drafts re-run through the podcast writer so the episode format
+    // and the allow-listed LinkedIn/Spotify/YouTube links survive the re-run.
+    if (podcastConfig) {
+      const { title, content } = await writePodcastArticle(openai, service, podcastConfig, {
+        episodeTitle: draft.title,
+        episodeYouTubeUrl: draft.source_url && isYouTubeUrl(draft.source_url) ? draft.source_url : null,
+        notes: facts,
+        instruction,
+      })
+      const newContent = linkifyCompanyMentions(content, await getDirectoryEntries(service))
+      const { data: updated, error: updateError } = await service
+        .from('drafts')
+        .update({ title, content: newContent, status: 'rerun' })
+        .eq('id', id)
+        .select()
+        .single()
+      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return NextResponse.json({ ...updated, facts_reused: true })
     }
 
     // Stage 2: generate article

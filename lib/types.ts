@@ -7,6 +7,10 @@ export interface RssSource {
   // When true, /api/ingest auto-approves every draft from this source via
   // lib/publish.ts approveDraft() instead of leaving it for /admin/drafts.
   auto_publish: boolean
+  // 'podcast' rows are manual-only: skipped by /api/ingest, drafted one episode
+  // at a time from /admin/sources. See lib/podcast.ts.
+  kind?: 'feed' | 'podcast'
+  podcast_config?: import('./podcastConfig').PodcastConfig | null
   created_at: string
 }
 

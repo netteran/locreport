@@ -61,6 +61,7 @@ components/
   BackToTop.tsx          — Scroll-to-top button (rendered in (public)/layout.tsx)
   IngestButton.tsx       — Manual RSS ingest trigger button (admin)
   SourceForm.tsx         — Form for adding/editing RSS sources
+  PodcastSourceCard.tsx  — /admin/sources podcast row: episode list + confirm-to-generate-draft (admin)
   RunFeedButton.tsx      — Manual trigger for /api/scraped-sources/run (one source or all active; admin)
   ScrapedFeedForm.tsx    — Form for adding a generated feed (name, type, URL, ingest keywords, JSON config)
 
@@ -76,6 +77,9 @@ lib/
                            distillation, tolerating numbered/bullet/bare-prose formatting drift
   factFlow.ts            — ensureArticleFact(): the one-fact-per-article guarantee every publish path calls.
                            See Fact Flow below
+  podcast.ts             — Podcast sources (manual-only): episode listing, audio transcription, notes + write-up,
+                           link allow-listing. See Podcasts below
+  podcastConfig.ts       — PodcastConfig type, validation and the Signal Room template (client-safe)
   publish.ts             — approveDraft(): draft → article, the one place that logic lives. Called by the
                            manual approve branch of /api/drafts/[id] and by /api/ingest for sources with
                            rss_sources.auto_publish. See Auto-Publish below
@@ -181,7 +185,7 @@ Several Compass and other sections use co-located client components:
 | `/admin/drafts/[id]` | Edit/approve/reject individual draft |
 | `/admin/compose` | Manually write a new article |
 | `/admin/prompts` | Edit LLM system prompts stored in DB |
-| `/admin/sources` | Manage RSS feed sources, including the per-source **Auto-publish** toggle — see Auto-Publish below |
+| `/admin/sources` | Manage RSS feed sources, including the per-source **Auto-publish** toggle — see Auto-Publish below. Podcast sources get their own **Podcasts · manual only** section (outside every ingest batch) — see Podcasts below |
 | `/admin/scraped-feeds` | Feed generator: generated **feeds** (HTML selectors or keyword-refiltered feeds) published at `/api/feeds/[name]`. Deliberately says "feeds", never "sources", so it is not confused with `/admin/sources` — the old `/admin/scraped-sources` path 301s here via `vercel.json`. Per-feed and run-all triggers, inline JSON config editor, an **Add to Sources** button per feed, and a badge showing whether ingest can see it (`in Sources` / `not in Sources` / `0 items`) |
 | `/admin/direct` | Direct article ingestion tool |
 | `/admin/digest-history` | Read-only archive of every past Weekly send, grouped by issue (period) and newest first. Each row is one subscriber's personalised copy — subject, article count, and a **View** link that opens the exact stored HTML in a new tab via `/api/digest/history/[id]`. Rows from before the `subject`/`html` snapshot columns existed (`supabase/migrations/20260917_digest_sends_html.sql`) show with no View link rather than a reconstructed guess |
@@ -211,6 +215,8 @@ Several Compass and other sections use co-located client components:
 | `/api/scraped-sources/[id]/link` | POST | Admin-only: promotes a generated feed into an `rss_sources` row so ingest reads it, copying the feed's `keywords` across. Builds the URL server-side from `SITE_URL` (ingest fetches it from a serverless function, so a `window.location` origin would break outside production) and is idempotent — a second call returns the existing row with `already_linked: true` |
 | `/api/scraped-sources/run` | GET/POST | Regenerates every active scrape source (or one, via `?id=`) and stores the resulting XML on the row (admin session or CRON_SECRET). Called by `ingest.yml` immediately before each ingest run, and by the `/admin` + `/admin/scraped-feeds` run buttons. Always answers 200 — per-source failures are reported in the body (`failed`, `results[]`), so one broken scrape never blocks ingest |
 | `/api/feeds/[name]` | GET | Public: serves one scrape source's most recently generated RSS XML — this is the URL an `rss_sources` row points at |
+| `/api/podcasts/[id]/episodes` | GET | Admin-only: lists a podcast source's episodes (feed read only, no tokens) with any existing draft/article |
+| `/api/podcasts/[id]/ingest` | POST | Admin session only — **never CRON_SECRET**. Turns one episode (`{episode_id, transcript?, youtube_url?, force?}`) into a **pending** draft; see Podcasts below |
 | `/api/stats` | GET | Dashboard stats: article/draft/source counts |
 | `/api/seen-urls` | GET | Legacy Jekyll URLs (deduplication) |
 | `/api/direct` | POST | Direct article submission |
@@ -308,7 +314,9 @@ name text
 active boolean
 keywords text[]        — ingest-time relevance filter; empty = no filter (Google News sources rely on this,
                           not on Google's own query matching — see Google News keyword filtering below)
-auto_publish boolean    — true skips /admin/drafts entirely; see Auto-Publish below
+auto_publish boolean    — true skips /admin/drafts entirely; see Auto-Publish below. Ignored for kind='podcast'
+kind text               — 'feed' (default) | 'podcast'. /api/ingest skips 'podcast' rows; see Podcasts below
+podcast_config jsonb    — kind='podcast' only: show name, platform links, people + LinkedIn URLs, writer model
 created_at timestamptz
 ```
 
@@ -664,6 +672,38 @@ re-enable auto-publish on either on the assumption the keyword list can be tight
 underlying problem is that a general company blog keeps mentioning language/AI terms on unrelated posts no
 matter how the keyword list is worded, so full-text substring matching has a precision ceiling here that
 only human review clears — the same reasoning already applied to Google News above.
+
+---
+
+## Podcasts
+
+`rss_sources` rows with `kind = 'podcast'` (migration `supabase/migrations/20260923_rss_sources_podcast.sql`)
+turn podcast episodes into articles in the style of the hand-written Signal Room pieces. **They are
+manual-only, on the owner's call, so no tokens are spent without a click:**
+- `/api/ingest` filters them out in JS (not SQL, so it keeps working before the migration lands) — the
+  schedule, the batch buttons and a hand-picked `?sources=` id all skip them.
+- `/api/podcasts/[id]/ingest` is the only thing that spends tokens on them. It takes an admin session only
+  (CRON_SECRET is deliberately not accepted), handles one episode per call, always writes a `pending` draft
+  (never calls `approveDraft`), and refuses an episode that already has a draft/article unless `force`.
+- `/admin/sources` shows them in their own section with an **Episodes** list (feed read, free) and a
+  **Generate draft… → Confirm** step per episode.
+
+Pipeline (`lib/podcast.ts`): transcript → notes → article.
+- **Transcript.** A pasted transcript is used as-is. Otherwise the episode's MP3 enclosure is downloaded and
+  sent to `gpt-4o-mini-transcribe` (~$0.003/min) in ~6-minute slices cut on MP3 frame boundaries, because
+  that model caps output tokens per request. Non-MP3 audio goes whole to `whisper-1` (≤24 MB only). A source
+  whose `url` is a YouTube channel feed has no audio, so it needs a pasted transcript. YouTube captions are not
+  fetched: YouTube blocks server IPs.
+- **Notes** (`DEFAULT_PODCAST_EXTRACTOR_PROMPT`, `gpt-4o-mini`, the full transcript) are stored as
+  `drafts.extracted_facts`. A re-run of a podcast draft goes back through `writePodcastArticle` using those
+  notes, not the news prompt. The transcript itself is not stored.
+- **Write-up** (`DEFAULT_PODCAST_PROMPT`, `podcast_config.writer_model` = `gpt-4o-mini` default or `gpt-4o`).
+  Both prompts are editable from `/admin/prompts` (`prompt_podcast_extractor`, `prompt_podcast`).
+- **Links are allow-listed.** `sanitizePodcastLinks` unlinks any absolute URL not in `podcast_config` (or the
+  episode's own video). The hand-written Signal Room articles carry guessed LinkedIn slugs and three different
+  Spotify show ids; that cannot happen here. `ensurePlatformLinks` appends a listen line if Spotify/YouTube was
+  left out.
+- With an audio feed, `podcast_config.youtube_channel_id` lets each episode be matched to its video by title.
 
 ---
 

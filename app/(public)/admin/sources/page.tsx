@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { RssSource } from '@/lib/types'
 import { SourceForm } from '@/components/SourceForm'
+import { PodcastSourceCard } from '@/components/PodcastSourceCard'
 import { IngestButton } from '@/components/IngestButton'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -73,7 +74,10 @@ export default function SourcesPage() {
     load()
   }
 
-  const activeSources = sources.filter(s => s.active)
+  // Podcasts never join an ingest batch — they are drafted one episode at a
+  // time from their own section below (see lib/podcast.ts).
+  const activeSources = sources.filter(s => s.active && s.kind !== 'podcast')
+  const activePodcasts = sources.filter(s => s.active && s.kind === 'podcast')
   const inactiveSources = sources.filter(s => !s.active)
   const batches = groupIntoBatches(activeSources, BATCH_SIZE)
 
@@ -171,6 +175,29 @@ export default function SourcesPage() {
             </div>
           )
         })}
+
+        {/* Podcasts — manual-only, outside every batch */}
+        {activePodcasts.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <div className="px-1">
+              <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                Podcasts ({activePodcasts.length}) · manual only
+              </h2>
+              <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                Never ingested on schedule or by batch buttons. Pick an episode and generate a pending draft — that is the only step that spends tokens.
+              </p>
+            </div>
+            {activePodcasts.map(source => (
+              <PodcastSourceCard
+                key={source.id}
+                source={source}
+                onChanged={load}
+                onToggleActive={() => toggle(source.id, source.active)}
+                onDelete={() => remove(source.id)}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Inactive sources */}
         {inactiveSources.length > 0 && (
