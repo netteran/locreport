@@ -6,6 +6,7 @@ import { Article } from '@/lib/types'
 import { articleHref, safeImageUrl } from '@/lib/utils'
 import { SIGNALS, SIGNAL_MAP } from '@/lib/signals'
 import { MomentumStrip } from '@/components/MomentumStrip'
+import { DigestPopupTrigger } from '@/components/DigestPopupTrigger'
 import { getIntelligenceData, signalShortLabel } from '@/lib/intelligence'
 
 export const metadata: Metadata = {
@@ -308,15 +309,24 @@ export default async function HomePage() {
             )
           })}
 
-          {/* CTA */}
+          {/* CTA — opens The Weekly popup; the popup stays the only signup form */}
           <section className="cta-section">
             <div className="cta-inner">
-              <h2>Ready to stay ahead?</h2>
-              <p>Join localization professionals who rely on LocReport for daily industry intelligence.</p>
+              <p className="cta-eyebrow">The Weekly</p>
+              <h2>Get the week in five minutes.</h2>
+              <p>
+                A quick Friday roundup of the best stories in translation &amp; AI.
+                Clean, useful, and zero spam.
+              </p>
               <div className="cta-actions">
-                <Link href="/articles" className="btn btn--primary btn--lg">View all articles</Link>
-                <Link href="/intelligence" className="btn btn--ghost btn--lg">Intelligence Dashboard</Link>
+                <DigestPopupTrigger className="btn btn--primary btn--lg cta-weekly-btn">
+                  Join The Weekly
+                </DigestPopupTrigger>
+                <Link href="/articles" className="cta-secondary-link">
+                  Or browse all articles <span aria-hidden="true">→</span>
+                </Link>
               </div>
+              <p className="cta-note">Free <span aria-hidden="true">•</span> Unsubscribe in one click</p>
             </div>
           </section>
         </main>

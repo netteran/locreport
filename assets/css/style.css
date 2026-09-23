@@ -4588,6 +4588,22 @@ article.page > h1 {
   flex-wrap: wrap;
   position: relative;
 }
+.home-v1 .cta-inner .cta-eyebrow {
+  font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--accent-light); margin: 0 auto var(--space-2);
+}
+.home-v1 .cta-actions { align-items: center; }
+.home-v1 .cta-weekly-btn { border-radius: 14px; }
+.home-v1 .cta-secondary-link {
+  font-size: 0.92rem; font-weight: 500;
+  color: var(--featured-muted); text-decoration: none;
+  transition: color 0.15s;
+}
+.home-v1 .cta-secondary-link:hover { color: #fff; }
+.home-v1 .cta-inner .cta-note {
+  font-size: 0.78rem; margin: var(--space-4) auto 0;
+}
+.home-v1 .cta-note span { margin: 0 0.4em; opacity: 0.6; }
 .home-v1 .sources-bar {
   position: relative;
   width: 100vw;
