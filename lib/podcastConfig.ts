@@ -20,6 +20,12 @@ export interface PodcastConfig {
    * "gemini-3.5-flash" (default) or a Pro model for a stronger write-up.
    */
   model?: string
+  /**
+   * ISO date-time. Episodes published at or before it count as already seen:
+   * hidden from the episode list and refused by the generate route, even with
+   * "Generate again". Set it to "now" to baseline a channel's back catalogue.
+   */
+  ignore_before?: string
 }
 
 export const DEFAULT_PODCAST_MODEL = 'gemini-3.5-flash'
@@ -61,6 +67,10 @@ export function parsePodcastConfig(raw: unknown): { config: PodcastConfig } | { 
     })
   }
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
+  const ignoreBefore = str(r.ignore_before)
+  if (ignoreBefore !== undefined && isNaN(Date.parse(ignoreBefore))) {
+    return { error: 'podcast_config.ignore_before must be an ISO date, e.g. "2026-09-23T13:30:00Z"' }
+  }
   const model = str(r.model)
   if (model !== undefined && !MODEL_ID.test(model)) {
     return { error: 'podcast_config.model must be a Gemini model id, e.g. "gemini-3.5-flash"' }
@@ -74,6 +84,7 @@ export function parsePodcastConfig(raw: unknown): { config: PodcastConfig } | { 
       apple_url: str(r.apple_url),
       people,
       model: model ?? DEFAULT_PODCAST_MODEL,
+      ignore_before: ignoreBefore,
     },
   }
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { listEpisodes, parsePodcastConfig } from '@/lib/podcast'
+import { isBeforeBaseline, listEpisodes, parsePodcastConfig } from '@/lib/podcast'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -23,12 +23,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const parsed = parsePodcastConfig(source.podcast_config)
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
-  let episodes
+  let all
   try {
-    episodes = await listEpisodes(source.url, parsed.config)
+    all = await listEpisodes(source.url, parsed.config)
   } catch (err) {
     return NextResponse.json({ error: `Could not read feed: ${err instanceof Error ? err.message : String(err)}` }, { status: 502 })
   }
+  // Episodes already there when the source was baselined are never offered again.
+  const episodes = all.filter(e => !isBeforeBaseline(e, parsed.config))
 
   const urls = [...new Set(episodes.flatMap(e => [e.link, e.youtubeUrl]).filter((u): u is string => !!u))]
   const [draftsRes, articlesRes] = await Promise.all([
@@ -37,6 +39,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
   ])
 
   return NextResponse.json({
+    ignore_before: parsed.config.ignore_before ?? null,
+    hidden_before_baseline: all.length - episodes.length,
     episodes: episodes.slice(0, 25).map(e => {
       const mine = (u: string | null) => !!u && (u === e.link || u === e.youtubeUrl)
       const draft = (draftsRes.data ?? []).find(d => mine(d.source_url))
