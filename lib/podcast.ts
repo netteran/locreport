@@ -1,5 +1,5 @@
 import Parser from 'rss-parser'
-import { FileState, MediaResolution, createPartFromUri, type Part } from '@google/genai'
+import { FileState, MediaResolution, ThinkingLevel, createPartFromUri, type Part } from '@google/genai'
 import type { createServiceClient } from '@/lib/supabase/server'
 import { fetchFeed } from '@/lib/rss'
 import { getGemini } from '@/lib/gemini'
@@ -151,6 +151,20 @@ const MAX_AUDIO_BYTES = 300 * 1024 * 1024
 const FILE_ACTIVE_TIMEOUT_MS = 120_000
 // Transcripts past this are truncated — ~2 hours of speech.
 const MAX_TRANSCRIPT_CHARS = 250_000
+// Each step runs in its own 300 s Vercel function. Stop Gemini a little
+// earlier so the admin sees a clear error instead of a bare platform 504.
+const GEMINI_CALL_TIMEOUT_MS = 270_000
+
+/** Draft body between step 1 (notes saved) and step 2 (article written). */
+export const WRITING_PLACEHOLDER =
+  '_The article has not been written yet. The episode notes are saved on this draft — use **Re-run** to write it._'
+
+function timeoutError(err: unknown, what: string): Error {
+  if (err instanceof Error && (err.name === 'AbortError' || /abort/i.test(err.message))) {
+    return new Error(`Gemini did not finish ${what} within ${GEMINI_CALL_TIMEOUT_MS / 1000} s`)
+  }
+  return err instanceof Error ? err : new Error(String(err))
+}
 
 async function getPrompt(supabase: Service, key: string, fallback: string): Promise<string> {
   try {
@@ -237,11 +251,17 @@ export async function extractPodcastNotes(
       }],
       config: {
         systemInstruction: prompt,
+        // Condensing an episode into notes is summarising, not reasoning;
+        // low thinking keeps an hour of media inside the function budget.
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        abortSignal: AbortSignal.timeout(GEMINI_CALL_TIMEOUT_MS),
         ...(media.kind === 'youtube' ? { mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW } : {}),
       },
     })
     const notes = (res.text ?? '').trim()
     return !notes || notes === 'UNUSABLE_CONTENT' ? null : notes
+  } catch (err) {
+    throw timeoutError(err, `watching the ${media.kind === 'transcript' ? 'transcript' : media.kind === 'youtube' ? 'video' : 'audio'}`)
   } finally {
     await cleanup()
   }
@@ -276,11 +296,16 @@ export async function writePodcastArticle(
     ? `${prompt}\n\nADDITIONAL EDITORIAL INSTRUCTION FOR THIS RE-RUN (shape, angle, emphasis and length only — the notes and links stay fixed):\n\n${args.instruction}`
     : prompt
 
-  const res = await getGemini().models.generateContent({
-    model: config.model ?? DEFAULT_PODCAST_MODEL,
-    contents: input,
-    config: { systemInstruction },
-  })
+  let res
+  try {
+    res = await getGemini().models.generateContent({
+      model: config.model ?? DEFAULT_PODCAST_MODEL,
+      contents: input,
+      config: { systemInstruction, abortSignal: AbortSignal.timeout(GEMINI_CALL_TIMEOUT_MS) },
+    })
+  } catch (err) {
+    throw timeoutError(err, 'the write-up')
+  }
   const raw = (res.text ?? '').trim()
     // Some models wrap the whole article in a ```markdown fence.
     .replace(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/, '$1')

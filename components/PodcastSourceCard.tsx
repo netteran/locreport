@@ -139,7 +139,7 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
   const [open, setOpen] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState(episode.youtubeUrl ?? '')
-  const [running, setRunning] = useState(false)
+  const [running, setRunning] = useState<null | 'notes' | 'write'>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string; draftId?: string } | null>(null)
 
   const done = episode.article || episode.draft
@@ -147,29 +147,34 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
   // with neither needs a transcript pasted in (or a YouTube URL typed above).
   const needsPaste = !episode.audioUrl && !youtubeUrl.trim()
 
+  // Two requests, each with its own 300 s function budget: step 1 has Gemini
+  // watch the episode and saves the notes on a new draft; step 2 writes the
+  // article into it. If step 2 fails, the draft's Re-run finishes it later.
   async function generate() {
-    setRunning(true)
     setMessage(null)
+    let draftId: string | undefined
     try {
-      const res = await fetch(`/api/podcasts/${sourceId}/ingest`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          episode_id: episode.id,
-          transcript: transcript.trim() || undefined,
-          youtube_url: youtubeUrl.trim() || undefined,
-          force: !!done,
-        }),
+      setRunning('notes')
+      const step1 = await postJson(`/api/podcasts/${sourceId}/ingest`, {
+        episode_id: episode.id,
+        transcript: transcript.trim() || undefined,
+        youtube_url: youtubeUrl.trim() || undefined,
+        force: !!done,
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
-      setMessage({ ok: true, text: `Draft created — ${data.words} words, from the ${data.media} with ${data.model}.`, draftId: data.draft_id })
+      draftId = step1.draft_id as string
+      setRunning('write')
+      const step2 = await postJson(`/api/podcasts/${sourceId}/write`, { draft_id: draftId })
+      setMessage({ ok: true, text: `Draft created — ${step2.words} words, from the ${step1.media} with ${step2.model}.`, draftId })
       setOpen(false)
       onGenerated()
     } catch (err) {
-      setMessage({ ok: false, text: err instanceof Error ? err.message : 'Generation failed' })
+      const text = err instanceof Error ? err.message : 'Generation failed'
+      setMessage(draftId
+        ? { ok: false, text: `Episode notes were saved, but the write-up failed: ${text} Open the draft and use Re-run to finish it.`, draftId }
+        : { ok: false, text })
+      if (draftId) onGenerated()
     } finally {
-      setRunning(false)
+      setRunning(null)
     }
   }
 
@@ -211,10 +216,12 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
             {done && ' This episode already has a draft/article; a second draft will be created.'}
           </p>
           <div className="flex gap-2">
-            <Button size="sm" onClick={generate} disabled={running || (needsPaste && !transcript.trim())}>
-              {running ? <span className="animate-pulse">Generating… (can take a few minutes)</span> : 'Confirm — generate draft'}
+            <Button size="sm" onClick={generate} disabled={!!running || (needsPaste && !transcript.trim())}>
+              {running === 'notes' && <span className="animate-pulse">Step 1/2: Gemini is going through the episode… (up to ~5 min)</span>}
+              {running === 'write' && <span className="animate-pulse">Step 2/2: writing the article…</span>}
+              {!running && 'Confirm — generate draft'}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={running}>Cancel</Button>
+            <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={!!running}>Cancel</Button>
           </div>
         </div>
       )}
@@ -227,4 +234,25 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
       )}
     </div>
   )
+}
+
+// A platform timeout answers with an HTML error page, not JSON — surface that
+// as a readable message instead of a JSON parse error.
+async function postJson(url: string, body: unknown): Promise<Record<string, unknown>> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  let data: Record<string, unknown> | null = null
+  try {
+    data = await res.json()
+  } catch {
+    // not JSON
+  }
+  if (!res.ok || !data) {
+    if (res.status === 504) throw new Error('Timed out after 5 minutes (Vercel function limit).')
+    throw new Error((data?.error as string) ?? `HTTP ${res.status}`)
+  }
+  return data
 }

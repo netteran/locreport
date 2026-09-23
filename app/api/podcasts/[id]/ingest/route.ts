@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { slugify, uniqueSlug } from '@/lib/slugify'
-import { extractTeaser } from '@/lib/utils'
-import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import {
   extractPodcastNotes,
   isYouTubeUrl,
   listEpisodes,
   parsePodcastConfig,
-  writePodcastArticle,
+  WRITING_PLACEHOLDER,
   type EpisodeMedia,
 } from '@/lib/podcast'
 
@@ -19,7 +17,10 @@ export const maxDuration = 300
 const MIN_TRANSCRIPT_CHARS = 500
 
 /**
- * Turns ONE podcast episode into a pending draft. Manual-only by design:
+ * Step 1 of 2: turns ONE podcast episode into a pending draft holding Gemini's
+ * episode notes; /api/podcasts/[id]/write then writes the article into it.
+ * Split because watching an hour-long episode and writing it up did not fit
+ * one 300 s Vercel function. Manual-only by design:
  *   - admin session required; CRON_SECRET is deliberately not accepted, so no
  *     scheduled job can reach this and spend tokens;
  *   - always leaves the draft `pending` — the source's auto_publish is ignored;
@@ -106,21 +107,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
     console.log(`[podcast] notes for "${episode.title}" from ${media.kind}: ${notes.length} chars`)
 
-    const { title, content: written } = await writePodcastArticle(supabase, config, {
-      episodeTitle: episode.title,
-      episodeYouTubeUrl: youtubeUrl,
-      notes,
-    })
-    const content = linkifyCompanyMentions(written, await getDirectoryEntries(supabase))
-    const slug = await uniqueSlug(slugify(title), 'drafts', supabase)
-
+    // Step 1 of 2. The notes are saved on a draft right away, so the episode
+    // is never paid for twice: the write-up (/api/podcasts/[id]/write, called
+    // next by the admin UI) gets its own function budget, and if it fails the
+    // draft's normal Re-run finishes the job from these same notes.
     const { data: draft, error } = await supabase
       .from('drafts')
       .insert({
-        title,
-        slug,
-        content,
-        excerpt: extractTeaser(content) || null,
+        title: episode.title,
+        slug: await uniqueSlug(slugify(episode.title), 'drafts', supabase),
+        content: WRITING_PLACEHOLDER,
         source_url: sourceUrl,
         source_feed_id: source.id,
         source_published_at: episode.pubDate ? new Date(episode.pubDate).toISOString() : null,
@@ -134,13 +130,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: error?.message ?? 'Draft insert failed' }, { status: 500 })
     }
 
-    return NextResponse.json({
-      draft_id: draft.id,
-      title,
-      media: media.kind,
-      model: config.model,
-      words: content.split(/\s+/).filter(Boolean).length,
-    })
+    return NextResponse.json({ draft_id: draft.id, media: media.kind, model: config.model, notes_chars: notes.length })
   } catch (err) {
     console.error(`[podcast] failed for "${episode.title}":`, err)
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })

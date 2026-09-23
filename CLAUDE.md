@@ -217,7 +217,8 @@ Several Compass and other sections use co-located client components:
 | `/api/scraped-sources/run` | GET/POST | Regenerates every active scrape source (or one, via `?id=`) and stores the resulting XML on the row (admin session or CRON_SECRET). Called by `ingest.yml` immediately before each ingest run, and by the `/admin` + `/admin/scraped-feeds` run buttons. Always answers 200 — per-source failures are reported in the body (`failed`, `results[]`), so one broken scrape never blocks ingest |
 | `/api/feeds/[name]` | GET | Public: serves one scrape source's most recently generated RSS XML — this is the URL an `rss_sources` row points at |
 | `/api/podcasts/[id]/episodes` | GET | Admin-only: lists a podcast source's episodes (feed read only, no tokens) with any existing draft/article |
-| `/api/podcasts/[id]/ingest` | POST | Admin session only — **never CRON_SECRET**. Turns one episode (`{episode_id, transcript?, youtube_url?, force?}`) into a **pending** draft; see Podcasts below |
+| `/api/podcasts/[id]/ingest` | POST | Step 1 of 2. Admin session only — **never CRON_SECRET**. Gemini goes through one episode (`{episode_id, transcript?, youtube_url?, force?}`) and the notes are saved on a new **pending** draft (placeholder body); see Podcasts below |
+| `/api/podcasts/[id]/write` | POST | Step 2 of 2. Admin session only. Writes the article into that draft from its stored notes (`{draft_id}`) — text-only, never re-sends the episode |
 | `/api/stats` | GET | Dashboard stats: article/draft/source counts |
 | `/api/seen-urls` | GET | Legacy Jekyll URLs (deduplication) |
 | `/api/direct` | POST | Direct article submission |
@@ -687,7 +688,18 @@ manual-only, on the owner's call, so no tokens are spent without a click:**
   (CRON_SECRET is deliberately not accepted), handles one episode per call, always writes a `pending` draft
   (never calls `approveDraft`), and refuses an episode that already has a draft/article unless `force`.
 - `/admin/sources` shows them in their own section with an **Episodes** list (feed read, free) and a
-  **Generate draft… → Confirm** step per episode.
+  **Generate draft… → Confirm** step per episode, which calls step 1 then step 2 back to back.
+
+**Why two requests (found 2026-09-23).** The first real run — a ~1 h Signal Room episode via its YouTube URL
+— hit Vercel's 300 s function limit (`504 Task timed out`) and left no draft: notes and write-up were one
+function, and nothing was saved until both finished. Now step 1 (`/ingest`) has Gemini go through the
+episode and immediately saves the notes on a pending draft whose body is `WRITING_PLACEHOLDER`; step 2
+(`/write`) writes the article into it in a fresh function. Each Gemini call is also cut off client-side at
+270 s (`GEMINI_CALL_TIMEOUT_MS`) so the admin sees a readable error, not a bare 504; note an abort does
+**not** cancel or refund the call on Google's side. The notes call uses `thinkingLevel: LOW`. If step 2
+fails, the draft already holds the notes and its normal **Re-run** finishes it. If step 1 itself still
+exceeds the budget on a very long episode, paste the transcript instead (text is far faster than video),
+or point the source at the audio feed.
 
 Pipeline (`lib/podcast.ts`): episode → notes → article, **on Google Gemini, not OpenAI** (owner's call —
 the rest of the site stays on OpenAI). Needs `GEMINI_API_KEY`; the model is `podcast_config.model`
