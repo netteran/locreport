@@ -2,18 +2,23 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { PODCAST_CONFIG_TEMPLATE } from '@/lib/podcastConfig'
 
 type Kind = 'feed' | 'podcast'
 
-export function SourceForm({ onAdded }: { onAdded: () => void }) {
+const FIELD = 'px-2 py-1 text-xs rounded-md'
+
+// Compact add-source form, shown from the "+ Add" button on /admin/sources.
+export function SourceForm({ onAdded, onCancel }: { onAdded: () => void; onCancel?: () => void }) {
   const [kind, setKind] = useState<Kind>('feed')
   const [url, setUrl] = useState('')
   const [name, setName] = useState('')
   const [keywordsRaw, setKeywordsRaw] = useState('')
-  const [configText, setConfigText] = useState(() => JSON.stringify(PODCAST_CONFIG_TEMPLATE, null, 2))
+  // New podcast sources start baselined at "now", so enabling Auto can never
+  // sweep the channel's whole back catalogue.
+  const [configText, setConfigText] = useState(() =>
+    JSON.stringify({ ...PODCAST_CONFIG_TEMPLATE, ignore_before: new Date().toISOString().slice(0, 19) + 'Z' }, null, 2))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -57,66 +62,51 @@ export function SourceForm({ onAdded }: { onAdded: () => void }) {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
-      <div>
-        <Label htmlFor="src-kind">Type</Label>
+    <form onSubmit={submit} className="flex flex-col gap-1.5">
+      <div className="grid gap-1.5 sm:grid-cols-[8rem_12rem_1fr]">
         <select
-          id="src-kind"
+          aria-label="Type"
           value={kind}
           onChange={e => setKind(e.target.value as Kind)}
-          className="w-full rounded-md px-3 py-2 text-sm"
-          style={{ background: 'var(--surface, var(--bg))', color: 'var(--text)', border: '1px solid var(--border)' }}
+          className={`${FIELD} border`}
+          style={{ background: 'var(--surface, var(--bg))', color: 'var(--text)', borderColor: 'var(--border)' }}
         >
-          <option value="feed">News feed — ingested on schedule</option>
-          <option value="podcast">Podcast — manual drafts only</option>
+          <option value="feed">News feed</option>
+          <option value="podcast">Podcast</option>
         </select>
-      </div>
-      <div>
-        <Label htmlFor="src-name">{kind === 'podcast' ? 'Podcast name' : 'Feed name'}</Label>
-        <Input id="src-name" value={name} onChange={e => setName(e.target.value)} placeholder={kind === 'podcast' ? 'The Signal Room Podcast' : 'SlatorPod'} required />
-      </div>
-      <div>
-        <Label htmlFor="src-url">{kind === 'podcast' ? 'YouTube channel feed or podcast audio RSS URL' : 'RSS URL'}</Label>
+        <Input aria-label="Name" className={FIELD} value={name} onChange={e => setName(e.target.value)} placeholder={kind === 'podcast' ? 'Podcast name' : 'Feed name'} required />
         <Input
-          id="src-url"
+          aria-label="URL"
+          className={FIELD}
           type="url"
           value={url}
           onChange={e => setUrl(e.target.value)}
-          placeholder={kind === 'podcast' ? 'https://www.youtube.com/feeds/videos.xml?channel_id=UC…' : 'https://slator.com/feed'}
+          placeholder={kind === 'podcast' ? 'https://www.youtube.com/feeds/videos.xml?channel_id=UC… (or a podcast audio RSS)' : 'RSS URL, e.g. https://slator.com/feed'}
           required
         />
-        {kind === 'podcast' && (
-          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-            Recommended: the YouTube channel feed (https://www.youtube.com/feeds/videos.xml?channel_id=UC…) — Gemini watches
-            each public video directly. A podcast audio RSS feed works too; its MP3 is uploaded to Gemini instead.
-          </p>
-        )}
       </div>
       {kind === 'feed' ? (
-        <div>
-          <Label htmlFor="src-keywords">Keywords filter <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span></Label>
-          <Input
-            id="src-keywords"
-            value={keywordsRaw}
-            onChange={e => setKeywordsRaw(e.target.value)}
-            placeholder="translate, translation, localization, linguistics"
-          />
-          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-            Comma-separated. If set, only RSS items whose title or description contains at least one keyword will be ingested.
-          </p>
-        </div>
+        <Input
+          aria-label="Keywords"
+          className={FIELD}
+          value={keywordsRaw}
+          onChange={e => setKeywordsRaw(e.target.value)}
+          placeholder="Keyword filter, comma-separated (optional) — only items mentioning one are ingested"
+        />
       ) : (
-        <div>
-          <Label htmlFor="src-config">Podcast config (JSON)</Label>
-          <Textarea id="src-config" value={configText} onChange={e => setConfigText(e.target.value)} rows={14} className="font-mono text-xs" />
-          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-            People and platform links the article may use — any other link the writer produces is stripped. Never ingested on
-            schedule: drafts are generated one episode at a time from this page.
+        <>
+          <Textarea aria-label="Podcast config" value={configText} onChange={e => setConfigText(e.target.value)} rows={10} className={`${FIELD} font-mono`} />
+          <p className="text-xs" style={{ color: 'var(--muted)' }}>
+            People and platform links the article may use (any other link is stripped). <code>ignore_before</code> marks everything
+            up to that moment as already seen. With Auto ticked, newer full episodes are generated and published on the scheduled runs.
           </p>
-        </div>
+        </>
       )}
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <Button type="submit" disabled={loading}>{loading ? 'Adding…' : 'Add source'}</Button>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-1">
+        <Button size="xs" type="submit" disabled={loading}>{loading ? 'Adding…' : 'Add source'}</Button>
+        {onCancel && <Button size="xs" type="button" variant="ghost" onClick={onCancel}>Cancel</Button>}
+      </div>
     </form>
   )
 }

@@ -17,7 +17,9 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 10 min covers feeds + ingest; the rest is headroom for the podcast step, whose
+    # calls can each take up to 5 min on the rare run that finds a new episode.
+    timeout-minutes: 45
     steps:
       - name: Check DST offset
         id: dst
@@ -90,3 +92,22 @@ jobs:
           curl -f --max-time 300 -X POST https://locreport.com/api/ingest \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json"
+      # Podcast sources with Auto publishing ticked. Each call does ONE unit of
+      # work (one Gemini call: episode notes, or the write-up + publish), so it
+      # fits a single 300 s function; repeat until the route reports "idle".
+      # Only episodes after each source's ignore_before baseline are touched.
+      # Never fails the job — a podcast problem must not mark ingest red.
+      - name: Podcasts (auto)
+        if: steps.dst.outputs.proceed == 'true'
+        continue-on-error: true
+        run: |
+          for i in 1 2 3 4 5 6; do
+            RESPONSE="$(curl -sS --max-time 300 -X POST https://locreport.com/api/podcasts/auto \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              -H "Content-Type: application/json" || echo '{"action":"error","error":"request failed"}')"
+            echo "$RESPONSE"
+            case "$RESPONSE" in
+              *'"action":"idle"'*) break ;;
+              *'"action":"error"'*) echo "::warning::Podcast auto run: $RESPONSE"; break ;;
+            esac
+          done

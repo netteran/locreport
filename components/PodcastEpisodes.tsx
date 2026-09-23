@@ -1,7 +1,6 @@
 'use client'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import type { RssSource } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,129 +17,45 @@ type Episode = {
   article: { slug: string } | null
 }
 
-type Props = {
-  source: RssSource
-  onChanged: () => void
-  onToggleActive: () => void
-  onDelete: () => void
-}
-
-// One podcast source on /admin/sources. Nothing here runs on its own: listing
-// episodes only reads the feed, and a draft is generated only after the
-// explicit confirm step below — the only path that spends Gemini tokens.
-export function PodcastSourceCard({ source, onChanged, onToggleActive, onDelete }: Props) {
+// The Episodes panel under a podcast row on /admin/sources. Listing only reads
+// the feed; a draft is generated only after the explicit confirm step below.
+export function PodcastEpisodes({ sourceId }: { sourceId: string }) {
   const [episodes, setEpisodes] = useState<Episode[] | null>(null)
   const [hidden, setHidden] = useState<{ count: number; before: string | null }>({ count: 0, before: null })
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [editingConfig, setEditingConfig] = useState(false)
-  const [configText, setConfigText] = useState('')
-  const [editUrl, setEditUrl] = useState('')
 
-  async function loadEpisodes() {
-    setLoading(true)
+  const load = useCallback(async () => {
     setError('')
     try {
-      const res = await fetch(`/api/podcasts/${source.id}/episodes`)
+      const res = await fetch(`/api/podcasts/${sourceId}/episodes`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
       setEpisodes(data.episodes)
       setHidden({ count: data.hidden_before_baseline ?? 0, before: data.ignore_before ?? null })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load episodes')
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [sourceId])
 
-  function startEdit() {
-    setConfigText(JSON.stringify(source.podcast_config ?? {}, null, 2))
-    setEditUrl(source.url)
-    setEditingConfig(true)
-    setError('')
-  }
+  useEffect(() => { load() }, [load])
 
-  async function saveConfig() {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(configText)
-    } catch {
-      setError('Config is not valid JSON')
-      return
-    }
-    const res = await fetch(`/api/sources/${source.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: editUrl, podcast_config: parsed }),
-    })
-    if (!res.ok) {
-      setError((await res.json()).error ?? 'Save failed')
-      return
-    }
-    setEditingConfig(false)
-    onChanged()
-  }
-
-  const cfg = source.podcast_config
+  if (error) return <p className="text-xs text-red-600">{error}</p>
+  if (!episodes) return <p className="text-xs animate-pulse" style={{ color: 'var(--muted)' }}>Reading feed…</p>
 
   return (
-    <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-      <div className="px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ background: 'var(--surface, var(--bg))' }}>
-        <div className="min-w-0 sm:flex-1">
-          <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>
-            {source.name}
-            <span className="ml-2 text-xs font-mono px-1.5 py-0.5 rounded" style={{ border: '1px solid var(--border)', color: 'var(--muted)' }}>
-              manual only · drafts
-            </span>
-          </p>
-          <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>{source.url}</p>
-          {cfg && (
-            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-              {cfg.people.length} people · {cfg.model ?? 'gemini-3.5-flash'}
-              {!cfg.spotify_url && ' · no Spotify link set'}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2 flex-wrap shrink-0 items-center">
-          <Button size="sm" onClick={loadEpisodes} disabled={loading}>{loading ? 'Loading…' : episodes ? 'Refresh episodes' : 'Episodes'}</Button>
-          <Button size="sm" variant="secondary" onClick={startEdit}>Edit</Button>
-          <Button size="sm" variant="secondary" onClick={onToggleActive}>Disable</Button>
-          <Button size="sm" variant="danger" onClick={onDelete}>Delete</Button>
-        </div>
-      </div>
-
-      {error && <p className="px-4 pb-3 text-sm text-red-600">{error}</p>}
-
-      {editingConfig && (
-        <div className="px-4 py-3 flex flex-col gap-2" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-          <Input value={editUrl} onChange={e => setEditUrl(e.target.value)} placeholder="YouTube channel feed or podcast audio RSS URL" />
-          <Textarea value={configText} onChange={e => setConfigText(e.target.value)} rows={16} className="font-mono text-xs" />
-          <p className="text-xs" style={{ color: 'var(--muted)' }}>
-            The writer may only use links listed here — any other link it produces is stripped. model: any Gemini model id (default gemini-3.5-flash).
-          </p>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={saveConfig}>Save</Button>
-            <Button size="sm" variant="ghost" onClick={() => setEditingConfig(false)}>Cancel</Button>
-          </div>
-        </div>
+    <div className="flex flex-col divide-y" style={{ borderColor: 'var(--hairline, var(--border))' }}>
+      {episodes.length === 0 && (
+        <p className="py-1 text-xs" style={{ color: 'var(--muted)' }}>
+          {hidden.before ? 'No new full episodes since the baseline.' : 'No episodes in the feed.'}
+        </p>
       )}
-
-      {episodes && (
-        <div className="flex flex-col divide-y" style={{ borderTop: '1px solid var(--border)', borderColor: 'var(--hairline, var(--border))' }}>
-          {episodes.length === 0 && (
-            <p className="px-4 py-3 text-sm" style={{ color: 'var(--muted)' }}>
-              {hidden.before ? 'No new full episodes since the baseline — check back after the next upload.' : 'No episodes in the feed.'}
-            </p>
-          )}
-          {episodes.map(ep => (
-            <EpisodeRow key={ep.id} sourceId={source.id} episode={ep} onGenerated={loadEpisodes} />
-          ))}
-          {hidden.count > 0 && (
-            <p className="px-4 py-2 text-xs" style={{ color: 'var(--muted)' }}>
-              {hidden.count} older episode{hidden.count !== 1 ? 's' : ''} published on or before {hidden.before?.slice(0, 10)} hidden (marked as seen via <code>ignore_before</code>). Shorts are always excluded.
-            </p>
-          )}
-        </div>
+      {episodes.map(ep => (
+        <EpisodeRow key={ep.id} sourceId={sourceId} episode={ep} onGenerated={load} />
+      ))}
+      {hidden.count > 0 && (
+        <p className="py-1 text-xs" style={{ color: 'var(--muted)' }}>
+          {hidden.count} older episode{hidden.count !== 1 ? 's' : ''} (on or before {hidden.before?.slice(0, 10)}) hidden as seen. Shorts are always excluded.
+        </p>
       )}
     </div>
   )
@@ -190,55 +105,57 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
   }
 
   return (
-    <div className="px-4 py-3" style={{ background: 'var(--surface, var(--bg))' }}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+    <div className="py-1">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
         <div className="min-w-0 sm:flex-1">
-          <p className="text-sm" style={{ color: 'var(--text)' }}>{episode.title}</p>
-          <p className="text-xs" style={{ color: 'var(--muted)' }}>
+          <p className="text-xs" style={{ color: 'var(--text)' }}>
+            <span className="font-medium">{episode.title}</span>
+            <span style={{ color: 'var(--muted)' }}> · 
             {episode.pubDate ? new Date(episode.pubDate).toISOString().slice(0, 10) : 'no date'}
             {episode.duration && ` · ${episode.duration}`}
             {episode.youtubeUrl ? ' · video' : episode.audioUrl ? ' · audio' : ' · no video/audio (paste transcript)'}
             {episode.youtubeUrl && <> · <a href={episode.youtubeUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>watch</a></>}
             {episode.article && <> · <Link href={`/articles/${episode.article.slug}`} style={{ color: 'var(--accent)' }}>published</Link></>}
             {!episode.article && episode.draft && <> · <Link href={`/admin/drafts/${episode.draft.id}`} style={{ color: 'var(--accent)' }}>draft ({episode.draft.status})</Link></>}
+            </span>
           </p>
         </div>
         {!open && (
-          <Button size="sm" variant={done ? 'ghost' : 'secondary'} onClick={() => setOpen(true)}>
+          <Button size="xs" variant={done ? 'ghost' : 'secondary'} onClick={() => setOpen(true)}>
             {done ? 'Generate again…' : 'Generate draft…'}
           </Button>
         )}
       </div>
 
       {open && (
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="mt-1 flex flex-col gap-1">
           <Input value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} placeholder="YouTube URL of this episode (optional, used for the article link)" />
           <Textarea
             value={transcript}
             onChange={e => setTranscript(e.target.value)}
-            rows={5}
+            rows={3}
             placeholder={needsPaste
               ? 'Paste the transcript, or add the YouTube URL above (one of the two is required).'
               : 'Optional: paste a transcript instead — Gemini will read it rather than watching/listening.'}
           />
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
             Spends Gemini tokens: {transcript.trim() ? 'notes from the pasted transcript' : youtubeUrl.trim() ? 'Gemini watches the YouTube video' : 'Gemini listens to the audio'} + write-up.
-            Creates a pending draft only — nothing is published.
+            Creates a pending draft only — nothing is published from here.
             {done && ' This episode already has a draft/article; a second draft will be created.'}
           </p>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={generate} disabled={!!running || (needsPaste && !transcript.trim())}>
+          <div className="flex gap-1">
+            <Button size="xs" onClick={generate} disabled={!!running || (needsPaste && !transcript.trim())}>
               {running === 'notes' && <span className="animate-pulse">Step 1/2: Gemini is going through the episode… (up to ~5 min)</span>}
               {running === 'write' && <span className="animate-pulse">Step 2/2: writing the article…</span>}
               {!running && 'Confirm — generate draft'}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={!!running}>Cancel</Button>
+            <Button size="xs" variant="ghost" onClick={() => setOpen(false)} disabled={!!running}>Cancel</Button>
           </div>
         </div>
       )}
 
       {message && (
-        <p className={`mt-2 text-sm ${message.ok ? '' : 'text-red-600'}`} style={message.ok ? { color: 'var(--accent)' } : undefined}>
+        <p className={`mt-1 text-xs ${message.ok ? '' : 'text-red-600'}`} style={message.ok ? { color: 'var(--accent)' } : undefined}>
           {message.text}
           {message.draftId && <> <Link href={`/admin/drafts/${message.draftId}`} className="underline">Open draft →</Link></>}
         </p>
@@ -249,7 +166,7 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
 
 // A platform timeout answers with an HTML error page, not JSON — surface that
 // as a readable message instead of a JSON parse error.
-async function postJson(url: string, body: unknown): Promise<Record<string, unknown>> {
+export async function postJson(url: string, body: unknown): Promise<Record<string, unknown>> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

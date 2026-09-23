@@ -1,242 +1,345 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { RssSource } from '@/lib/types'
 import { SourceForm } from '@/components/SourceForm'
-import { PodcastSourceCard } from '@/components/PodcastSourceCard'
 import { IngestButton } from '@/components/IngestButton'
+import { PodcastEpisodes, postJson } from '@/components/PodcastEpisodes'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 
 const BATCH_SIZE = 3
-const AUTO_PUBLISH_COL_WIDTH = 'sm:w-[140px]'
+const FIELD = 'px-2 py-0.5 text-xs rounded-md'
 
 type SourceWithStats = RssSource & { recent_drafts: number }
+type Row = SourceWithStats & { batch: number | null }
+type Panel = { id: string; kind: 'edit' | 'episodes' } | null
 
-function groupIntoBatches<T>(arr: T[], size: number): T[][] {
-  const batches: T[][] = []
-  for (let i = 0; i < arr.length; i += size) batches.push(arr.slice(i, i + size))
-  return batches
-}
+const selectStyle = { background: 'var(--surface, var(--bg))', color: 'var(--text)', borderColor: 'var(--border)' }
 
 export default function SourcesPage() {
   const [sources, setSources] = useState<SourceWithStats[]>([])
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editUrl, setEditUrl] = useState('')
-  const [editKeywords, setEditKeywords] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [panel, setPanel] = useState<Panel>(null)
+  const [q, setQ] = useState('')
+  const [type, setType] = useState<'all' | 'feed' | 'podcast'>('all')
+  const [status, setStatus] = useState<'active' | 'disabled' | 'all'>('active')
+  const [auto, setAuto] = useState<'all' | 'on' | 'off'>('all')
+  const [batch, setBatch] = useState<'all' | string>('all')
 
   const load = useCallback(() => {
     fetch('/api/sources').then(r => r.json()).then(setSources)
   }, [])
-
   useEffect(() => { load() }, [load])
 
-  async function toggle(id: string, active: boolean) {
-    await fetch(`/api/sources/${id}`, {
+  // Active news feeds are grouped into ingest batches of BATCH_SIZE in the order
+  // they were added (the API returns them oldest first). Podcasts and disabled
+  // sources belong to no batch.
+  const rows: Row[] = useMemo(() => {
+    let n = 0
+    return sources.map(s => {
+      const inBatch = s.active && s.kind !== 'podcast'
+      const row = { ...s, batch: inBatch ? Math.floor(n / BATCH_SIZE) + 1 : null }
+      if (inBatch) n++
+      return row
+    })
+  }, [sources])
+  const batchCount = Math.max(0, ...rows.map(r => r.batch ?? 0))
+
+  const visible = rows.filter(r => {
+    const isPodcast = r.kind === 'podcast'
+    if (type !== 'all' && (type === 'podcast') !== isPodcast) return false
+    if (status !== 'all' && (status === 'active') !== r.active) return false
+    if (auto !== 'all' && (auto === 'on') !== !!r.auto_publish) return false
+    if (batch !== 'all' && String(r.batch) !== batch) return false
+    if (q) {
+      const hay = `${r.name} ${r.url} ${(r.keywords ?? []).join(' ')}`.toLowerCase()
+      if (!hay.includes(q.toLowerCase())) return false
+    }
+    return true
+  })
+
+  async function patch(id: string, body: Record<string, unknown>) {
+    const res = await fetch(`/api/sources/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: !active }),
+      body: JSON.stringify(body),
     })
+    if (!res.ok) alert((await res.json().catch(() => ({}))).error ?? 'Update failed')
     load()
   }
 
-  async function toggleAutoPublish(id: string, autoPublish: boolean) {
-    await fetch(`/api/sources/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auto_publish: !autoPublish }),
-    })
+  async function toggleAuto(r: Row) {
+    if (r.kind === 'podcast' && !r.auto_publish) {
+      const cfg = r.podcast_config
+      if (!cfg) return alert('This podcast has no config yet — Edit it first.')
+      const baseline = cfg.ignore_before
+      const msg = baseline
+        ? `Auto for "${r.name}": on each scheduled ingest run, new full episodes published after ${baseline.slice(0, 16).replace('T', ' ')} are generated with Gemini and published automatically. Continue?`
+        : `Auto for "${r.name}": everything published up to now will be marked as seen, and each new full episode after this moment will be generated with Gemini and published automatically on the scheduled ingest runs. Continue?`
+      if (!confirm(msg)) return
+      // Baseline "now" if none is set, so enabling Auto can never sweep the back catalogue.
+      return patch(r.id, baseline
+        ? { auto_publish: true }
+        : { auto_publish: true, podcast_config: { ...cfg, ignore_before: new Date().toISOString().slice(0, 19) + 'Z' } })
+    }
+    return patch(r.id, { auto_publish: !r.auto_publish })
+  }
+
+  async function remove(r: Row) {
+    if (!confirm(`Delete "${r.name}"?`)) return
+    await fetch(`/api/sources/${r.id}`, { method: 'DELETE' })
     load()
   }
 
-  async function remove(id: string) {
-    if (!confirm('Delete this source?')) return
-    await fetch(`/api/sources/${id}`, { method: 'DELETE' })
-    load()
+  const counts = {
+    feeds: rows.filter(r => r.active && r.kind !== 'podcast').length,
+    podcasts: rows.filter(r => r.active && r.kind === 'podcast').length,
+    disabled: rows.filter(r => !r.active).length,
   }
-
-  function startEdit(source: RssSource) {
-    setEditingId(source.id)
-    setEditName(source.name)
-    setEditUrl(source.url)
-    setEditKeywords((source.keywords ?? []).join(', '))
-  }
-
-  async function saveEdit(id: string) {
-    const keywords = editKeywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)
-    await fetch(`/api/sources/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editName, url: editUrl, keywords }),
-    })
-    setEditingId(null)
-    load()
-  }
-
-  // Podcasts never join an ingest batch — they are drafted one episode at a
-  // time from their own section below (see lib/podcast.ts).
-  const activeSources = sources.filter(s => s.active && s.kind !== 'podcast')
-  const activePodcasts = sources.filter(s => s.active && s.kind === 'podcast')
-  const inactiveSources = sources.filter(s => !s.active)
-  const batches = groupIntoBatches(activeSources, BATCH_SIZE)
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6" style={{ color: 'var(--text)' }}>RSS Sources</h1>
-
-      {/* Sources — full width so batches have room to breathe */}
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-3 px-1">
-          <div className="min-w-0 sm:flex-1">
-            <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
-              Active sources ({activeSources.length}) · {batches.length} batch{batches.length !== 1 ? 'es' : ''}
-            </h2>
-          </div>
-          <div className={`hidden sm:block sm:shrink-0 text-center text-xs font-medium uppercase tracking-wide ${AUTO_PUBLISH_COL_WIDTH}`} style={{ color: 'var(--muted)' }}>
-            Auto publishing
-          </div>
-        </div>
-
-        {batches.map((batch, batchIndex) => {
-          const batchDrafts = batch.reduce((sum, s) => sum + s.recent_drafts, 0)
-          return (
-            <div key={batchIndex} className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-              {/* Batch header */}
-              <div className="flex items-center justify-between px-4 py-2" style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded" style={{ background: 'var(--accent-soft, var(--bg))', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
-                    Batch {batchIndex + 1}
-                  </span>
-                  <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                    {batch.length} source{batch.length !== 1 ? 's' : ''}
-                    {batchDrafts > 0 && ` · ${batchDrafts} draft${batchDrafts !== 1 ? 's' : ''} (30d)`}
-                  </span>
-                </div>
-                <IngestButton
-                  label={`Ingest batch ${batchIndex + 1}`}
-                  sourceIds={batch.map(s => s.id)}
-                />
-              </div>
-
-              {/* Sources in batch */}
-              <div className="flex flex-col divide-y" style={{ ['--tw-divide-opacity' as string]: '1', borderColor: 'var(--hairline, var(--border))' }}>
-                {batch.map(source => (
-                  <div key={source.id} className="px-4 py-3" style={{ background: 'var(--surface, var(--bg))' }}>
-                    {editingId === source.id ? (
-                      <div className="flex flex-col gap-2">
-                        <Input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Name" />
-                        <Input value={editUrl} onChange={e => setEditUrl(e.target.value)} placeholder="URL" />
-                        <Input value={editKeywords} onChange={e => setEditKeywords(e.target.value)} placeholder="Keywords (comma-separated)" />
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => saveEdit(source.id)}>Save</Button>
-                          <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <div className="min-w-0 sm:flex-1">
-                          <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>{source.name}</p>
-                          <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>{source.url}</p>
-                          {source.keywords?.length > 0 && (
-                            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                              Keywords: {source.keywords.join(', ')}
-                            </p>
-                          )}
-                          {source.recent_drafts > 0 && (
-                            <p className="text-xs mt-0.5" style={{ color: 'var(--accent)' }}>
-                              {source.recent_drafts} draft{source.recent_drafts !== 1 ? 's' : ''} (30d)
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex gap-2 flex-wrap shrink-0 items-center">
-                          <IngestButton label="Ingest" sourceIds={[source.id]} onDone={load} />
-                          <Button size="sm" variant="secondary" onClick={() => startEdit(source)}>Edit</Button>
-                          <Button size="sm" variant="secondary" onClick={() => toggle(source.id, source.active)}>Disable</Button>
-                          <Button size="sm" variant="danger" onClick={() => remove(source.id)}>Delete</Button>
-                        </div>
-                        <div className={`flex items-center gap-2 sm:shrink-0 sm:justify-center ${AUTO_PUBLISH_COL_WIDTH}`}>
-                          <input
-                            type="checkbox"
-                            checked={source.auto_publish}
-                            onChange={() => toggleAutoPublish(source.id, source.auto_publish)}
-                            className="h-4 w-4 rounded cursor-pointer"
-                            style={{ accentColor: 'var(--accent)' }}
-                            aria-label={`Auto publishing for ${source.name}`}
-                            title="Drafts from this source are approved automatically, without human review"
-                          />
-                          <span className="text-xs sm:hidden" style={{ color: 'var(--muted)' }}>Auto publishing</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-
-        {/* Podcasts — manual-only, outside every batch */}
-        {activePodcasts.length > 0 && (
-          <div className="flex flex-col gap-3">
-            <div className="px-1">
-              <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
-                Podcasts ({activePodcasts.length}) · manual only
-              </h2>
-              <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-                Never ingested on schedule or by batch buttons. Pick an episode and generate a pending draft — that is the only step that spends tokens.
-              </p>
-            </div>
-            {activePodcasts.map(source => (
-              <PodcastSourceCard
-                key={source.id}
-                source={source}
-                onChanged={load}
-                onToggleActive={() => toggle(source.id, source.active)}
-                onDelete={() => remove(source.id)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Inactive sources */}
-        {inactiveSources.length > 0 && (
-          <div>
-            <h3 className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--muted)' }}>
-              Disabled ({inactiveSources.length})
-            </h3>
-            <div className="flex flex-col gap-2">
-              {inactiveSources.map(source => (
-                <Card key={source.id} className="p-3 opacity-50">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>{source.name}</p>
-                      <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>{source.url}</p>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <Button size="sm" variant="secondary" onClick={() => toggle(source.id, source.active)}>Enable</Button>
-                      <Button size="sm" variant="danger" onClick={() => remove(source.id)}>Delete</Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
+    <div className="text-xs">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <h1 className="font-bold" style={{ color: 'var(--text)', fontSize: '1.125rem', lineHeight: 1.2, margin: 0 }}>Sources</h1>
+        <span style={{ color: 'var(--muted)' }}>
+          {counts.feeds} feeds · {batchCount} batch{batchCount !== 1 ? 'es' : ''} · {counts.podcasts} podcast{counts.podcasts !== 1 ? 's' : ''} · {counts.disabled} disabled
+        </span>
+        <Button size="xs" className="ml-auto" variant={adding ? 'ghost' : 'primary'} onClick={() => setAdding(a => !a)}>
+          {adding ? '− Close' : '+ Add'}
+        </Button>
       </div>
 
-      {/* Add source — bottom, width-constrained so fields stay readable */}
-      <div className="mt-10 max-w-xl">
-        <h2 className="text-sm font-medium uppercase tracking-wide mb-4" style={{ color: 'var(--muted)' }}>Add source</h2>
-        <SourceForm onAdded={load} />
-
-        <div className="mt-6 rounded-lg p-4 text-sm" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--muted)' }}>
-          <p className="font-medium mb-1" style={{ color: 'var(--text)' }}>How batches work</p>
-          <p>Active sources are grouped into batches of {BATCH_SIZE} by the order they were added. Each batch can be ingested independently — useful for testing a specific source or staying within execution time limits.</p>
-          <p className="mt-2">New sources are automatically placed into the next available batch slot.</p>
-          <p className="mt-2 font-mono text-xs" style={{ color: 'var(--muted)' }}>Daily ingest runs via GitHub Actions at 10:30 UTC.</p>
+      {adding && (
+        <div className="mb-2 rounded-md p-2" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+          <SourceForm onAdded={() => { setAdding(false); load() }} onCancel={() => setAdding(false)} />
         </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex items-center gap-1 mb-1 flex-wrap">
+        <Input className={FIELD} style={{ width: '14rem', padding: '2px 8px' }} placeholder="Filter name, URL, keyword…" value={q} onChange={e => setQ(e.target.value)} />
+        <select aria-label="Type" className={`${FIELD} border`} style={selectStyle} value={type} onChange={e => setType(e.target.value as typeof type)}>
+          <option value="all">All types</option>
+          <option value="feed">Feeds</option>
+          <option value="podcast">Podcasts</option>
+        </select>
+        <select aria-label="Status" className={`${FIELD} border`} style={selectStyle} value={status} onChange={e => setStatus(e.target.value as typeof status)}>
+          <option value="active">Active</option>
+          <option value="disabled">Disabled</option>
+          <option value="all">Any status</option>
+        </select>
+        <select aria-label="Auto" className={`${FIELD} border`} style={selectStyle} value={auto} onChange={e => setAuto(e.target.value as typeof auto)}>
+          <option value="all">Auto: any</option>
+          <option value="on">Auto: on</option>
+          <option value="off">Auto: off</option>
+        </select>
+        <select aria-label="Batch" className={`${FIELD} border`} style={selectStyle} value={batch} onChange={e => setBatch(e.target.value)}>
+          <option value="all">All batches</option>
+          {Array.from({ length: batchCount }, (_, i) => <option key={i} value={String(i + 1)}>Batch {i + 1}</option>)}
+        </select>
+        {batch !== 'all' && (
+          <IngestButton
+            compact
+            label={`Ingest batch ${batch}`}
+            sourceIds={rows.filter(r => String(r.batch) === batch).map(r => r.id)}
+            onDone={load}
+          />
+        )}
+        <span className="ml-auto" style={{ color: 'var(--muted)' }}>{visible.length} shown</span>
+      </div>
+
+      <div className="overflow-x-auto rounded-md" style={{ border: '1px solid var(--border)' }}>
+        <table className="w-full border-collapse">
+          <thead>
+            <tr style={{ background: 'var(--bg-secondary)', color: 'var(--muted)' }} className="text-left">
+              <th className="px-2 py-0.5 font-medium w-10">Batch</th>
+              <th className="px-2 py-0.5 font-medium">Source</th>
+              <th className="px-2 py-0.5 font-medium w-16">Type</th>
+              <th className="px-2 py-0.5 font-medium hidden md:table-cell">Keywords</th>
+              <th className="px-2 py-0.5 font-medium w-10 text-right" title="Drafts in the last 30 days">30d</th>
+              <th className="px-2 py-0.5 font-medium w-10 text-center" title="Feeds: drafts are approved automatically. Podcasts: new full episodes after the baseline are generated and published on the scheduled runs.">Auto</th>
+              <th className="px-2 py-0.5 font-medium text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map(r => {
+              const isPodcast = r.kind === 'podcast'
+              const open = panel?.id === r.id ? panel.kind : null
+              return (
+                <Fragment key={r.id}>
+                  <tr style={{ borderTop: '1px solid var(--hairline, var(--border))', opacity: r.active ? 1 : 0.55 }}>
+                    <td className="px-2 py-0.5 font-mono" style={{ color: 'var(--accent)' }}>{r.batch ?? '—'}</td>
+                    <td className="px-2 py-0.5 max-w-0 w-full">
+                      <div className="truncate" title={`${r.name}\n${r.url}`}>
+                        <span className="font-medium" style={{ color: 'var(--text)' }}>{r.name}</span>
+                        <span style={{ color: 'var(--muted)' }}> · {r.url.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                      </div>
+                    </td>
+                    <td className="px-2 py-0.5" style={{ color: 'var(--muted)' }}>{isPodcast ? 'podcast' : 'feed'}</td>
+                    <td className="px-2 py-0.5 hidden md:table-cell max-w-[14rem] truncate" style={{ color: 'var(--muted)' }} title={(r.keywords ?? []).join(', ')}>
+                      {isPodcast
+                        ? (r.podcast_config?.ignore_before ? `new after ${r.podcast_config.ignore_before.slice(0, 10)}` : 'no baseline')
+                        : (r.keywords ?? []).join(', ')}
+                    </td>
+                    <td className="px-2 py-0.5 text-right">
+                      {r.recent_drafts > 0
+                        ? <Link href="/admin/drafts" style={{ color: 'var(--accent)' }}>{r.recent_drafts}</Link>
+                        : <span style={{ color: 'var(--muted)' }}>0</span>}
+                    </td>
+                    <td className="px-2 py-0.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={!!r.auto_publish}
+                        disabled={!r.active}
+                        onChange={() => toggleAuto(r)}
+                        className="h-3.5 w-3.5 cursor-pointer align-middle"
+                        style={{ accentColor: 'var(--accent)' }}
+                        aria-label={`Auto for ${r.name}`}
+                        title={isPodcast
+                          ? 'New full episodes after the baseline are generated and published automatically on the scheduled ingest runs'
+                          : 'Drafts from this source are approved automatically, without human review'}
+                      />
+                    </td>
+                    <td className="px-2 py-0.5 whitespace-nowrap">
+                      <div className="flex gap-1 justify-end items-center">
+                        {r.active && !isPodcast && <IngestButton compact label="Ingest" sourceIds={[r.id]} onDone={load} />}
+                        {r.active && isPodcast && <PodcastRunButton id={r.id} autoPublish={!!r.auto_publish} onDone={load} />}
+                        {r.active && isPodcast && (
+                          <Button size="xs" variant={open === 'episodes' ? 'primary' : 'secondary'} onClick={() => setPanel(open === 'episodes' ? null : { id: r.id, kind: 'episodes' })}>
+                            Episodes
+                          </Button>
+                        )}
+                        <Button size="xs" variant={open === 'edit' ? 'primary' : 'secondary'} onClick={() => setPanel(open === 'edit' ? null : { id: r.id, kind: 'edit' })}>Edit</Button>
+                        <Button size="xs" variant="secondary" onClick={() => patch(r.id, { active: !r.active })}>{r.active ? 'Disable' : 'Enable'}</Button>
+                        <Button size="xs" variant="danger" onClick={() => remove(r)} aria-label={`Delete ${r.name}`} title="Delete">×</Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr style={{ background: 'var(--bg-secondary)' }}>
+                      <td />
+                      <td colSpan={6} className="px-2 py-0.5.5">
+                        {open === 'edit'
+                          ? <EditRow row={r} onSaved={() => { setPanel(null); load() }} onCancel={() => setPanel(null)} />
+                          : <PodcastEpisodes sourceId={r.id} />}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
+            {visible.length === 0 && (
+              <tr><td colSpan={7} className="px-2 py-3 text-center" style={{ color: 'var(--muted)' }}>No sources match the filters.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="mt-2" style={{ color: 'var(--muted)' }}>
+        Active news feeds are grouped into batches of {BATCH_SIZE} in the order they were added; pick a batch in the filter to ingest it on its own.
+        Scheduled ingest runs on workdays at 10:00, 13:00 and 17:00 Warsaw time and also handles podcasts with Auto ticked.
+      </p>
+    </div>
+  )
+}
+
+function EditRow({ row, onSaved, onCancel }: { row: Row; onSaved: () => void; onCancel: () => void }) {
+  const isPodcast = row.kind === 'podcast'
+  const [name, setName] = useState(row.name)
+  const [url, setUrl] = useState(row.url)
+  const [keywords, setKeywords] = useState((row.keywords ?? []).join(', '))
+  const [config, setConfig] = useState(JSON.stringify(row.podcast_config ?? {}, null, 2))
+  const [error, setError] = useState('')
+
+  async function save() {
+    const body: Record<string, unknown> = { name, url }
+    if (isPodcast) {
+      try {
+        body.podcast_config = JSON.parse(config)
+      } catch {
+        return setError('Config is not valid JSON')
+      }
+    } else {
+      body.keywords = keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)
+    }
+    const res = await fetch(`/api/sources/${row.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) return setError((await res.json().catch(() => ({}))).error ?? 'Save failed')
+    onSaved()
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="grid gap-1 sm:grid-cols-[14rem_1fr]">
+        <Input className={FIELD} value={name} onChange={e => setName(e.target.value)} placeholder="Name" />
+        <Input className={FIELD} value={url} onChange={e => setUrl(e.target.value)} placeholder="URL" />
+      </div>
+      {isPodcast
+        ? <Textarea className={`${FIELD} font-mono`} rows={12} value={config} onChange={e => setConfig(e.target.value)} />
+        : <Input className={FIELD} value={keywords} onChange={e => setKeywords(e.target.value)} placeholder="Keywords (comma-separated)" />}
+      {isPodcast && (
+        <p style={{ color: 'var(--muted)' }}>
+          Links the writer may use (others are stripped) · <code>model</code>: Gemini model id · <code>ignore_before</code>: episodes up to this moment count as seen.
+        </p>
+      )}
+      {error && <p className="text-red-600">{error}</p>}
+      <div className="flex gap-1">
+        <Button size="xs" onClick={save}>Save</Button>
+        <Button size="xs" variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
+  )
+}
+
+// A podcast row's "Ingest": runs the same one-step-at-a-time automatic runner
+// the schedule uses, for this source only, until it reports idle. Publishes
+// only when the source has Auto ticked; otherwise the results wait in drafts.
+function PodcastRunButton({ id, autoPublish, onDone }: { id: string; autoPublish: boolean; onDone: () => void }) {
+  const [state, setState] = useState<'idle' | 'confirm' | 'running'>('idle')
+  const [note, setNote] = useState('')
+
+  async function run() {
+    setState('running')
+    let made = 0
+    let published = 0
+    try {
+      for (let i = 0; i < 8; i++) {
+        setNote(i === 0 ? 'checking…' : `step ${i + 1}…`)
+        const res = await postJson(`/api/podcasts/auto?id=${id}`, {})
+        if (res.action === 'idle') break
+        if (res.action === 'error') throw new Error(String(res.error))
+        if (res.action === 'written') {
+          made++
+          if (res.published) published++
+        }
+      }
+      setNote(made === 0 ? 'no new episodes' : `${made} written${published ? `, ${published} published` : ' → drafts'}`)
+      onDone()
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'failed')
+    } finally {
+      setState('idle')
+    }
+  }
+
+  if (state === 'confirm') {
+    return (
+      <span className="flex items-center gap-1">
+        <span style={{ color: 'var(--muted)' }}>{autoPublish ? 'Generate + publish new?' : 'Generate new → drafts?'}</span>
+        <Button size="xs" onClick={run}>Yes</Button>
+        <Button size="xs" variant="ghost" onClick={() => setState('idle')}>No</Button>
+      </span>
+    )
+  }
+  return (
+    <span className="flex items-center gap-1">
+      {note && <span className={state === 'running' ? 'animate-pulse' : ''} style={{ color: 'var(--muted)' }}>{note}</span>}
+      <Button size="xs" variant="secondary" disabled={state === 'running'} onClick={() => setState('confirm')}>Ingest</Button>
+    </span>
   )
 }
