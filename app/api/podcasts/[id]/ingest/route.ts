@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import {
   extractPodcastNotes,
+  isBeforeBaseline,
   isYouTubeUrl,
   listEpisodes,
   parsePodcastConfig,
@@ -24,7 +25,8 @@ const MIN_TRANSCRIPT_CHARS = 500
  *   - admin session required; CRON_SECRET is deliberately not accepted, so no
  *     scheduled job can reach this and spend tokens;
  *   - always leaves the draft `pending` — the source's auto_publish is ignored;
- *   - refuses an episode that already has a draft or article unless `force`.
+ *   - refuses an episode that already has a draft or article unless `force`;
+ *   - always refuses an episode published at or before `ignore_before`.
  *
  * Body: { episode_id: string, transcript?: string, youtube_url?: string, force?: boolean }
  * What Gemini gets, in order: a pasted `transcript`, else the episode's YouTube
@@ -73,6 +75,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: `Could not read feed: ${err instanceof Error ? err.message : String(err)}` }, { status: 502 })
   }
   if (!episode) return NextResponse.json({ error: 'Episode not found in feed' }, { status: 404 })
+  // Hard stop, not overridable by `force`: the back catalogue is covered by hand.
+  if (isBeforeBaseline(episode, config)) {
+    return NextResponse.json({ error: `This episode predates the source's ignore_before baseline (${config.ignore_before}) and is never generated` }, { status: 409 })
+  }
 
   const youtubeUrl = youtubeOverride || episode.youtubeUrl
   const sourceUrl = youtubeUrl || episode.link || episode.audioUrl

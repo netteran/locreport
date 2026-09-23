@@ -30,6 +30,7 @@ type Props = {
 // explicit confirm step below — the only path that spends Gemini tokens.
 export function PodcastSourceCard({ source, onChanged, onToggleActive, onDelete }: Props) {
   const [episodes, setEpisodes] = useState<Episode[] | null>(null)
+  const [hidden, setHidden] = useState<{ count: number; before: string | null }>({ count: 0, before: null })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [editingConfig, setEditingConfig] = useState(false)
@@ -44,6 +45,7 @@ export function PodcastSourceCard({ source, onChanged, onToggleActive, onDelete 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`)
       setEpisodes(data.episodes)
+      setHidden({ count: data.hidden_before_baseline ?? 0, before: data.ignore_before ?? null })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load episodes')
     } finally {
@@ -125,10 +127,19 @@ export function PodcastSourceCard({ source, onChanged, onToggleActive, onDelete 
 
       {episodes && (
         <div className="flex flex-col divide-y" style={{ borderTop: '1px solid var(--border)', borderColor: 'var(--hairline, var(--border))' }}>
-          {episodes.length === 0 && <p className="px-4 py-3 text-sm" style={{ color: 'var(--muted)' }}>No episodes in the feed.</p>}
+          {episodes.length === 0 && (
+            <p className="px-4 py-3 text-sm" style={{ color: 'var(--muted)' }}>
+              {hidden.before ? 'No new full episodes since the baseline — check back after the next upload.' : 'No episodes in the feed.'}
+            </p>
+          )}
           {episodes.map(ep => (
             <EpisodeRow key={ep.id} sourceId={source.id} episode={ep} onGenerated={loadEpisodes} />
           ))}
+          {hidden.count > 0 && (
+            <p className="px-4 py-2 text-xs" style={{ color: 'var(--muted)' }}>
+              {hidden.count} older episode{hidden.count !== 1 ? 's' : ''} published on or before {hidden.before?.slice(0, 10)} hidden (marked as seen via <code>ignore_before</code>). Shorts are always excluded.
+            </p>
+          )}
         </div>
       )}
     </div>

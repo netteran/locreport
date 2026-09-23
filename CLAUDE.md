@@ -719,6 +719,15 @@ the rest of the site stays on OpenAI). Needs `GEMINI_API_KEY`; the model is `pod
   Spotify show ids; that cannot happen here. `ensurePlatformLinks` appends a listen line if Spotify/YouTube was
   left out.
 - With an audio feed, `podcast_config.youtube_channel_id` lets each episode be matched to its video by title.
+- **Full episodes only — no Shorts.** For a YouTube channel feed, `listEpisodes` reads the channel's
+  long-form uploads playlist (`playlist_id=UULF<channel id minus "UC">`) instead, falling back to the channel
+  feed if that fails or is empty; either way `isShort()` drops `/shorts/` links and `#shorts`-tagged items.
+  The UULF feed was not verifiable from the dev sandbox (YouTube blocked) — the fallback + filter keep it safe.
+- **Back catalogue baseline.** `podcast_config.ignore_before` (ISO date-time): episodes published at or before
+  it are hidden from the Episodes list (with a count) and refused by `/ingest` **even with `force`** — the
+  owner covered them by hand in NotebookLM. The Signal Room source is baselined at `2026-09-23T13:34:34Z`
+  (set 2026-09-23, right after its first Gemini draft). New uploads after that appear in the list; generating
+  them stays a manual click — nothing polls or auto-generates.
 
 ---
 

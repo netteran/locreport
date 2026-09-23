@@ -77,14 +77,62 @@ export function isYouTubeUrl(url: string): boolean {
   }
 }
 
-/** Reads the feed and returns its episodes, newest first. Costs no tokens. */
-export async function listEpisodes(feedUrl: string, config: PodcastConfig): Promise<PodcastEpisode[]> {
-  const res = await fetch(feedUrl, {
+async function readFeed(url: string) {
+  const res = await fetch(url, {
     headers: { 'User-Agent': UA, Accept: 'application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.7' },
     signal: AbortSignal.timeout(15000),
   })
   if (!res.ok) throw new Error(`Feed HTTP ${res.status}`)
-  const feed = await parser.parseString(await res.text())
+  return parser.parseString(await res.text())
+}
+
+/**
+ * A YouTube channel's uploads split into two auto-playlists: UULF… holds only
+ * long-form videos, UUSH… only Shorts. For a channel feed, read the long-form
+ * playlist so Shorts never show up (and never crowd full episodes out of the
+ * feed's 15-entry window). Returns null for any other feed URL.
+ */
+export function longFormFeedUrl(feedUrl: string): string | null {
+  try {
+    const u = new URL(feedUrl)
+    const channel = u.searchParams.get('channel_id')
+    if (!isYouTubeUrl(feedUrl) || !u.pathname.startsWith('/feeds/videos.xml') || !channel?.startsWith('UC')) return null
+    return `https://www.youtube.com/feeds/videos.xml?playlist_id=UULF${channel.slice(2)}`
+  } catch {
+    return null
+  }
+}
+
+/** Shorts are clips, not episodes: YouTube links them under /shorts/, and creators tag them #shorts. */
+export function isShort(ep: Pick<PodcastEpisode, 'link' | 'title' | 'description'>): boolean {
+  return /youtube\.com\/shorts\//i.test(ep.link) || /#shorts?\b/i.test(`${ep.title} ${ep.description}`)
+}
+
+/** True when the source's `ignore_before` baseline says this episode was already there. */
+export function isBeforeBaseline(ep: Pick<PodcastEpisode, 'pubDate'>, config: PodcastConfig): boolean {
+  if (!config.ignore_before) return false
+  // No date at all → can't prove it's new, so treat it as part of the back catalogue.
+  if (!ep.pubDate) return true
+  return Date.parse(ep.pubDate) <= Date.parse(config.ignore_before)
+}
+
+/**
+ * Reads the feed and returns its full episodes (no Shorts), newest first.
+ * Costs no tokens. Baseline filtering (`ignore_before`) is left to callers,
+ * so the list can report how many older episodes it is hiding.
+ */
+export async function listEpisodes(feedUrl: string, config: PodcastConfig): Promise<PodcastEpisode[]> {
+  let feed: Awaited<ReturnType<typeof readFeed>> | null = null
+  const longForm = longFormFeedUrl(feedUrl)
+  if (longForm) {
+    try {
+      feed = await readFeed(longForm)
+      if (!feed.items.length) feed = null
+    } catch (err) {
+      console.warn(`[podcast] long-form playlist feed failed, falling back to the channel feed: ${err instanceof Error ? err.message : err}`)
+    }
+  }
+  if (!feed) feed = await readFeed(feedUrl)
 
   const episodes: PodcastEpisode[] = feed.items.map(item => {
     const link = item.link ?? ''
@@ -105,7 +153,7 @@ export async function listEpisodes(feedUrl: string, config: PodcastConfig): Prom
       duration: item.itunes?.duration ?? null,
       youtubeUrl: isYouTubeUrl(link) ? link : null,
     }
-  }).filter(e => e.id && e.title)
+  }).filter(e => e.id && e.title && !isShort(e))
 
   // Audio feed: try to pair each episode with its video, so the article can
   // link the episode itself rather than just the channel.
