@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { parsePodcastConfig } from '@/lib/podcast'
 
 export async function GET() {
   const supabase = createServiceClient()
@@ -28,11 +29,18 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { url, name, keywords } = await req.json()
+  const { url, name, keywords, kind, podcast_config } = await req.json()
+  const row: Record<string, unknown> = { url, name, keywords: keywords ?? [] }
+  if (kind === 'podcast') {
+    const parsed = parsePodcastConfig(podcast_config)
+    if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    // Podcasts are manual-only and never auto-publish — see lib/podcast.ts.
+    Object.assign(row, { kind: 'podcast', podcast_config: parsed.config, keywords: [], auto_publish: false })
+  }
   const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('rss_sources')
-    .insert({ url, name, keywords: keywords ?? [] })
+    .insert(row)
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

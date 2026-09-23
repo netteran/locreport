@@ -43,9 +43,14 @@ export async function POST(req: NextRequest) {
 
   let sourcesQuery = supabase.from('rss_sources').select('*').eq('active', true)
   if (sourceFilter.length > 0) sourcesQuery = sourcesQuery.in('id', sourceFilter)
-  const { data: sources } = await sourcesQuery
+  const { data: allSources } = await sourcesQuery
+  // Podcast sources are manual-only (/api/podcasts/[id]/ingest): transcribing an
+  // episode costs real tokens, so neither the schedule nor a batch button may
+  // touch them. Filtered here rather than in SQL so this still works before the
+  // `kind` column exists.
+  const sources = (allSources ?? []).filter(s => s.kind !== 'podcast')
 
-  if (!sources?.length) return NextResponse.json({ processed: 0 })
+  if (!sources.length) return NextResponse.json({ processed: 0 })
 
   const { data: existingDrafts } = await supabase
     .from('drafts')
