@@ -1,10 +1,10 @@
 import Parser from 'rss-parser'
-import { toFile } from 'openai'
-import type OpenAI from 'openai'
+import { FileState, MediaResolution, createPartFromUri, type Part } from '@google/genai'
 import type { createServiceClient } from '@/lib/supabase/server'
 import { fetchFeed } from '@/lib/rss'
+import { getGemini } from '@/lib/gemini'
 import { DEFAULT_PODCAST_EXTRACTOR_PROMPT, DEFAULT_PODCAST_PROMPT, todayLine } from '@/lib/prompts'
-import { DEFAULT_WRITER_MODEL, type PodcastConfig } from '@/lib/podcastConfig'
+import { DEFAULT_PODCAST_MODEL, type PodcastConfig } from '@/lib/podcastConfig'
 
 /**
  * Podcast sources — rss_sources rows with kind = 'podcast'.
@@ -12,28 +12,24 @@ import { DEFAULT_WRITER_MODEL, type PodcastConfig } from '@/lib/podcastConfig'
  * These are MANUAL-ONLY by design: /api/ingest skips them, and the only caller
  * of this module's token-spending functions is /api/podcasts/[id]/ingest, which
  * accepts an admin session only and always creates a *pending* draft. An
- * episode is transcribed (or takes a pasted transcript), condensed into notes,
- * and written up — nothing happens unless someone clicks "Generate draft".
+ * episode is condensed into notes and written up by Google Gemini — nothing
+ * happens unless someone clicks "Generate draft".
  *
- * The source's `url` is either the podcast's audio RSS feed (episodes carry an
- * MP3 enclosure we can transcribe) or a YouTube channel feed
- * (https://www.youtube.com/feeds/videos.xml?channel_id=…), where there is no
- * audio to fetch and the transcript has to be pasted in.
+ * Gemini listens to the episode itself, so there is no separate transcription
+ * step. The source's `url` is either a YouTube channel feed
+ * (https://www.youtube.com/feeds/videos.xml?channel_id=…) — Gemini is handed
+ * the public video URL directly — or a podcast audio RSS feed, whose MP3 is
+ * uploaded to the Gemini Files API. A pasted transcript overrides both.
  */
 
 type Service = ReturnType<typeof createServiceClient>
 
 export {
   PODCAST_CONFIG_TEMPLATE,
-  WRITER_MODELS,
   parsePodcastConfig,
   type PodcastConfig,
   type PodcastPerson,
-  type WriterModel,
 } from '@/lib/podcastConfig'
-
-const EXTRACTOR_MODEL = 'gpt-4o-mini'
-const TRANSCRIBE_MODEL = 'gpt-4o-mini-transcribe'
 
 // ── Episodes ─────────────────────────────────────────────────────────────────
 
@@ -139,116 +135,22 @@ function matchVideo(ep: PodcastEpisode, videos: { title: string; link: string; p
   return best && best.score >= 0.6 ? best.link : null
 }
 
-// ── Transcription ────────────────────────────────────────────────────────────
+// ── Episode media → notes ────────────────────────────────────────────────────
 
+/** What Gemini is given for an episode, in order of preference. */
+export type EpisodeMedia =
+  | { kind: 'transcript'; text: string }
+  | { kind: 'youtube'; url: string }
+  | { kind: 'audio'; url: string; mimeType: string | null }
+
+// A panel podcast is talk: the audio carries almost everything. Sampling one
+// frame every 5 s at low resolution still catches on-screen name captions
+// while keeping an hour-long video to a fraction of the default token cost.
+const VIDEO_FPS = 0.2
 const MAX_AUDIO_BYTES = 300 * 1024 * 1024
-// gpt-4o-mini-transcribe caps output tokens per request, so a long episode is
-// sent in short slices; ~6 minutes of speech stays well under that cap.
-const SLICE_SECONDS = 6 * 60
-const SLICE_CONCURRENCY = 4
-const WHISPER_MAX_BYTES = 24 * 1024 * 1024
-
-const MP3_BITRATES_V1_L3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
-const MP3_BITRATES_V2_L3 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
-
-function isFrameHeader(buf: Uint8Array, i: number): boolean {
-  if (i + 3 >= buf.length) return false
-  const b1 = buf[i + 1], b2 = buf[i + 2]
-  return buf[i] === 0xff && (b1 & 0xe0) === 0xe0 && ((b1 >> 1) & 3) !== 0 && ((b2 >> 4) & 0xf) !== 0xf && ((b2 >> 4) & 0xf) !== 0 && ((b2 >> 2) & 3) !== 3
-}
-
-function nextFrame(buf: Uint8Array, from: number): number {
-  for (let i = from; i < buf.length - 3; i++) if (isFrameHeader(buf, i)) return i
-  return buf.length
-}
-
-/** Offset of the first audio byte, past any ID3v2 tag (whose cover art can fake a frame sync). */
-function audioStart(buf: Uint8Array): number {
-  if (buf.length > 10 && buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) {
-    const size = (buf[6] << 21) | (buf[7] << 14) | (buf[8] << 7) | buf[9]
-    return Math.min(buf.length, 10 + size)
-  }
-  return 0
-}
-
-/** kbps of the first MP3 frame, or 128 if it can't be read. */
-function mp3Bitrate(buf: Uint8Array): number {
-  const i = nextFrame(buf, audioStart(buf))
-  if (i >= buf.length) return 128
-  const mpeg1 = ((buf[i + 1] >> 3) & 3) === 3
-  const idx = (buf[i + 2] >> 4) & 0xf
-  return (mpeg1 ? MP3_BITRATES_V1_L3 : MP3_BITRATES_V2_L3)[idx] || 128
-}
-
-/** Splits an MP3 on frame boundaries into ~SLICE_SECONDS pieces. */
-function sliceMp3(buf: Uint8Array): Uint8Array[] {
-  const bytesPerSlice = Math.floor((mp3Bitrate(buf) * 1000 / 8) * SLICE_SECONDS)
-  const slices: Uint8Array[] = []
-  let start = nextFrame(buf, audioStart(buf))
-  while (start < buf.length) {
-    const end = start + bytesPerSlice >= buf.length ? buf.length : nextFrame(buf, start + bytesPerSlice)
-    slices.push(buf.subarray(start, end))
-    start = end
-  }
-  return slices
-}
-
-function looksLikeMp3(url: string, type: string | null): boolean {
-  return (type ?? '').includes('mpeg') || (type ?? '').includes('mp3') || /\.mp3(\?|$)/i.test(url)
-}
-
-/**
- * Downloads an episode's audio and transcribes it. ~$0.003 per audio minute.
- * MP3 is sliced on frame boundaries and sent in parallel; other formats go to
- * whisper-1 whole, which only works up to 24 MB.
- */
-export async function transcribeAudio(
-  openai: OpenAI,
-  audioUrl: string,
-  audioType: string | null,
-  config: PodcastConfig,
-): Promise<string> {
-  const res = await fetch(audioUrl, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(90000) })
-  if (!res.ok) throw new Error(`Audio HTTP ${res.status}`)
-  const declared = Number(res.headers.get('content-length') ?? 0)
-  if (declared > MAX_AUDIO_BYTES) throw new Error(`Audio is ${Math.round(declared / 1e6)} MB — too large`)
-  const buf = new Uint8Array(await res.arrayBuffer())
-  const type = audioType ?? res.headers.get('content-type')
-
-  // Spelling hint: the transcriber otherwise mangles names like "Wada'a Fahel".
-  const hint = `${config.show_name}. ${config.people.map(p => [p.name, p.role].filter(Boolean).join(', ')).join('; ')}.`
-
-  if (!looksLikeMp3(audioUrl, type)) {
-    if (buf.length > WHISPER_MAX_BYTES) {
-      throw new Error(`Audio is ${type ?? 'not MP3'} and ${Math.round(buf.length / 1e6)} MB — only MP3 can be split. Paste the transcript instead.`)
-    }
-    const r = await openai.audio.transcriptions.create({
-      file: await toFile(buf, 'episode', { type: type ?? 'audio/mp4' }),
-      model: 'whisper-1',
-      prompt: hint,
-    })
-    return r.text
-  }
-
-  const slices = sliceMp3(buf)
-  const texts: string[] = new Array(slices.length)
-  let next = 0
-  async function worker() {
-    while (next < slices.length) {
-      const i = next++
-      const r = await openai.audio.transcriptions.create({
-        file: await toFile(slices[i], `part-${i + 1}.mp3`, { type: 'audio/mpeg' }),
-        model: TRANSCRIBE_MODEL,
-        prompt: hint,
-      })
-      texts[i] = r.text
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(SLICE_CONCURRENCY, slices.length) }, worker))
-  return texts.join('\n\n')
-}
-
-// ── Writing ──────────────────────────────────────────────────────────────────
+const FILE_ACTIVE_TIMEOUT_MS = 120_000
+// Transcripts past this are truncated — ~2 hours of speech.
+const MAX_TRANSCRIPT_CHARS = 250_000
 
 async function getPrompt(supabase: Service, key: string, fallback: string): Promise<string> {
   try {
@@ -265,39 +167,87 @@ function rosterBlock(config: PodcastConfig): string {
     .join('\n')
 }
 
-// Transcripts past this are truncated; ~2 hours of speech, far inside the
-// extractor model's context window.
-const MAX_TRANSCRIPT_CHARS = 250_000
+/** Uploads an episode's audio to the Gemini Files API and waits until it is usable. */
+async function uploadAudio(url: string, mimeType: string | null): Promise<{ part: Part; cleanup: () => Promise<void> }> {
+  const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(90000) })
+  if (!res.ok) throw new Error(`Audio HTTP ${res.status}`)
+  const declared = Number(res.headers.get('content-length') ?? 0)
+  if (declared > MAX_AUDIO_BYTES) throw new Error(`Audio is ${Math.round(declared / 1e6)} MB — too large`)
+  const type = mimeType || res.headers.get('content-type') || 'audio/mpeg'
+  const blob = new Blob([await res.arrayBuffer()], { type })
 
-/** Stage 1: full transcript → structured episode notes. Returns null for UNUSABLE_CONTENT. */
+  const ai = getGemini()
+  let file = await ai.files.upload({ file: blob, config: { mimeType: type } })
+  const deadline = Date.now() + FILE_ACTIVE_TIMEOUT_MS
+  while (file.state === FileState.PROCESSING && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 3000))
+    file = await ai.files.get({ name: file.name! })
+  }
+  if (file.state !== FileState.ACTIVE || !file.uri) throw new Error(`Gemini could not process the audio (state ${file.state})`)
+  return {
+    part: createPartFromUri(file.uri, file.mimeType ?? type),
+    // Uploaded files expire on their own after 48 h; deleting is just tidiness.
+    cleanup: async () => { await ai.files.delete({ name: file.name! }).catch(() => {}) },
+  }
+}
+
+/**
+ * Stage 1: the episode (video, audio or pasted transcript) → structured notes.
+ * This is the only call that sees the full episode, and its output is stored
+ * on the draft, so a re-run never pays for the media again. Returns null for
+ * UNUSABLE_CONTENT.
+ */
 export async function extractPodcastNotes(
-  openai: OpenAI,
   supabase: Service,
   config: PodcastConfig,
   episode: Pick<PodcastEpisode, 'title' | 'pubDate' | 'description'>,
-  transcript: string,
+  media: EpisodeMedia,
 ): Promise<string | null> {
   const prompt = await getPrompt(supabase, 'prompt_podcast_extractor', DEFAULT_PODCAST_EXTRACTOR_PROMPT)
-  const input = [
+  const context = [
     todayLine(),
     `Podcast: ${config.show_name}`,
     `Episode title: ${episode.title}`,
     episode.pubDate ? `Published: ${episode.pubDate.slice(0, 10)}` : '',
     episode.description ? `Episode description:\n${episode.description}` : '',
     `Regular panel / known people (use for name spelling):\n${rosterBlock(config)}`,
-    `Transcript:\n${transcript.slice(0, MAX_TRANSCRIPT_CHARS)}`,
   ].filter(Boolean).join('\n\n')
 
-  const res = await openai.chat.completions.create({
-    model: EXTRACTOR_MODEL,
-    messages: [
-      { role: 'system', content: prompt },
-      { role: 'user', content: input },
-    ],
-  })
-  const notes = (res.choices[0].message.content ?? '').trim()
-  return !notes || notes === 'UNUSABLE_CONTENT' ? null : notes
+  let mediaPart: Part
+  let cleanup = async () => {}
+  if (media.kind === 'transcript') {
+    mediaPart = { text: `Transcript:\n${media.text.slice(0, MAX_TRANSCRIPT_CHARS)}` }
+  } else if (media.kind === 'youtube') {
+    mediaPart = { fileData: { fileUri: media.url, mimeType: 'video/*' }, videoMetadata: { fps: VIDEO_FPS } }
+  } else {
+    const uploaded = await uploadAudio(media.url, media.mimeType)
+    mediaPart = uploaded.part
+    cleanup = uploaded.cleanup
+  }
+
+  try {
+    const res = await getGemini().models.generateContent({
+      model: config.model ?? DEFAULT_PODCAST_MODEL,
+      contents: [{
+        role: 'user',
+        parts: [
+          mediaPart,
+          { text: `${context}\n\nThe ${media.kind === 'transcript' ? 'transcript above' : 'recording above'} is the full episode. Produce the notes.` },
+        ],
+      }],
+      config: {
+        systemInstruction: prompt,
+        ...(media.kind === 'youtube' ? { mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW } : {}),
+      },
+    })
+    const notes = (res.text ?? '').trim()
+    return !notes || notes === 'UNUSABLE_CONTENT' ? null : notes
+  } finally {
+    await cleanup()
+  }
 }
+
+// ── Writing ──────────────────────────────────────────────────────────────────
 
 /**
  * Stage 2: notes → article markdown (with H1). Also used by the draft re-run
@@ -305,7 +255,6 @@ export async function extractPodcastNotes(
  * back to the news-article prompt.
  */
 export async function writePodcastArticle(
-  openai: OpenAI,
   supabase: Service,
   config: PodcastConfig,
   args: { episodeTitle: string; episodeYouTubeUrl: string | null; notes: string; instruction?: string },
@@ -323,15 +272,19 @@ export async function writePodcastArticle(
     `Episode notes:\n${args.notes}`,
   ].filter(Boolean).join('\n')
 
-  const res = await openai.chat.completions.create({
-    model: config.writer_model ?? DEFAULT_WRITER_MODEL,
-    messages: [
-      { role: 'system', content: prompt },
-      ...(args.instruction ? [{ role: 'system' as const, content: `ADDITIONAL EDITORIAL INSTRUCTION FOR THIS RE-RUN (shape, angle, emphasis and length only — the notes and links stay fixed):\n\n${args.instruction}` }] : []),
-      { role: 'user', content: input },
-    ],
+  const systemInstruction = args.instruction
+    ? `${prompt}\n\nADDITIONAL EDITORIAL INSTRUCTION FOR THIS RE-RUN (shape, angle, emphasis and length only — the notes and links stay fixed):\n\n${args.instruction}`
+    : prompt
+
+  const res = await getGemini().models.generateContent({
+    model: config.model ?? DEFAULT_PODCAST_MODEL,
+    contents: input,
+    config: { systemInstruction },
   })
-  const raw = (res.choices[0].message.content ?? '').trim()
+  const raw = (res.text ?? '').trim()
+    // Some models wrap the whole article in a ```markdown fence.
+    .replace(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/, '$1')
+    .trim()
   const titleMatch = raw.match(/^#\s+(.+)$/m)
   const title = titleMatch ? titleMatch[1].trim() : args.episodeTitle
   const body = raw.replace(/^[\s\S]*?^#\s+.+\n?/m, '').trimStart()

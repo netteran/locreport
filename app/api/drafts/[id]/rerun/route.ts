@@ -120,7 +120,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Podcast drafts re-run through the podcast writer so the episode format
     // and the allow-listed LinkedIn/Spotify/YouTube links survive the re-run.
     if (podcastConfig) {
-      const { title, content } = await writePodcastArticle(openai, service, podcastConfig, {
+      const { title, content } = await writePodcastArticle(service, podcastConfig, {
         episodeTitle: draft.title,
         episodeYouTubeUrl: draft.source_url && isYouTubeUrl(draft.source_url) ? draft.source_url : null,
         notes: facts,

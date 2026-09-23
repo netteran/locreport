@@ -11,17 +11,19 @@ export interface PodcastConfig {
   show_name: string
   spotify_url?: string
   youtube_channel_url?: string
-  /** UC… id — lets an audio-feed episode be matched to its YouTube video. */
+  /** UC… id — lets an audio-feed episode be matched to its YouTube video (Gemini reads the video directly). */
   youtube_channel_id?: string
   apple_url?: string
   people: PodcastPerson[]
-  /** Model for the article write-up. Notes extraction is always gpt-4o-mini. */
-  writer_model?: WriterModel
+  /**
+   * Gemini model id for both steps (episode notes + write-up), e.g.
+   * "gemini-3.5-flash" (default) or a Pro model for a stronger write-up.
+   */
+  model?: string
 }
 
-export const WRITER_MODELS = ['gpt-4o-mini', 'gpt-4o'] as const
-export type WriterModel = (typeof WRITER_MODELS)[number]
-export const DEFAULT_WRITER_MODEL: WriterModel = 'gpt-4o-mini'
+export const DEFAULT_PODCAST_MODEL = 'gemini-3.5-flash'
+const MODEL_ID = /^gemini-[a-z0-9.-]+$/
 
 // Prefilled when adding a podcast source. Links are taken from the most
 // consistent of the hand-written Signal Room articles — verify before use;
@@ -38,7 +40,7 @@ export const PODCAST_CONFIG_TEMPLATE: PodcastConfig = {
     { name: 'Karina Welch', role: 'Director of Corporate Strategy and Head of the CEO Office at Centific', linkedin: 'https://www.linkedin.com/in/karinawelch/' },
     { name: "Wada'a Fahel", role: 'Localization and content technology strategist, founder of LocVerse Consulting', linkedin: 'https://www.linkedin.com/in/wadaafahel/' },
   ],
-  writer_model: 'gpt-4o-mini',
+  model: DEFAULT_PODCAST_MODEL,
 }
 
 export function parsePodcastConfig(raw: unknown): { config: PodcastConfig } | { error: string } {
@@ -59,9 +61,9 @@ export function parsePodcastConfig(raw: unknown): { config: PodcastConfig } | { 
     })
   }
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
-  const writer = r.writer_model
-  if (writer !== undefined && !WRITER_MODELS.includes(writer as WriterModel)) {
-    return { error: `podcast_config.writer_model must be one of: ${WRITER_MODELS.join(', ')}` }
+  const model = str(r.model)
+  if (model !== undefined && !MODEL_ID.test(model)) {
+    return { error: 'podcast_config.model must be a Gemini model id, e.g. "gemini-3.5-flash"' }
   }
   return {
     config: {
@@ -71,7 +73,7 @@ export function parsePodcastConfig(raw: unknown): { config: PodcastConfig } | { 
       youtube_channel_id: str(r.youtube_channel_id),
       apple_url: str(r.apple_url),
       people,
-      writer_model: (writer as WriterModel | undefined) ?? DEFAULT_WRITER_MODEL,
+      model: model ?? DEFAULT_PODCAST_MODEL,
     },
   }
 }

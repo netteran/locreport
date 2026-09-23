@@ -21,7 +21,7 @@
 | Framework | Next.js 15.3.3, App Router, TypeScript 5 strict |
 | Styling | TailwindCSS 4 + PostCSS, custom CSS vars (`assets/css/style.css`) |
 | Database | Supabase (PostgreSQL + pgvector) — SSR + browser clients |
-| AI | OpenAI GPT-4o/4o-mini (content generation, classification) + text-embedding-3-small (semantic search) |
+| AI | OpenAI GPT-4o/4o-mini (content generation, classification) + text-embedding-3-small (semantic search). Google Gemini (`@google/genai`) for podcast sources only |
 | Charts | Recharts 3 (Intelligence dashboard, LocStock + LLM pricing visualizations) |
 | Market data | Yahoo Finance 2 (LocStock tickers) |
 | Email | Resend (contact form + digest subscriptions with double opt-in) |
@@ -71,14 +71,15 @@ lib/
   types.ts               — Core TypeScript types: Article, Draft, RssSource
   signals.ts             — 13 hardcoded industry signals + SIGNAL_MAP (id → signal)
   openai.ts              — OpenAI client singleton (GPT-4o-mini)
+  gemini.ts              — Google Gemini client singleton (GEMINI_API_KEY) — podcast sources only
   embeddings.ts          — EMBEDDING_MODEL constant + embedText/embedAndStoreArticle (text-embedding-3-small)
   intelligence.ts        — Signal time-series bucketing + coverage-momentum computation for dashboard charts
   facts.ts               — Fact types/labels + parseHeadlineFact(): pulls the one headline fact out of a
                            distillation, tolerating numbered/bullet/bare-prose formatting drift
   factFlow.ts            — ensureArticleFact(): the one-fact-per-article guarantee every publish path calls.
                            See Fact Flow below
-  podcast.ts             — Podcast sources (manual-only): episode listing, audio transcription, notes + write-up,
-                           link allow-listing. See Podcasts below
+  podcast.ts             — Podcast sources (manual-only): episode listing, Gemini notes (from the YouTube video,
+                           audio or a pasted transcript) + write-up, link allow-listing. See Podcasts below
   podcastConfig.ts       — PodcastConfig type, validation and the Signal Room template (client-safe)
   publish.ts             — approveDraft(): draft → article, the one place that logic lives. Called by the
                            manual approve branch of /api/drafts/[id] and by /api/ingest for sources with
@@ -316,7 +317,7 @@ keywords text[]        — ingest-time relevance filter; empty = no filter (Goog
                           not on Google's own query matching — see Google News keyword filtering below)
 auto_publish boolean    — true skips /admin/drafts entirely; see Auto-Publish below. Ignored for kind='podcast'
 kind text               — 'feed' (default) | 'podcast'. /api/ingest skips 'podcast' rows; see Podcasts below
-podcast_config jsonb    — kind='podcast' only: show name, platform links, people + LinkedIn URLs, writer model
+podcast_config jsonb    — kind='podcast' only: show name, platform links, people + LinkedIn URLs, Gemini model id
 created_at timestamptz
 ```
 
@@ -688,17 +689,19 @@ manual-only, on the owner's call, so no tokens are spent without a click:**
 - `/admin/sources` shows them in their own section with an **Episodes** list (feed read, free) and a
   **Generate draft… → Confirm** step per episode.
 
-Pipeline (`lib/podcast.ts`): transcript → notes → article.
-- **Transcript.** A pasted transcript is used as-is. Otherwise the episode's MP3 enclosure is downloaded and
-  sent to `gpt-4o-mini-transcribe` (~$0.003/min) in ~6-minute slices cut on MP3 frame boundaries, because
-  that model caps output tokens per request. Non-MP3 audio goes whole to `whisper-1` (≤24 MB only). A source
-  whose `url` is a YouTube channel feed has no audio, so it needs a pasted transcript. YouTube captions are not
-  fetched: YouTube blocks server IPs.
-- **Notes** (`DEFAULT_PODCAST_EXTRACTOR_PROMPT`, `gpt-4o-mini`, the full transcript) are stored as
-  `drafts.extracted_facts`. A re-run of a podcast draft goes back through `writePodcastArticle` using those
-  notes, not the news prompt. The transcript itself is not stored.
-- **Write-up** (`DEFAULT_PODCAST_PROMPT`, `podcast_config.writer_model` = `gpt-4o-mini` default or `gpt-4o`).
-  Both prompts are editable from `/admin/prompts` (`prompt_podcast_extractor`, `prompt_podcast`).
+Pipeline (`lib/podcast.ts`): episode → notes → article, **on Google Gemini, not OpenAI** (owner's call —
+the rest of the site stays on OpenAI). Needs `GEMINI_API_KEY`; the model is `podcast_config.model`
+(default `gemini-3.5-flash`, any `gemini-*` id accepted).
+- **Notes** (`DEFAULT_PODCAST_EXTRACTOR_PROMPT`) are the one call that sees the whole episode. What Gemini is
+  given, in order: a pasted transcript; else the episode's **public YouTube URL** passed straight in as a
+  `fileData` part (no download, no transcription — the recommended setup is a source whose `url` is the
+  YouTube channel feed); else the audio enclosure, uploaded to the Gemini Files API and deleted afterwards.
+  Video is sampled at `fps: 0.2` with `MEDIA_RESOLUTION_LOW`: a talking-head panel is nearly all audio, and
+  the default sampling would cost several times more tokens for frames that carry nothing. The notes are
+  stored as `drafts.extracted_facts`, so a re-run of a podcast draft goes back through
+  `writePodcastArticle` using them and never pays for the episode again, and never uses the news prompt.
+- **Write-up** (`DEFAULT_PODCAST_PROMPT`), text-only. Both prompts are editable from `/admin/prompts`
+  (`prompt_podcast_extractor`, `prompt_podcast`). A wrapping ```` ```markdown ```` fence is stripped.
 - **Links are allow-listed.** `sanitizePodcastLinks` unlinks any absolute URL not in `podcast_config` (or the
   episode's own video). The hand-written Signal Room articles carry guessed LinkedIn slugs and three different
   Spotify show ids; that cannot happen here. `ensurePlatformLinks` appends a listen line if Spotify/YouTube was
@@ -800,6 +803,7 @@ SUPABASE_SERVICE_ROLE_KEY     — Supabase service role key (server-only, never 
 OPENAI_API_KEY                — OpenAI API key
 RESEND_API_KEY                — Resend email service key
 CRON_SECRET                   — Secret to authenticate cron requests
+GEMINI_API_KEY                — Google AI Studio key; podcast sources only (lib/gemini.ts)
 DIGEST_FROM_EMAIL             — Optional digest sender (falls back to Resend onboarding address until locreport.com is verified in Resend)
 ```
 
@@ -905,6 +909,7 @@ previous deployment serving. Decorative extras (a sidebar rail, a fact strip) sh
 
 ### LLM model
 - `lib/openai.ts` sets the model (currently GPT-4o-mini) — do not hardcode model strings elsewhere
+- Exception: podcast sources run on Gemini, with the model id in `podcast_config.model` (default `DEFAULT_PODCAST_MODEL` in `lib/podcastConfig.ts`) — see Podcasts
 
 ---
 

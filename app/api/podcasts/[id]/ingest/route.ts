@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { getOpenAI } from '@/lib/openai'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import { extractTeaser } from '@/lib/utils'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
@@ -9,8 +8,8 @@ import {
   isYouTubeUrl,
   listEpisodes,
   parsePodcastConfig,
-  transcribeAudio,
   writePodcastArticle,
+  type EpisodeMedia,
 } from '@/lib/podcast'
 
 type Params = { params: Promise<{ id: string }> }
@@ -27,7 +26,8 @@ const MIN_TRANSCRIPT_CHARS = 500
  *   - refuses an episode that already has a draft or article unless `force`.
  *
  * Body: { episode_id: string, transcript?: string, youtube_url?: string, force?: boolean }
- * A pasted `transcript` skips audio download + transcription entirely.
+ * What Gemini gets, in order: a pasted `transcript`, else the episode's YouTube
+ * video (from the feed, or `youtube_url`), else its audio file.
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
@@ -88,23 +88,25 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
   }
 
-  const openai = getOpenAI()
+  const media: EpisodeMedia | null = pasted
+    ? { kind: 'transcript', text: pasted }
+    : youtubeUrl
+      ? { kind: 'youtube', url: youtubeUrl }
+      : episode.audioUrl
+        ? { kind: 'audio', url: episode.audioUrl, mimeType: episode.audioType }
+        : null
+  if (!media) {
+    return NextResponse.json({ error: 'No YouTube video or audio found for this episode — add the YouTube URL or paste a transcript' }, { status: 400 })
+  }
+
   try {
-    let transcript = pasted
-    if (!transcript) {
-      if (!episode.audioUrl) {
-        return NextResponse.json({ error: 'This feed has no audio for the episode — paste the transcript instead' }, { status: 400 })
-      }
-      transcript = await transcribeAudio(openai, episode.audioUrl, episode.audioType, config)
-      console.log(`[podcast] transcribed "${episode.title}": ${transcript.length} chars`)
-    }
-
-    const notes = await extractPodcastNotes(openai, supabase, config, episode, transcript)
+    const notes = await extractPodcastNotes(supabase, config, episode, media)
     if (!notes) {
-      return NextResponse.json({ error: 'The notes step judged this transcript unusable' }, { status: 422 })
+      return NextResponse.json({ error: 'Gemini judged this episode unusable (no real content found)' }, { status: 422 })
     }
+    console.log(`[podcast] notes for "${episode.title}" from ${media.kind}: ${notes.length} chars`)
 
-    const { title, content: written } = await writePodcastArticle(openai, supabase, config, {
+    const { title, content: written } = await writePodcastArticle(supabase, config, {
       episodeTitle: episode.title,
       episodeYouTubeUrl: youtubeUrl,
       notes,
@@ -123,7 +125,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         source_feed_id: source.id,
         source_published_at: episode.pubDate ? new Date(episode.pubDate).toISOString() : null,
         status: 'pending',
-        // Re-runs reuse these notes, so the episode is never re-transcribed.
+        // Re-runs reuse these notes, so the episode is never re-sent to Gemini.
         extracted_facts: notes,
       })
       .select('id')
@@ -135,8 +137,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({
       draft_id: draft.id,
       title,
-      transcript_source: pasted ? 'pasted' : 'audio',
-      transcript_chars: transcript.length,
+      media: media.kind,
+      model: config.model,
       words: content.split(/\s+/).filter(Boolean).length,
     })
   } catch (err) {
