@@ -104,9 +104,39 @@ export function extractTeaser(content: string, maxSentences = 2): string {
     .replace(/\n+/g, ' ')                   // newlines → space
     .trim()
 
-  const sentences = plain.match(/[^.!?]*[.!?]+(?:\s|$)/g) ?? []
-  const result = sentences.slice(0, maxSentences).join('').trim()
+  const result = splitSentences(plain).slice(0, maxSentences).join(' ').trim()
   return result || plain.slice(0, 140).trim()
+}
+
+// Abbreviations whose trailing period does not end a sentence.
+const NON_TERMINAL_ABBREVIATIONS = new Set([
+  'inc', 'ltd', 'co', 'corp', 'llc', 'plc', 'mr', 'mrs', 'ms', 'dr', 'prof', 'st',
+  'jr', 'sr', 'vs', 'etc', 'approx', 'no',
+])
+
+// Splits plain text into sentences. A sentence ends only at . ! or ? followed
+// by whitespace (or the end of the text), so decimals ("$3.5 billion"),
+// version numbers ("GPT-4.1") and domains ("deepl.com") never split — and
+// text is consumed left to right, so nothing before a boundary is ever
+// dropped. Initials ("J. Smith"), dotted acronyms ("U.S.", "A.I.", "e.g.")
+// and common abbreviations ("Inc.") are not treated as boundaries either.
+export function splitSentences(text: string): string[] {
+  const sentences: string[] = []
+  const boundary = /[.!?]+["'\u201D\u2019)\]]*(?=\s|$)/g
+  let start = 0
+  let m: RegExpExecArray | null
+  while ((m = boundary.exec(text)) !== null) {
+    const end = m.index + m[0].length
+    if (m[0].startsWith('.') && m[0].length === 1) {
+      const word = text.slice(start, m.index).split(/\s+/).pop() ?? ''
+      const bare = word.replace(/^["'\u201C\u2018(\[]+/, '').toLowerCase()
+      if (/^([a-z]\.)*[a-z]$/.test(bare) || NON_TERMINAL_ABBREVIATIONS.has(bare)) continue
+    }
+    const sentence = text.slice(start, end).trim()
+    if (sentence) sentences.push(sentence)
+    start = end
+  }
+  return sentences
 }
 
 // Validates an admin-supplied image URL before it reaches an <img src>.
