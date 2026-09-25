@@ -29,7 +29,7 @@ export async function GET() {
   const html = digestEmail({
     periodLabel,
     ...issue,
-    unsubscribeUrl: `${SITE_URL}/api/subscribe/unsubscribe?token=preview`,
+    manageUrl: `${SITE_URL}/subscribe/manage?token=preview`,
   })
 
   return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })

@@ -390,7 +390,7 @@ export default function AdminDashboard() {
 
         <ActionRow
           title="Send The Weekly"
-          description="Composes this week's issue of The Weekly — one issue, identical for every confirmed subscriber, covering the last 7 days: headline numbers, the top story, how every one of the 13 signals moved against its 4-week average, five Fact Flow facts, a LocStock brief and new directory companies (each only when there is something to report), then every other article — and sends it through Resend. Subscribers have no preferences, only a one-click unsubscribe. Preview only counts recipients; View sample opens the exact issue in a new tab. Nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
+          description="Composes this week's issue of The Weekly — one issue, identical for every confirmed subscriber, covering the last 7 days: headline numbers, the top story, how every one of the 13 signals moved against its 4-week average, five Fact Flow facts, a LocStock brief and new directory companies (each only when there is something to report), then every other article — and sends it through Resend. Subscribers have no preferences; the footer has a single Manage subscription link, where unsubscribing takes a confirmation. Preview only counts recipients; View sample opens the exact issue in a new tab. Nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
           controls={
             <>
               <Button

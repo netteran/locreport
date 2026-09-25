@@ -52,7 +52,7 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
           <p className="subscribe-status__text">
             The Weekly lands in your inbox every Friday: the top story, how
             every signal we track moved, the week’s key facts and everything
-            else we published. Every issue has a one-click unsubscribe link.
+            else we published. You can unsubscribe any time from the “Manage subscription” link in every issue.
           </p>
           <div className="subscribe-status__actions">
             <Link href="/articles" className="btn btn--primary">Browse articles</Link>

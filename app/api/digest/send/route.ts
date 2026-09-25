@@ -84,13 +84,16 @@ export async function POST(req: NextRequest) {
       continue
     }
 
+    // The footer links to the manage page (unsubscribe lives there, behind a
+    // confirmation); the header keeps the one-click API target mail clients need.
+    const manageUrl = `${SITE_URL}/subscribe/manage?token=${sub.manage_token}`
     const unsubscribeUrl = `${SITE_URL}/api/subscribe/unsubscribe?token=${sub.manage_token}`
 
     payloads.push({
       from: digestFrom(),
       to: sub.email,
       subject,
-      html: digestEmail({ periodLabel, ...issue, unsubscribeUrl }),
+      html: digestEmail({ periodLabel, ...issue, manageUrl }),
       headers: {
         'List-Unsubscribe': `<${unsubscribeUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',

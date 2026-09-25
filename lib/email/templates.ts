@@ -145,7 +145,7 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n).trimEnd() + '…' : s
 }
 
-export function digestEmail({ periodLabel, stats, topStory, signalMoves, facts, market, directory, more, moreCount, unsubscribeUrl }: {
+export function digestEmail({ periodLabel, stats, topStory, signalMoves, facts, market, directory, more, moreCount, manageUrl }: {
   periodLabel: string
   stats: DigestStats
   topStory: DigestArticle | null
@@ -155,7 +155,8 @@ export function digestEmail({ periodLabel, stats, topStory, signalMoves, facts, 
   directory: DigestDirectoryEntry[]
   more: DigestArticle[]
   moreCount: number
-  unsubscribeUrl: string
+  /** The subscriber's /subscribe/manage page — where unsubscribing lives. */
+  manageUrl: string
 }): string {
   const statCell = (value: string | number, label: string) => `
     <td width="33%" style="padding:12px 8px;text-align:center;background:${BRAND.bg};border-radius:8px;">
@@ -260,7 +261,7 @@ export function digestEmail({ periodLabel, stats, topStory, signalMoves, facts, 
 
   const footer = `
     You're receiving this because you subscribed to The Weekly from LocReport.<br>
-    <a href="${unsubscribeUrl}" style="color:${BRAND.muted};">Unsubscribe</a><br>
+    <a href="${manageUrl}" style="color:${BRAND.muted};">Manage subscription</a><br>
     LocReport · locreport.com`
   return shell(body, footer)
 }
