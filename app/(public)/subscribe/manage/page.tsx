@@ -49,20 +49,12 @@ export default async function ManagePage({ searchParams }: { searchParams: Promi
       </p>
       <ManageForm token={token} initialStatus={subscriber.status} />
 
-      <section className="weekly-feedback" aria-labelledby="weekly-feedback-title">
-        <p className="weekly-feedback__eyebrow">Help shape The Weekly</p>
-        <h2 className="weekly-feedback__title" id="weekly-feedback-title">
-          Got an idea for what we should change or cover?
-        </h2>
-        <p className="weekly-feedback__text">
-          A topic you’d like tracked, a company we’re missing, a section you’d
-          drop or one you’d add — we read every suggestion, and the next issue
-          may well be shaped by yours.
-        </p>
-        <Link href={`/contact?subject=${encodeURIComponent('Suggestion for The Weekly')}`} className="btn btn--primary">
-          Share a suggestion →
-        </Link>
-      </section>
+      <Link
+        href={`/contact?subject=${encodeURIComponent('Suggestion for The Weekly')}`}
+        className="btn btn--primary weekly-feedback"
+      >
+        Got an idea to cover? We’d appreciate your suggestions!
+      </Link>
     </div>
   )
 }

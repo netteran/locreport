@@ -163,7 +163,7 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 | `/fact-flow/feed.xml` | `fact-flow/feed.xml/route.ts` | Fact Flow RSS (latest 100 linked facts) |
 | `/search` | `search/page.tsx` | Hybrid semantic + full-text search (`?q=...`), RRF-ranked via `hybrid_search_articles` RPC with keyword/ilike fallbacks |
 | `/subscribe/confirm` | `subscribe/confirm/page.tsx` | Double-opt-in confirmation (`?token=`), noindex |
-| `/subscribe/manage` | `subscribe/manage/page.tsx` | Tokenized subscription status: unsubscribe, or re-subscribe an unsubscribed address, plus a "Help shape The Weekly" card whose button opens `/contact?subject=Suggestion for The Weekly` (the contact page prefills its subject from `?subject=`). No preferences. noindex |
+| `/subscribe/manage` | `subscribe/manage/page.tsx` | Tokenized subscription status: unsubscribe, or re-subscribe an unsubscribed address, plus a "Got an idea to cover? We’d appreciate your suggestions!" button that opens `/contact?subject=Suggestion for The Weekly` (the contact page prefills its subject from `?subject=`). No preferences. noindex |
 | `/subscribe/unsubscribed` | `subscribe/unsubscribed/page.tsx` | Post-unsubscribe confirmation, noindex |
 | `/feed.xml` | `feed.xml/route.ts` | Articles RSS feed (latest 50) |
 | `/about` | `about/page.tsx` | About page |
