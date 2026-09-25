@@ -90,8 +90,8 @@ lib/
   email/
     templates.ts         — Inline-styled HTML email builders (confirm + digest)
     digest.ts            — Pure issue composition: composeIssue() builds the ONE issue every
-                           subscriber gets (stats, top story, all-13-signal movement vs a 4-week
-                           baseline, Fact Flow, LocStock brief, new directory companies, every
+                           subscriber gets (top story, Company of the week, all-13-signal
+                           movement vs a 4-week baseline, Fact Flow, LocStock brief, new directory companies, every
                            other article); summarizeMarket() decides if the market moved enough
     issue.ts             — buildIssue(): the DB fetches behind composeIssue(), shared by
                            /api/digest/send and /api/digest/preview
@@ -186,7 +186,7 @@ Several Compass and other sections use co-located client components:
 
 | Path | Purpose |
 |---|---|
-| `/admin` | Dashboard: stats banner + a compact action list (`.admin-actions` in `style.css`). Each row is title + controls; the long description collapses behind the title toggle, while confirmation panels and result messages always render inline. Actions: ingest, embeddings backfill, monthly report, digest send (weekly, with a **View sample** button opening `/api/digest/preview` and a **Past sends →** link to `/admin/digest-history`), Fact Flow backfill (one slug, or **Backfill all** to walk every article still missing its fact), market quotes, LLM pricing |
+| `/admin` | Dashboard: stats banner + a compact action list (`.admin-actions` in `style.css`). Each row is title + controls; the long description collapses behind the title toggle, while confirmation panels and result messages always render inline. Actions: ingest, embeddings backfill, monthly report, digest send (weekly, with a recipient dropdown — All subscribers or one address — a **View sample** button opening `/api/digest/preview` and a **Past sends →** link to `/admin/digest-history`), Fact Flow backfill (one slug, or **Backfill all** to walk every article still missing its fact), market quotes, LLM pricing |
 | `/admin/articles` | Article list management |
 | `/admin/articles/[id]` | Edit individual article |
 | `/admin/drafts` | Draft review queue (pending/approved/rejected) |
@@ -241,7 +241,8 @@ Several Compass and other sections use co-located client components:
 | `/api/subscribe` | POST | Digest signup → pending subscriber + Resend confirm email (double opt-in) |
 | `/api/subscribe/preferences` | POST | Token-authenticated `{unsubscribe:true}` or `{resubscribe:true}` (the latter refused for never-confirmed `pending` rows). No preference fields any more |
 | `/api/subscribe/unsubscribe` | GET/POST | GET (the Unsubscribe link in every issue, old ones included) no longer unsubscribes: it redirects to `/subscribe/manage?token=…&confirm=unsubscribe`, which opens on a **Yes, unsubscribe / Keep my subscription** confirmation — so a stray click or a mail scanner prefetching links can't end a subscription. POST stays immediate: it is the RFC 8058 `List-Unsubscribe=One-Click` target for the mail client's own button, and the spec requires no further step |
-| `/api/digest/send` | POST | Compose + send the weekly issue — identical for every subscriber apart from the tokenized links. The footer carries one link, **Manage subscription** (`/subscribe/manage?token=…`, where unsubscribing lives); the `List-Unsubscribe` header still points at the one-click API route — via Resend batch (CRON_SECRET or admin). Always a 7-day period — there is no frequency parameter. `?dry=1` resolves the recipient list without emailing or recording a send — powers the admin dashboard's preview-then-confirm button. On a real send, each subscriber's exact `subject`/`html` is snapshotted onto its `digest_sends` row |
+| `/api/digest/send` | POST | Compose + send the weekly issue — identical for every subscriber apart from the tokenized links. The footer carries one link, **Manage subscription** (`/subscribe/manage?token=…`, where unsubscribing lives); the `List-Unsubscribe` header still points at the one-click API route — via Resend batch (CRON_SECRET or admin). Always a 7-day period — there is no frequency parameter. `?dry=1` resolves the recipient list without emailing or recording a send — powers the admin dashboard's preview-then-confirm button. `?to=<subscriber id>` (admin only) sends to that one active subscriber — see "Sending to one subscriber" under `subscribers`. On a real send, each subscriber's exact `subject`/`html` is snapshotted onto its `digest_sends` row |
+| `/api/digest/recipients` | GET | Admin-only: active subscribers (`id`, `email`) for the recipient dropdown on the `/admin` send row |
 | `/api/digest/preview` | GET | Admin-only: renders the current period's issue exactly as subscribers get it, as `text/html`, for the dashboard's **View sample** button. Never sends mail or writes to the DB — `buildIssue` + `digestEmail` |
 | `/api/digest/history/[id]` | GET | Admin-only: re-serves one past send's exact stored `html` as `text/html`, for the **View** link on `/admin/digest-history`. 404s if the row predates the snapshot columns |
 
@@ -447,14 +448,29 @@ summary subscriber saw 13 of the week's 33 articles (roundup capped at 12) and a
 column defaults (`include_summary` true), which satisfy the constraint. Don't reintroduce preferences
 without the owner asking.
 
-Issue layout, top to bottom: number boxes (stories · high-impact, or signals rising when there are none ·
-signals active) → top story → **signal movement** for all 13 signals (this week's count vs the average of
+Issue layout, top to bottom: top story → **Company of the week** (below) → **signal movement** for all 13 signals (this week's count vs the average of
 the 4 weeks before; `new` / `up` ≥1.5× / `down` ≤0.5× / `steady`, each with its best headline; zero-count
 signals collapse into one "Quiet this week" line) → five Fact Flow facts from the week's highest-impact
 articles → **LocStock brief** only if the equal-weighted weekly move is ≥3% or any ticker moved ≥8% →
 **New in the directory** only for `directory` rows created in the period whose slug is not in the static
 array (a same-slug row is an edit, not a new company; static entries have no date) → every other article
 (capped at 40, then a "+N more" link). `digest_sends.article_ids` records what the issue actually links.
+(The number boxes that used to open the issue were removed on 2026-09-25 at the owner's request.)
+
+**Company of the week** (`pickCompanyOfWeek` in `lib/email/digest.ts`) is one company from the tech
+directory — the curated array merged with the `directory` table, as `/compass/directory` shows it — with its
+logo, category · HQ · founding year, two or three sentences from its `long_description`, and a link to its
+LocReport profile. The pick is pseudo-random but deterministic: each company's hash with the Monday-based
+week key decides, so it changes weekly, is the same for every subscriber, and **View sample** shows the
+company Friday's send will carry. Companies whose logo is PNG/JPEG/GIF are preferred: SVG and AVIF don't
+render in Gmail or Outlook, and WebP doesn't render in Outlook. If none qualifies, the callout shows the
+company's initial instead. Picks can repeat across weeks; nothing records past picks.
+
+**Sending to one subscriber.** The `/admin` send row has a recipient dropdown (All subscribers, or any
+active address, listed by `GET /api/digest/recipients`). A single-recipient send (`/api/digest/send?to=<id>`,
+admin session only — the cron call can't use it) ignores the 24 h resend guard and does **not** update
+`last_sent_at`, so sending someone a copy never makes Friday's scheduled run skip them. It is still
+recorded in `digest_sends`.
 
 ### `digest_sends`
 ```

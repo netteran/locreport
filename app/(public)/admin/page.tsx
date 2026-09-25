@@ -63,6 +63,9 @@ export default function AdminDashboard() {
   const [digestPreviewing, setDigestPreviewing] = useState(false)
   const [digestSending, setDigestSending] = useState(false)
   const [digestPreview, setDigestPreview] = useState<DigestPreview | null>(null)
+  // '' = every active subscriber; otherwise one subscriber's id.
+  const [digestTo, setDigestTo] = useState('')
+  const [subscribers, setSubscribers] = useState<{ id: string; email: string }[]>([])
   const [backfillRunning, setBackfillRunning] = useState(false)
   const [backfillSlug, setBackfillSlug] = useState('')
   const [backfillAllRunning, setBackfillAllRunning] = useState(false)
@@ -73,7 +76,14 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetch('/api/stats').then(r => r.json()).then(setStats)
+    fetch('/api/digest/recipients')
+      .then(r => (r.ok ? r.json() : { subscribers: [] }))
+      .then(d => setSubscribers(d.subscribers ?? []))
+      .catch(() => {})
   }, [])
+
+  const digestQuery = digestTo ? `to=${encodeURIComponent(digestTo)}` : ''
+  const digestToEmail = subscribers.find(s => s.id === digestTo)?.email
 
   // Results land in the row that produced them — in a compact list a single
   // shared status line would sit too far from the button that was clicked.
@@ -218,7 +228,7 @@ export default function AdminDashboard() {
     setDigestPreview(null)
     clearFlash()
     try {
-      const res = await fetch('/api/digest/send?dry=1', { method: 'POST' })
+      const res = await fetch(`/api/digest/send?dry=1${digestQuery ? `&${digestQuery}` : ''}`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
         flash('digest', data.error ?? 'Preview failed.', 'error')
@@ -240,7 +250,7 @@ export default function AdminDashboard() {
     setDigestSending(true)
     clearFlash()
     try {
-      const res = await fetch('/api/digest/send', { method: 'POST' })
+      const res = await fetch(`/api/digest/send${digestQuery ? `?${digestQuery}` : ''}`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) {
         flash('digest', data.error ?? 'Send failed.', 'error')
@@ -390,9 +400,22 @@ export default function AdminDashboard() {
 
         <ActionRow
           title="Send The Weekly"
-          description="Composes this week's issue of The Weekly — one issue, identical for every confirmed subscriber, covering the last 7 days: headline numbers, the top story, how every one of the 13 signals moved against its 4-week average, five Fact Flow facts, a LocStock brief and new directory companies (each only when there is something to report), then every other article — and sends it through Resend. Subscribers have no preferences; the footer has a single Manage subscription link, where unsubscribing takes a confirmation. Preview only counts recipients; View sample opens the exact issue in a new tab. Nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
+          description="Composes this week's issue of The Weekly — one issue, identical for every confirmed subscriber, covering the last 7 days: the top story, a Company of the week from the tech directory (a different one each week), how every one of the 13 signals moved against its 4-week average, five Fact Flow facts, a LocStock brief and new directory companies (each only when there is something to report), then every other article — and sends it through Resend. Subscribers have no preferences; the footer has a single Manage subscription link, where unsubscribing takes a confirmation. Pick All subscribers or one address from the dropdown — a single-recipient send skips the resend guard and doesn't mark them as sent, so it never stops Friday's scheduled issue reaching them. Preview only counts recipients; View sample opens the exact issue in a new tab. Nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
           controls={
             <>
+              <select
+                value={digestTo}
+                onChange={e => { setDigestTo(e.target.value); setDigestPreview(null) }}
+                aria-label="Send to"
+                className="rounded-md border px-2 py-1 text-sm max-w-[220px]"
+                style={{ background: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                disabled={digestSending}
+              >
+                <option value="">All subscribers ({subscribers.length})</option>
+                {subscribers.map(s => (
+                  <option key={s.id} value={s.id}>{s.email}</option>
+                ))}
+              </select>
               <Button
                 size="sm"
                 variant="secondary"
@@ -435,14 +458,19 @@ export default function AdminDashboard() {
               text={
                 <>
                   This sends real email. The Weekly will go to{' '}
-                  <strong>{digestPreview.recipients} subscriber{digestPreview.recipients !== 1 ? 's' : ''}</strong>
-                  {' '}({digestPreview.skipped} skipped, {digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period).
+                  {digestToEmail ? (
+                    <><strong>{digestToEmail}</strong> only ({digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period).
+                    {' '}A single-recipient send doesn’t affect Friday’s scheduled issue.</>
+                  ) : (
+                    <><strong>{digestPreview.recipients} subscriber{digestPreview.recipients !== 1 ? 's' : ''}</strong>
+                    {' '}({digestPreview.skipped} skipped, {digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period).</>
+                  )}
                 </>
               }
               actions={
                 <>
                   <Button size="sm" onClick={sendDigest} disabled={digestSending}>
-                    {digestSending ? 'Sending…' : `Send to ${digestPreview.recipients}`}
+                    {digestSending ? 'Sending…' : digestToEmail ? `Send to ${digestToEmail}` : `Send to ${digestPreview.recipients}`}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setDigestPreview(null)} disabled={digestSending}>Cancel</Button>
                 </>

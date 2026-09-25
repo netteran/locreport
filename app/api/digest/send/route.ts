@@ -36,6 +36,14 @@ export async function POST(req: NextRequest) {
   // Resend, so the admin dashboard can preview a send before committing to it.
   // Nothing is emailed and no send is recorded.
   const dryRun = req.nextUrl.searchParams.get('dry') === '1'
+  // ?to=<subscriber id> sends to that one active subscriber only (admin
+  // session only — the scheduled run always sends to everyone). A targeted
+  // send ignores the resend guard and doesn't touch last_sent_at, so sending
+  // someone a copy never makes the scheduled run skip them.
+  const to = req.nextUrl.searchParams.get('to')
+  if (to && (isCron || !/^[0-9a-f-]{36}$/i.test(to))) {
+    return NextResponse.json({ error: 'Invalid recipient' }, { status: 400 })
+  }
   const { periodStart, periodEnd, periodLabel } = currentPeriod()
 
   const service = createServiceClient()
@@ -58,12 +66,17 @@ export async function POST(req: NextRequest) {
   // Every subscriber gets the same issue; only the unsubscribe link differs.
   const subject = issue.topStory ? `The Weekly: ${issue.topStory.title}` : 'The Weekly from LocReport'
 
-  const { data: subscribers, error: subsError } = await service
+  let subscribersQuery = service
     .from('subscribers')
     .select('id, email, manage_token, last_sent_at')
     .eq('status', 'active')
+  if (to) subscribersQuery = subscribersQuery.eq('id', to)
+  const { data: subscribers, error: subsError } = await subscribersQuery
 
   if (subsError) return NextResponse.json({ error: subsError.message }, { status: 500 })
+  if (to && (subscribers ?? []).length === 0) {
+    return NextResponse.json({ error: 'That subscriber is not active' }, { status: 400 })
+  }
 
   type Payload = {
     from: string
@@ -79,7 +92,7 @@ export async function POST(req: NextRequest) {
 
   for (const sub of subscribers ?? []) {
     // Idempotency: safe to re-run — anyone sent something too recently is skipped
-    if (sub.last_sent_at && periodEnd.getTime() - new Date(sub.last_sent_at).getTime() < MIN_RESEND_GAP_MS) {
+    if (!to && sub.last_sent_at && periodEnd.getTime() - new Date(sub.last_sent_at).getTime() < MIN_RESEND_GAP_MS) {
       skipped++
       continue
     }
@@ -110,7 +123,7 @@ export async function POST(req: NextRequest) {
       recipients: payloads.length,
       sent: 0,
       skipped,
-      articles: issue.stats.stories,
+      articles: issue.storyCount,
       errors: [],
     })
   }
@@ -144,7 +157,7 @@ export async function POST(req: NextRequest) {
         subject: p.subject,
         html: p.html,
       })
-      await service.from('subscribers').update({ last_sent_at: now }).eq('id', p.subscriberId)
+      if (!to) await service.from('subscribers').update({ last_sent_at: now }).eq('id', p.subscriberId)
     }
   }
 
@@ -154,7 +167,7 @@ export async function POST(req: NextRequest) {
     recipients: payloads.length,
     sent,
     skipped,
-    articles: issue.stats.stories,
+    articles: issue.storyCount,
     errors,
   })
 }
