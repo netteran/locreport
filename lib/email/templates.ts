@@ -81,15 +81,6 @@ export interface DigestArticle {
   business_implications?: string[] | null
 }
 
-export interface DigestStats {
-  stories: number
-  highImpact: number
-  /** Signals rising or newly covered this week. */
-  risingSignals: number
-  activeSignals: number
-  totalSignals: number
-}
-
 export interface DigestSignalMove {
   id: string
   label: string
@@ -114,6 +105,19 @@ export interface DigestMarket {
   tracked: number
   movers: { symbol: string; name: string; pct: number }[]
   url: string
+}
+
+export interface DigestCompany {
+  name: string
+  /** The company's LocReport directory profile. */
+  url: string
+  /** Only set when the logo is a format email clients render (PNG/JPEG/GIF). */
+  logoUrl: string | null
+  category: string | null
+  hq: string | null
+  founded: number | null
+  /** Two or three sentences on what the company does. */
+  blurb: string
 }
 
 export interface DigestDirectoryEntry {
@@ -145,32 +149,19 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n).trimEnd() + '…' : s
 }
 
-export function digestEmail({ periodLabel, stats, topStory, signalMoves, facts, market, directory, more, moreCount, unsubscribeUrl }: {
+export function digestEmail({ periodLabel, topStory, company, signalMoves, facts, market, directory, more, moreCount, manageUrl }: {
   periodLabel: string
-  stats: DigestStats
   topStory: DigestArticle | null
+  company: DigestCompany | null
   signalMoves: DigestSignalMove[]
   facts: DigestFact[]
   market: DigestMarket | null
   directory: DigestDirectoryEntry[]
   more: DigestArticle[]
   moreCount: number
-  unsubscribeUrl: string
+  /** The subscriber's /subscribe/manage page — where unsubscribing lives. */
+  manageUrl: string
 }): string {
-  const statCell = (value: string | number, label: string) => `
-    <td width="33%" style="padding:12px 8px;text-align:center;background:${BRAND.bg};border-radius:8px;">
-      <div style="font-size:20px;font-weight:700;color:${BRAND.text};">${value}</div>
-      <div style="font-size:11px;color:${BRAND.muted};margin-top:2px;">${escapeHtml(label)}</div>
-    </td>`
-  const statsHtml = `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;margin:0 -6px 24px;">
-      <tr>
-        ${statCell(stats.stories, stats.stories === 1 ? 'story' : 'stories')}
-        ${stats.highImpact > 0 ? statCell(stats.highImpact, 'high-impact') : statCell(stats.risingSignals, stats.risingSignals === 1 ? 'signal rising' : 'signals rising')}
-        ${statCell(`${stats.activeSignals}/${stats.totalSignals}`, 'signals active')}
-      </tr>
-    </table>`
-
   const topHtml = topStory ? `
     ${eyebrow(`Top story${topStory.impact_score ? ` · ${IMPACT_LABEL[topStory.impact_score] ?? ''} impact` : ''}`, BRAND.gold)}
     <h2 style="margin:0 0 8px;font-size:19px;line-height:1.3;letter-spacing:-0.01em;">
@@ -183,6 +174,33 @@ export function digestEmail({ periodLabel, stats, topStory, signalMoves, facts, 
     ` : ''}
     <a href="${topStory.url}" style="display:inline-block;margin-top:8px;font-size:13px;font-weight:600;color:${BRAND.accent};text-decoration:none;">Read the story →</a>
     ${RULE}` : ''
+
+  const companyHtml = company ? (() => {
+    const logo = company.logoUrl
+      ? `<img src="${escapeHtml(company.logoUrl)}" alt="${escapeHtml(company.name)} logo" width="56" height="56" style="display:block;width:56px;height:56px;object-fit:contain;border:0;">`
+      : `<div style="width:56px;height:56px;line-height:56px;text-align:center;font-size:24px;font-weight:700;color:${BRAND.accent};">${escapeHtml(company.name.charAt(0).toUpperCase())}</div>`
+    const meta = [company.category, company.hq, company.founded ? `est. ${company.founded}` : null].filter(Boolean).join(' · ')
+    return `
+    ${eyebrow('Company of the week', BRAND.accent)}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.bg};border:1px solid ${BRAND.border};border-radius:10px;">
+      <tr><td style="padding:18px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 12px;">
+          <tr>
+            <td valign="middle" style="width:64px;">
+              <a href="${company.url}" style="display:block;width:64px;height:64px;background:${BRAND.surface};border:1px solid ${BRAND.border};border-radius:10px;padding:4px;box-sizing:border-box;text-decoration:none;">${logo}</a>
+            </td>
+            <td valign="middle" style="padding-left:14px;">
+              <p style="margin:0;font-size:17px;font-weight:700;line-height:1.3;"><a href="${company.url}" style="color:${BRAND.text};text-decoration:none;">${escapeHtml(company.name)}</a></p>
+              ${meta ? `<p style="margin:2px 0 0;font-size:12px;color:${BRAND.muted};">${escapeHtml(meta)}</p>` : ''}
+            </td>
+          </tr>
+        </table>
+        <p style="margin:0 0 10px;font-size:14px;line-height:1.6;color:${BRAND.text};">${escapeHtml(company.blurb)}</p>
+        <a href="${company.url}" style="font-size:13px;font-weight:600;color:${BRAND.accent};text-decoration:none;">See the profile on LocReport →</a>
+      </td></tr>
+    </table>
+    ${RULE}`
+  })() : ''
 
   const active = signalMoves.filter(m => m.count > 0)
   const quiet = signalMoves.filter(m => m.count === 0)
@@ -250,8 +268,8 @@ export function digestEmail({ periodLabel, stats, topStory, signalMoves, facts, 
 
   const body = `
     <p style="margin:0 0 16px;font-size:13px;color:${BRAND.muted};">The Weekly · ${escapeHtml(periodLabel)}</p>
-    ${statsHtml}
     ${topHtml}
+    ${companyHtml}
     ${signalsHtml}
     ${factsHtml}
     ${marketHtml}
@@ -260,7 +278,7 @@ export function digestEmail({ periodLabel, stats, topStory, signalMoves, facts, 
 
   const footer = `
     You're receiving this because you subscribed to The Weekly from LocReport.<br>
-    <a href="${unsubscribeUrl}" style="color:${BRAND.muted};">Unsubscribe</a><br>
+    <a href="${manageUrl}" style="color:${BRAND.muted};">Manage subscription</a><br>
     LocReport · locreport.com`
   return shell(body, footer)
 }

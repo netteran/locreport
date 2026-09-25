@@ -326,7 +326,7 @@ export default async function HomePage() {
                   Or browse all articles <span aria-hidden="true">→</span>
                 </Link>
               </div>
-              <p className="cta-note">Free <span aria-hidden="true">•</span> Unsubscribe in one click</p>
+              <p className="cta-note">Free <span aria-hidden="true">•</span> Unsubscribe anytime</p>
             </div>
           </section>
         </main>

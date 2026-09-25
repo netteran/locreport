@@ -9,14 +9,15 @@
 import { SIGNALS } from '@/lib/signals'
 import { signalShortLabel } from '@/lib/intelligence'
 import { LOCSTOCK_COMPANIES } from '@/lib/data/locstock'
-import { articleHref } from '@/lib/utils'
+import { DIRECTORY_CATEGORIES, type DirectoryEntry } from '@/lib/data/directory'
+import { articleHref, splitSentences } from '@/lib/utils'
 import type {
   DigestArticle,
+  DigestCompany,
   DigestDirectoryEntry,
   DigestFact,
   DigestMarket,
   DigestSignalMove,
-  DigestStats,
 } from '@/lib/email/templates'
 import { SITE_URL } from '@/lib/email/send'
 
@@ -141,17 +142,82 @@ export function summarizeMarket(rows: QuoteRow[], periodStart: Date, periodEnd: 
   return { avgPct, tracked: moves.length, movers, url: `${SITE_URL}/compass/locstock` }
 }
 
+// Monday-based week key ("2026-W39"-style, but any stable string will do), so
+// a preview opened Monday–Friday shows the same company Friday's send does.
+function isoWeekKey(d: Date): string {
+  const day = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7))
+  return day.toISOString().slice(0, 10)
+}
+
+// FNV-1a: a small, stable string hash — enough to shuffle companies per week.
+function hash(s: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+// Email clients render PNG/JPEG/GIF reliably; SVG, AVIF and (in Outlook) WebP
+// break, so only those three count as a usable logo in the email.
+function emailSafeLogo(url: string | null | undefined): string | null {
+  if (!url || !/^https:\/\//i.test(url)) return null
+  return /\.(png|jpe?g|gif)(\?|#|$)/i.test(url) ? url : null
+}
+
+// Two or three sentences of what the company does, from the long description
+// when there is one.
+function companyBlurb(entry: DirectoryEntry): string {
+  const source = (entry.long_description || entry.description || '').trim()
+  const sentences = splitSentences(source)
+  let blurb = ''
+  for (const [i, sentence] of sentences.entries()) {
+    const next = blurb ? `${blurb} ${sentence}` : sentence
+    if (i >= 3 || (i >= 2 && next.length > 420)) break
+    blurb = next
+  }
+  return blurb || entry.description || ''
+}
+
+// A pseudo-random directory company for the week: each company's hash with
+// the week key decides, so the pick changes every week, is identical for
+// every subscriber and for the admin preview, and doesn't shift when a
+// company is added mid-week unless the newcomer happens to win. Companies
+// with a logo the email can show are preferred.
+export function pickCompanyOfWeek(entries: DirectoryEntry[], periodEnd: Date): DigestCompany | null {
+  const described = entries.filter(e => e.slug && (e.long_description || e.description))
+  if (described.length === 0) return null
+  const withLogo = described.filter(e => emailSafeLogo(e.logo_url))
+  const pool = withLogo.length > 0 ? withLogo : described
+  const week = isoWeekKey(periodEnd)
+  const pick = pool.reduce((best, e) => (hash(`${e.slug}:${week}`) < hash(`${best.slug}:${week}`) ? e : best))
+  return {
+    name: pick.name,
+    url: `${SITE_URL}/compass/directory/${pick.slug}`,
+    logoUrl: emailSafeLogo(pick.logo_url),
+    category: DIRECTORY_CATEGORIES.find(c => c.value === pick.category)?.label ?? null,
+    hq: pick.hq || null,
+    founded: pick.founded || null,
+    blurb: companyBlurb(pick),
+  }
+}
+
 export interface IssueInput {
   articles: DigestSourceArticle[]
   priorArticles: Pick<DigestSourceArticle, 'signal_ids'>[]
   facts: { content: string; article_id: string }[]
   market: DigestMarket | null
+  company: DigestCompany | null
   directory: { name: string; slug: string; category: string | null; description: string | null }[]
 }
 
 export interface Issue {
-  stats: DigestStats
+  /** Articles published in the period. */
+  storyCount: number
   topStory: DigestArticle | null
+  company: DigestCompany | null
   signalMoves: DigestSignalMove[]
   facts: DigestFact[]
   market: DigestMarket | null
@@ -162,7 +228,7 @@ export interface Issue {
   articleIds: string[]
 }
 
-export function composeIssue({ articles, priorArticles, facts, market, directory }: IssueInput): Issue {
+export function composeIssue({ articles, priorArticles, facts, market, company, directory }: IssueInput): Issue {
   const ranked = [...articles].sort(byImpact)
   const top = ranked[0] ?? null
   const signalMoves = computeSignalMoves(ranked, priorArticles, top?.id ?? null)
@@ -188,14 +254,9 @@ export function composeIssue({ articles, priorArticles, facts, market, directory
   for (const a of more) linked.add(a.id)
 
   return {
-    stats: {
-      stories: ranked.length,
-      highImpact: ranked.filter(a => (a.impact_score ?? 0) >= 4).length,
-      risingSignals: signalMoves.filter(m => m.trend === 'up' || m.trend === 'new').length,
-      activeSignals: signalMoves.filter(m => m.count > 0).length,
-      totalSignals: signalMoves.length,
-    },
+    storyCount: ranked.length,
     topStory: top ? toDigestArticle(top) : null,
+    company,
     signalMoves,
     facts: digestFacts,
     market,

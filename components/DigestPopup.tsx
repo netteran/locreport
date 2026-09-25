@@ -280,7 +280,7 @@ export function DigestPopup() {
               <p className="digest-popup__error" role="alert">{message}</p>
             )}
             <p className="digest-popup__note">
-              Free <span aria-hidden="true">•</span> Unsubscribe in one click
+              Free <span aria-hidden="true">•</span> Unsubscribe anytime
             </p>
           </>
         )}
