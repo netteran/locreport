@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { SIGNAL_MAP } from '@/lib/signals'
 
-// Token-authenticated preference updates from the manage page.
+// Token-authenticated subscription changes from the manage page. The Weekly
+// has no per-subscriber preferences any more — everyone gets the same issue —
+// so the only choices are to unsubscribe or to re-subscribe.
 export async function POST(req: NextRequest) {
-  let body: {
-    token?: string
-    signal_prefs?: string[]
-    include_summary?: boolean
-    min_impact?: number
-    unsubscribe?: boolean
-  }
+  let body: { token?: string; unsubscribe?: boolean; resubscribe?: boolean }
   try {
     body = await req.json()
   } catch {
@@ -25,7 +20,7 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient()
   const { data: subscriber } = await supabase
     .from('subscribers')
-    .select('id, status, signal_prefs, include_summary')
+    .select('id, status')
     .eq('manage_token', token)
     .maybeSingle()
 
@@ -37,43 +32,23 @@ export async function POST(req: NextRequest) {
       .update({ status: 'unsubscribed', unsubscribed_at: new Date().toISOString() })
       .eq('id', subscriber.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true, unsubscribed: true })
+    return NextResponse.json({ ok: true, status: 'unsubscribed' })
   }
 
-  const patch: Record<string, unknown> = {}
-  if (Array.isArray(body.signal_prefs)) {
-    patch.signal_prefs = body.signal_prefs.filter(id => SIGNAL_MAP.has(id))
-  }
-  if (typeof body.include_summary === 'boolean') {
-    patch.include_summary = body.include_summary
-  }
-  if (typeof body.min_impact === 'number' && body.min_impact >= 1 && body.min_impact <= 5) {
-    patch.min_impact = Math.round(body.min_impact)
-  }
-
-  // The digest has to contain something: either the general roundup or at
-  // least one signal briefing. Check the merged state, not just this patch,
-  // since either half can arrive on its own.
-  const nextSummary = (patch.include_summary as boolean | undefined) ?? subscriber.include_summary ?? true
-  const nextSignals = (patch.signal_prefs as string[] | undefined) ?? subscriber.signal_prefs ?? []
-  if (!nextSummary && nextSignals.length === 0) {
-    return NextResponse.json(
-      { error: 'Pick at least one signal, or keep the weekly summary switched on.' },
-      { status: 400 }
-    )
+  // Re-subscribing from the manage link is allowed without a second opt-in:
+  // the token proves the address already confirmed once. A never-confirmed
+  // (pending) address has to finish the confirm email instead.
+  if (body.resubscribe) {
+    if (subscriber.status === 'pending') {
+      return NextResponse.json({ error: 'Please confirm your subscription from the email we sent you.' }, { status: 400 })
+    }
+    const { error } = await supabase
+      .from('subscribers')
+      .update({ status: 'active', unsubscribed_at: null })
+      .eq('id', subscriber.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, status: 'active' })
   }
 
-  // Saving preferences from the manage link re-activates an unsubscribed address
-  if (subscriber.status === 'unsubscribed') {
-    patch.status = 'active'
-    patch.unsubscribed_at = null
-  }
-
-  if (Object.keys(patch).length === 0) {
-    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
-  }
-
-  const { error } = await supabase.from('subscribers').update(patch).eq('id', subscriber.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 }

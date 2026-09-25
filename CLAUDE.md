@@ -89,9 +89,12 @@ lib/
   topics.ts              — Topic definitions (signals + keywords) shared by /articles filters and badges
   email/
     templates.ts         — Inline-styled HTML email builders (confirm + digest)
-    digest.ts            — Pure digest composition: selectForSubscriber() narrows the week's
-                           articles to one subscriber's preferences, composeDigest() splits the
-                           result into top story / signal briefings / roundup
+    digest.ts            — Pure issue composition: composeIssue() builds the ONE issue every
+                           subscriber gets (stats, top story, all-13-signal movement vs a 4-week
+                           baseline, Fact Flow, LocStock brief, new directory companies, every
+                           other article); summarizeMarket() decides if the market moved enough
+    issue.ts             — buildIssue(): the DB fetches behind composeIssue(), shared by
+                           /api/digest/send and /api/digest/preview
     period.ts            — currentPeriod() + fetchPeriodArticles(): the rolling 7-day window and its
                            article query, shared by /api/digest/send and /api/digest/preview so the
                            two can't disagree on what "the current issue" contains
@@ -117,6 +120,8 @@ lib/
                            instead of waiting out the page's ISR window. See ISR Revalidation below
   data/
     directory.ts         — 31 localization tech vendors (hardcoded)
+    locstock.ts          — LocStock company list (ticker → symbol/name/category); used by /compass/locstock
+                           and The Weekly's market brief
     llm-pricing.ts       — LLM provider pricing (22 models tracked across 9 providers incl. OpenAI, Anthropic, Google, Meta, DeepSeek, Moonshot AI/Kimi, xAI, Alibaba/Qwen, Mistral); static values are the seed/fallback, overlaid at render time with live data from `llm_pricing_quotes`/`llm_pricing_history` (see `/api/llm-pricing`)
 
 assets/
@@ -158,7 +163,7 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 | `/fact-flow/feed.xml` | `fact-flow/feed.xml/route.ts` | Fact Flow RSS (latest 100 linked facts) |
 | `/search` | `search/page.tsx` | Hybrid semantic + full-text search (`?q=...`), RRF-ranked via `hybrid_search_articles` RPC with keyword/ilike fallbacks |
 | `/subscribe/confirm` | `subscribe/confirm/page.tsx` | Double-opt-in confirmation (`?token=`), noindex |
-| `/subscribe/manage` | `subscribe/manage/page.tsx` | Tokenized digest preferences (week-in-brief roundup on/off, signal briefings, min impact), noindex |
+| `/subscribe/manage` | `subscribe/manage/page.tsx` | Tokenized subscription status: unsubscribe, or re-subscribe an unsubscribed address. No preferences — kept only because issues sent before 2026-09-25 link here. noindex |
 | `/subscribe/unsubscribed` | `subscribe/unsubscribed/page.tsx` | Post-unsubscribe confirmation, noindex |
 | `/feed.xml` | `feed.xml/route.ts` | Articles RSS feed (latest 50) |
 | `/about` | `about/page.tsx` | About page |
@@ -191,7 +196,7 @@ Several Compass and other sections use co-located client components:
 | `/admin/sources` | One compact, filterable table of every source (feeds + podcasts, active + disabled). Columns: **Batch** (active feeds grouped by 3 in creation order; podcasts/disabled show —), source (name · URL on one line), type, keywords (podcasts: baseline date), drafts in 30 d, **Auto** checkbox, and xs action buttons (Ingest, Episodes for podcasts, Edit, Enable/Disable, ×). Filters: text, type, status (default Active), auto, batch — picking a batch shows an **Ingest batch N** button. Every column header sorts on click (ascending → descending → back to creation order; empty values sink). **Disable** sets `active=false` — kept, skipped by ingest, re-enable any time; **× Delete** removes the row, and `drafts.source_feed_id` is `ON DELETE SET NULL`, so its drafts/articles survive but lose the source link (30d count, podcast-style Re-run on pending podcast drafts, and the `LocReport Industry Desk` author that `approveDraft` gives sourced drafts). Edit and a podcast's Episodes open as a panel row under the source. The add form sits on top behind **+ Add**. See Auto-Publish and Podcasts below |
 | `/admin/scraped-feeds` | Feed generator: generated **feeds** (HTML selectors or keyword-refiltered feeds) published at `/api/feeds/[name]`. Deliberately says "feeds", never "sources", so it is not confused with `/admin/sources` — the old `/admin/scraped-sources` path 301s here via `vercel.json`. Per-feed and run-all triggers, inline JSON config editor, an **Add to Sources** button per feed, and a badge showing whether ingest can see it (`in Sources` / `not in Sources` / `0 items`) |
 | `/admin/direct` | Direct article ingestion tool |
-| `/admin/digest-history` | Read-only archive of every past Weekly send, grouped by issue (period) and newest first. Each row is one subscriber's personalised copy — subject, article count, and a **View** link that opens the exact stored HTML in a new tab via `/api/digest/history/[id]`. Rows from before the `subject`/`html` snapshot columns existed (`supabase/migrations/20260917_digest_sends_html.sql`) show with no View link rather than a reconstructed guess |
+| `/admin/digest-history` | Read-only archive of every past Weekly send, grouped by issue (period) and newest first. Each row is one subscriber's copy (identical content since 2026-09-25, when per-subscriber preferences were removed) — subject, article count, and a **View** link that opens the exact stored HTML in a new tab via `/api/digest/history/[id]`. Rows from before the `subject`/`html` snapshot columns existed (`supabase/migrations/20260917_digest_sends_html.sql`) show with no View link rather than a reconstructed guess |
 | `/admin/fact-flow` | Direct management of the last 200 `facts` rows (`FactFlowAdmin.tsx`): edit content inline, link/unlink to an article by slug, delete, or add a hand-written fact. **The link/add actions do not check whether the target article already has a fact** — using them on an article that already has one creates a second, both now public. This surface predates the one-fact-per-article guarantee and was never updated to respect it; be careful with it (see the duplicate-facts note under Fact Flow) |
 
 ### API Routes (`app/api/`)
@@ -234,10 +239,10 @@ Several Compass and other sections use co-located client components:
 | `/api/admin/backfill-embeddings` | POST | Embed articles with null embedding, batched; returns `{embedded, remaining}` (admin session or CRON_SECRET) |
 | `/api/uploads/article-image` | POST | Admin-only: validates type/size, ensures the `images` storage bucket exists, returns a signed upload URL + public URL. The bytes never pass through the route |
 | `/api/subscribe` | POST | Digest signup → pending subscriber + Resend confirm email (double opt-in) |
-| `/api/subscribe/preferences` | POST | Token-authenticated preference updates (`signal_prefs`, `include_summary`, `min_impact`) / unsubscribe. Rejects a combination that would select nothing — summary off with no signals picked |
+| `/api/subscribe/preferences` | POST | Token-authenticated `{unsubscribe:true}` or `{resubscribe:true}` (the latter refused for never-confirmed `pending` rows). No preference fields any more |
 | `/api/subscribe/unsubscribe` | GET/POST | One-click unsubscribe (`?token=`); POST is the RFC 8058 List-Unsubscribe target |
-| `/api/digest/send` | POST | Compose + send the personalized weekly digest via Resend batch (CRON_SECRET or admin). Always a 7-day period — there is no frequency parameter. `?dry=1` resolves the recipient list without emailing or recording a send — powers the admin dashboard's preview-then-confirm button. On a real send, each subscriber's exact `subject`/`html` is snapshotted onto its `digest_sends` row |
-| `/api/digest/preview` | GET | Admin-only: renders the fullest possible version of the current period's issue (every signal section populated, full roundup) as `text/html` for the dashboard's **View sample** button. Never sends mail or writes to the DB — pure re-render via `lib/email/period.ts` + `composeDigest`/`digestEmail` |
+| `/api/digest/send` | POST | Compose + send the weekly issue — identical for every subscriber apart from the unsubscribe link — via Resend batch (CRON_SECRET or admin). Always a 7-day period — there is no frequency parameter. `?dry=1` resolves the recipient list without emailing or recording a send — powers the admin dashboard's preview-then-confirm button. On a real send, each subscriber's exact `subject`/`html` is snapshotted onto its `digest_sends` row |
+| `/api/digest/preview` | GET | Admin-only: renders the current period's issue exactly as subscribers get it, as `text/html`, for the dashboard's **View sample** button. Never sends mail or writes to the DB — `buildIssue` + `digestEmail` |
 | `/api/digest/history/[id]` | GET | Admin-only: re-serves one past send's exact stored `html` as `text/html`, for the **View** link on `/admin/digest-history`. 404s if the row predates the snapshot columns |
 
 ---
@@ -419,11 +424,9 @@ Populated from legacy Jekyll migration to prevent re-ingesting old content.
 id uuid PK
 email text UNIQUE
 status 'pending' | 'active' | 'unsubscribed'
-signal_prefs text[]        — signal ids from lib/signals.ts to get a dedicated briefing section
-                             for; empty = no briefings (the general roundup alone)
-include_summary boolean    — carry "the week in brief", an impact-ranked roundup of everything
-                             published in the period, alongside any signal briefings
-min_impact int (1–5)
+signal_prefs text[]        — LEGACY, unused since 2026-09-25 (see below)
+include_summary boolean    — LEGACY, unused since 2026-09-25
+min_impact int (1–5)       — LEGACY, unused since 2026-09-25
 confirm_token uuid         — double-opt-in link
 manage_token uuid          — preferences/unsubscribe links
 confirmed_at / unsubscribed_at / last_sent_at timestamptz
@@ -435,13 +438,23 @@ RLS enabled with no policies — service-role access only. Same for `digest_send
 2026-09-14 (`supabase/migrations/20260914_weekly_digest_prefs.sql`); do not reintroduce a per-subscriber
 cadence without also restoring the second `digest.yml` schedule pair and its DST guard entries.
 
-`signal_prefs` no longer acts as a filter on its own — it selects *extra* briefing sections. What a
-subscriber receives is the union of (the whole period, if `include_summary`) and (anything tagged with a
-followed signal), with `min_impact` as a floor on both. A `subscribers_digest_content_check` constraint
-forbids the empty combination (`include_summary` false with no signals), and both
-`/api/subscribe/preferences` and the manage form refuse it before it reaches the DB. The migration
-switched `include_summary` off for anyone who already had signal picks, so no existing digest silently
-widened.
+**One issue for everyone (owner's call, 2026-09-25).** Per-subscriber preferences were removed: the
+signal picker, the week-in-brief toggle and the impact floor made issues silently diverge — on 2026-09-25 a
+summary subscriber saw 13 of the week's 33 articles (roundup capped at 12) and an all-signals subscriber saw
+22 (untagged articles excluded). Now every active subscriber gets the same issue (`lib/email/digest.ts` →
+`composeIssue`), and the only choices are confirm (double opt-in) and unsubscribe. The three columns and the
+`subscribers_digest_content_check` constraint are left in place, unread and unwritten — new rows get the
+column defaults (`include_summary` true), which satisfy the constraint. Don't reintroduce preferences
+without the owner asking.
+
+Issue layout, top to bottom: number boxes (stories · high-impact, or signals rising when there are none ·
+signals active) → top story → **signal movement** for all 13 signals (this week's count vs the average of
+the 4 weeks before; `new` / `up` ≥1.5× / `down` ≤0.5× / `steady`, each with its best headline; zero-count
+signals collapse into one "Quiet this week" line) → five Fact Flow facts from the week's highest-impact
+articles → **LocStock brief** only if the equal-weighted weekly move is ≥3% or any ticker moved ≥8% →
+**New in the directory** only for `directory` rows created in the period whose slug is not in the static
+array (a same-slug row is an edit, not a new company; static entries have no date) → every other article
+(capped at 40, then a "+N more" link). `digest_sends.article_ids` records what the issue actually links.
 
 ### `digest_sends`
 ```
@@ -454,7 +467,7 @@ subject text            — exact subject sent; null on rows from before this co
 html text                — exact rendered email sent; null on rows from before this column existed
 sent_at timestamptz
 ```
-Audit trail + idempotency for digest runs (re-runs skip subscribers with `last_sent_at` inside the period).
+Audit trail + idempotency for digest runs (re-runs skip anyone sent within the last 24 h).
 `subject`/`html` (added `supabase/migrations/20260917_digest_sends_html.sql`) are written only by a real
 send in `/api/digest/send` — they snapshot what actually went out so `/admin/digest-history` can show a
 past issue exactly as sent rather than recomposing it against a subscriber's current (possibly since-changed)

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { SIGNAL_MAP } from '@/lib/signals'
 import { confirmEmail } from '@/lib/email/templates'
 import { digestFrom, getResend, SITE_URL } from '@/lib/email/send'
 
@@ -10,7 +9,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // The response is intentionally generic so the endpoint can't be used to
 // probe which addresses are subscribed.
 export async function POST(req: NextRequest) {
-  let body: { email?: string; signal_prefs?: string[] }
+  let body: { email?: string }
   try {
     body = await req.json()
   } catch {
@@ -21,10 +20,6 @@ export async function POST(req: NextRequest) {
   if (!EMAIL_RE.test(email) || email.length > 254) {
     return NextResponse.json({ error: 'Please enter a valid email address' }, { status: 400 })
   }
-
-  const signal_prefs = Array.isArray(body.signal_prefs)
-    ? body.signal_prefs.filter(id => SIGNAL_MAP.has(id))
-    : []
 
   const supabase = createServiceClient()
   const genericOk = NextResponse.json({ ok: true, message: 'Check your inbox to confirm your subscription.' })
@@ -51,7 +46,6 @@ export async function POST(req: NextRequest) {
       {
         email,
         status: 'pending',
-        signal_prefs,
         created_at: new Date().toISOString(),
         unsubscribed_at: null,
       },

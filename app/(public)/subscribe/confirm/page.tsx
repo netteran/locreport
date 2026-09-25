@@ -13,18 +13,16 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
   const { token } = await searchParams
 
   let state: 'confirmed' | 'already' | 'invalid' = 'invalid'
-  let manageToken: string | null = null
 
   if (token && /^[0-9a-f-]{36}$/i.test(token)) {
     const supabase = createServiceClient()
     const { data: subscriber } = await supabase
       .from('subscribers')
-      .select('id, status, manage_token')
+      .select('id, status')
       .eq('confirm_token', token)
       .maybeSingle()
 
     if (subscriber) {
-      manageToken = subscriber.manage_token
       if (subscriber.status === 'active') {
         state = 'already'
       } else {
@@ -52,17 +50,13 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
         <>
           <h1>{state === 'confirmed' ? 'You’re subscribed' : 'Already subscribed'}</h1>
           <p className="subscribe-status__text">
-            The Weekly will land in your inbox with what’s moving in
-            translation, localization and language AI — and what it means
-            for your work.
+            The Weekly lands in your inbox every Friday: the top story, how
+            every signal we track moved, the week’s key facts and everything
+            else we published. Every issue has a one-click unsubscribe link.
           </p>
           <div className="subscribe-status__actions">
-            {manageToken && (
-              <Link href={`/subscribe/manage?token=${manageToken}`} className="btn btn--primary">
-                Set your preferences
-              </Link>
-            )}
-            <Link href="/articles" className="btn btn--ghost">Browse articles</Link>
+            <Link href="/articles" className="btn btn--primary">Browse articles</Link>
+            <Link href="/intelligence/signals" className="btn btn--ghost">See the signals</Link>
           </div>
         </>
       )}
