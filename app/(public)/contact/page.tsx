@@ -1,7 +1,7 @@
 'use client'
 
 import Script from 'next/script'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 const recaptchaSiteKey = '6Ld7gVwtAAAAAGBDtEUJSiOyzLCOYsfB3thG_d9X'
@@ -22,6 +22,17 @@ export default function ContactPage() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [emailError, setEmailError] = useState('')
+  const subjectRef = useRef<HTMLInputElement>(null)
+
+  // Links elsewhere on the site (e.g. the Weekly suggestion button on
+  // /subscribe/manage) can prefill the subject via ?subject=. Read from
+  // window rather than useSearchParams so the page stays statically rendered.
+  useEffect(() => {
+    const preset = new URLSearchParams(window.location.search).get('subject')
+    if (preset && subjectRef.current && !subjectRef.current.value) {
+      subjectRef.current.value = preset.slice(0, 120)
+    }
+  }, [])
 
   function handleEmailBlur(e: React.FocusEvent<HTMLInputElement>) {
     const val = e.target.value
@@ -123,7 +134,7 @@ export default function ContactPage() {
 
             <div className="form-group">
               <label htmlFor="subject">Subject</label>
-              <input type="text" name="subject" id="subject" required />
+              <input type="text" name="subject" id="subject" required ref={subjectRef} />
             </div>
 
             <div className="form-group">

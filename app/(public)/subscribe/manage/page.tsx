@@ -10,11 +10,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-// Reached from the "Manage preferences" link in issues sent before The Weekly
-// became one issue for everyone. There is nothing left to configure, so it
-// only shows the subscription and offers to end or restore it.
-export default async function ManagePage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
-  const { token } = await searchParams
+// Where the Unsubscribe link in every issue lands (via /api/subscribe/unsubscribe,
+// with ?confirm=unsubscribe), and where the "Manage preferences" link in older
+// issues points. Unsubscribing always takes an explicit confirmation here.
+export default async function ManagePage({ searchParams }: { searchParams: Promise<{ token?: string; confirm?: string }> }) {
+  const { token, confirm } = await searchParams
 
   let subscriber: { email: string; status: string } | null = null
 
@@ -47,7 +47,18 @@ export default async function ManagePage({ searchParams }: { searchParams: Promi
       <p className="subscribe-status__text">
         Subscribed as <strong>{subscriber.email}</strong>
       </p>
-      <ManageForm token={token} initialStatus={subscriber.status} />
+      <ManageForm
+        token={token}
+        initialStatus={subscriber.status}
+        confirmUnsubscribe={confirm === 'unsubscribe'}
+      />
+
+      <Link
+        href={`/contact?subject=${encodeURIComponent('Suggestion for The Weekly')}`}
+        className="btn btn--primary weekly-feedback"
+      >
+        Got an idea to cover? We’d appreciate your suggestions!
+      </Link>
     </div>
   )
 }

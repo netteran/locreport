@@ -6105,9 +6105,12 @@ kbd, code {
 .manage-form__hint { font-size: 0.82rem; color: var(--muted); margin: 0 0 var(--space-3); }
 .manage-form__hint--last { margin-bottom: 0; }
 .manage-form__actions { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.manage-form__confirm { padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-secondary); }
+.manage-form__confirm .btn--danger { padding: 12px 28px; border: 1.5px solid transparent; }
 .manage-form__unsub { color: #dc2626; }
 .manage-form__status { font-size: 0.85rem; font-weight: 600; color: var(--accent); margin: 0; }
 .manage-form__status--error { color: #dc2626; }
+.weekly-feedback { margin-top: var(--space-8); white-space: normal; text-align: center; }
 
 /* ── Intelligence dashboard charts ── */
 .intel-section { margin: var(--space-8) 0; }

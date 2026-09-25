@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server'
+import { formatPeriodRange } from '@/lib/email/period'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,6 +8,7 @@ const HISTORY_LIMIT = 500
 interface DigestSendRow {
   id: string
   period_start: string
+  period_end: string
   sent_at: string
   subject: string | null
   article_ids: string[] | null
@@ -19,15 +21,12 @@ function subscriberEmail(row: DigestSendRow): string {
   return s?.email ?? '—'
 }
 
-function periodLabel(periodStart: string): string {
-  return `Week of ${new Date(periodStart).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
-}
 
 export default async function DigestHistoryPage() {
   const supabase = createServiceClient()
   const { data: sends, error } = await supabase
     .from('digest_sends')
-    .select('id, period_start, sent_at, subject, article_ids, subscribers(email)')
+    .select('id, period_start, period_end, sent_at, subject, article_ids, subscribers(email)')
     .order('sent_at', { ascending: false })
     .limit(HISTORY_LIMIT)
 
@@ -46,9 +45,9 @@ export default async function DigestHistoryPage() {
     <div>
       <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--text)' }}>The Weekly — sent issues</h1>
       <p className="text-sm mb-6 max-w-[760px]" style={{ color: 'var(--muted)' }}>
-        Every personalised copy actually sent, grouped by issue and newest first. Each subscriber gets their
-        own version, so an issue can list several rows with different content. Sends from before this page
-        existed have no stored copy — those show without a View link.
+        Every copy actually sent, grouped by issue and newest first. Since 25 September 2026 every subscriber
+        gets the same issue; earlier issues were personalised, so their rows can differ. Sends from before this
+        page existed have no stored copy — those show without a View link.
         {rows.length === HISTORY_LIMIT && ` Showing the most recent ${HISTORY_LIMIT}.`}
       </p>
 
@@ -61,7 +60,7 @@ export default async function DigestHistoryPage() {
               className="flex items-center justify-between gap-4"
               style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}
             >
-              <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{periodLabel(periodStart)}</span>
+              <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{formatPeriodRange(new Date(periodStart), new Date(periodRows[0].period_end))}</span>
               <span className="text-xs shrink-0" style={{ color: 'var(--muted)' }}>
                 {periodRows.length} sent · {new Date(periodRows[0].sent_at).toLocaleString()}
               </span>
