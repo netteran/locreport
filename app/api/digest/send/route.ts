@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { digestEmail } from '@/lib/email/templates'
 import { digestFrom, getResend, SITE_URL } from '@/lib/email/send'
-import { composeDigest, selectForSubscriber, DigestPrefs, DigestSourceArticle } from '@/lib/email/digest'
-import { currentPeriod, fetchPeriodArticles } from '@/lib/email/period'
+import { currentPeriod } from '@/lib/email/period'
+import { buildIssue } from '@/lib/email/issue'
 
 export const maxDuration = 300
 
@@ -40,10 +40,10 @@ export async function POST(req: NextRequest) {
 
   const service = createServiceClient()
 
-  const { data: articles, error: articlesError } = await fetchPeriodArticles(service, periodStart)
+  const { issue, error: issueError } = await buildIssue(service, periodStart, periodEnd)
 
-  if (articlesError) return NextResponse.json({ error: articlesError.message }, { status: 500 })
-  if (!articles || articles.length === 0) {
+  if (issueError) return NextResponse.json({ error: issueError }, { status: 500 })
+  if (!issue) {
     return NextResponse.json({
       ok: true,
       dryRun,
@@ -55,9 +55,12 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  // Every subscriber gets the same issue; only the unsubscribe link differs.
+  const subject = issue.topStory ? `The Weekly: ${issue.topStory.title}` : 'The Weekly from LocReport'
+
   const { data: subscribers, error: subsError } = await service
     .from('subscribers')
-    .select('id, email, signal_prefs, include_summary, min_impact, manage_token, last_sent_at')
+    .select('id, email, manage_token, last_sent_at')
     .eq('status', 'active')
 
   if (subsError) return NextResponse.json({ error: subsError.message }, { status: 500 })
@@ -81,35 +84,19 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    const prefs: DigestPrefs = {
-      signalPrefs: sub.signal_prefs ?? [],
-      // Rows written before the preference existed default to the roundup.
-      includeSummary: sub.include_summary ?? true,
-      minImpact: sub.min_impact ?? 1,
-    }
-    const matched = selectForSubscriber(articles as DigestSourceArticle[], prefs)
-    if (matched.length === 0) {
-      skipped++
-      continue
-    }
-
-    const { topStory, sections, roundup, roundupHeading } = composeDigest(matched, prefs)
-    const manageUrl = `${SITE_URL}/subscribe/manage?token=${sub.manage_token}`
     const unsubscribeUrl = `${SITE_URL}/api/subscribe/unsubscribe?token=${sub.manage_token}`
 
     payloads.push({
       from: digestFrom(),
       to: sub.email,
-      subject: topStory
-        ? `The Weekly: ${topStory.title}`
-        : 'The Weekly from LocReport',
-      html: digestEmail({ periodLabel, topStory, sections, roundup, roundupHeading, manageUrl, unsubscribeUrl }),
+      subject,
+      html: digestEmail({ periodLabel, ...issue, unsubscribeUrl }),
       headers: {
         'List-Unsubscribe': `<${unsubscribeUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       },
       subscriberId: sub.id,
-      articleIds: matched.map(a => a.id),
+      articleIds: issue.articleIds,
     })
   }
 
@@ -120,7 +107,7 @@ export async function POST(req: NextRequest) {
       recipients: payloads.length,
       sent: 0,
       skipped,
-      articles: articles.length,
+      articles: issue.stats.stories,
       errors: [],
     })
   }
@@ -143,8 +130,8 @@ export async function POST(req: NextRequest) {
       const p = batch[j]
       sent++
       // subject/html are snapshotted here so a past issue can be viewed later
-      // exactly as sent, rather than recomposed against preferences the
-      // subscriber may have since changed.
+      // exactly as sent, rather than recomposed against data that has since
+      // moved on (quotes, facts, edited articles).
       await service.from('digest_sends').insert({
         subscriber_id: p.subscriberId,
         period_start: periodStart.toISOString(),
@@ -164,7 +151,7 @@ export async function POST(req: NextRequest) {
     recipients: payloads.length,
     sent,
     skipped,
-    articles: articles.length,
+    articles: issue.stats.stories,
     errors,
   })
 }

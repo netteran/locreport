@@ -6103,18 +6103,7 @@ kbd, code {
 .manage-form { display: flex; flex-direction: column; gap: var(--space-6); margin-top: var(--space-6); }
 .manage-form__heading { font-size: 1rem; font-weight: 700; margin: 0 0 var(--space-1); }
 .manage-form__hint { font-size: 0.82rem; color: var(--muted); margin: 0 0 var(--space-3); }
-.manage-form__signals { display: flex; flex-direction: column; gap: var(--space-2); }
 .manage-form__hint--last { margin-bottom: 0; }
-.manage-form__option { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; transition: border-color 0.15s; }
-.manage-form__option:hover { border-color: var(--accent); }
-.manage-form__option input { margin-top: 3px; accent-color: var(--accent); }
-.manage-form__option-title { display: block; font-size: 0.92rem; font-weight: 700; line-height: 1.4; }
-.manage-form__option-desc { display: block; font-size: 0.8rem; color: var(--muted); line-height: 1.5; margin-top: 2px; }
-.manage-form__signal { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; transition: border-color 0.15s; }
-.manage-form__signal:hover { border-color: var(--accent); }
-.manage-form__signal input { margin-top: 3px; accent-color: var(--accent); }
-.manage-form__signal-title { display: block; font-size: 0.88rem; font-weight: 600; line-height: 1.4; }
-.manage-form__signal-cat { display: block; font-size: 0.72rem; color: var(--muted); text-transform: capitalize; }
 .manage-form__actions { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
 .manage-form__unsub { color: #dc2626; }
 .manage-form__status { font-size: 0.85rem; font-weight: 600; color: var(--accent); margin: 0; }
