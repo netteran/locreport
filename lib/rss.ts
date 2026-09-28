@@ -90,6 +90,13 @@ function htmlToText(html: string): string {
 }
 
 export async function fetchFeed(url: string): Promise<RssItem[]> {
+  return (await fetchFeedResult(url)).items
+}
+
+// Like fetchFeed, but says why a fetch came back empty. A dead feed (404,
+// HTML where XML should be) and a quiet one both yield zero items, so ingest
+// records this on the source row for /admin/sources to show.
+export async function fetchFeedResult(url: string): Promise<{ items: RssItem[]; error: string | null }> {
   try {
     // Use fetch + parseString to avoid rss-parser's internal url.parse() call
     const res = await fetch(url, {
@@ -103,7 +110,7 @@ export async function fetchFeed(url: string): Promise<RssItem[]> {
     const xml = await res.text()
     const feed = await parser.parseString(xml)
     const base = new URL(url).origin
-    return feed.items.map((item) => {
+    const items = feed.items.map((item) => {
       let link = item.link ?? ''
       if (link && link.startsWith('/')) link = base + link
       return {
@@ -114,8 +121,10 @@ export async function fetchFeed(url: string): Promise<RssItem[]> {
         pubDate: item.pubDate,
       }
     })
+    return { items, error: null }
   } catch (err) {
     console.error(`[rss] fetchFeed failed for ${url}:`, err)
-    return []
+    const message = err instanceof Error ? err.message : String(err)
+    return { items: [], error: message.slice(0, 500) }
   }
 }

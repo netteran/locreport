@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { fetchFeed, fetchArticleText } from '@/lib/rss'
+import { fetchFeedResult, fetchArticleText } from '@/lib/rss'
 import { getOpenAI } from '@/lib/openai'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, todayLine } from '@/lib/prompts'
@@ -82,7 +82,20 @@ export async function POST(req: NextRequest) {
   const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000)
 
   for (const source of sources) {
-    const items = await fetchFeed(source.url)
+    const { items, error: fetchError } = await fetchFeedResult(source.url)
+    // Record the fetch on the source so /admin/sources can tell a dead feed
+    // from a quiet one. Never fails the run (e.g. before the migration lands).
+    const newest = items.reduce<number | null>((max, i) => {
+      const t = i.pubDate ? new Date(i.pubDate).getTime() : NaN
+      return isNaN(t) ? max : Math.max(max ?? t, t)
+    }, null)
+    const { error: healthError } = await supabase.from('rss_sources').update({
+      last_fetch_at: new Date().toISOString(),
+      last_fetch_error: fetchError,
+      last_fetch_items: items.length,
+      last_fetch_newest_at: newest === null ? null : new Date(newest).toISOString(),
+    }).eq('id', source.id)
+    if (healthError) console.warn(`[ingest] could not record fetch health for ${source.url}: ${healthError.message}`)
     const recent = items.filter(i => {
       if (!i.pubDate) return true // no date → don't filter out
       const pub = new Date(i.pubDate)

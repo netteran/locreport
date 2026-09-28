@@ -11,6 +11,12 @@ export interface RssSource {
   // at a time from /admin/sources. See lib/podcast.ts.
   kind?: 'feed' | 'podcast'
   podcast_config?: import('./podcastConfig').PodcastConfig | null
+  // Written by /api/ingest on each run; null until the first run after the
+  // 20260928 migration. last_fetch_error null + last_fetch_at set = fetched OK.
+  last_fetch_at?: string | null
+  last_fetch_error?: string | null
+  last_fetch_items?: number | null
+  last_fetch_newest_at?: string | null
   created_at: string
 }
 

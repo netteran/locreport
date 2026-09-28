@@ -15,7 +15,7 @@ const FIELD = 'px-2 py-0.5 text-xs rounded-md'
 type SourceWithStats = RssSource & { recent_drafts: number }
 type Row = SourceWithStats & { batch: number | null }
 type Panel = { id: string; kind: 'edit' | 'episodes' } | null
-type SortKey = 'batch' | 'name' | 'type' | 'keywords' | 'drafts' | 'auto'
+type SortKey = 'batch' | 'name' | 'type' | 'fetch' | 'keywords' | 'drafts' | 'auto'
 type Sort = { key: SortKey; dir: 1 | -1 } | null
 
 // Sort values per column. Rows without a value (no batch, no keywords) always
@@ -25,11 +25,35 @@ function sortValue(r: Row, key: SortKey): string | number | null {
     case 'batch': return r.batch
     case 'name': return r.name.toLowerCase()
     case 'type': return r.kind === 'podcast' ? 'podcast' : 'feed'
+    case 'fetch': return fetchHealth(r).rank
     case 'keywords': return r.kind === 'podcast' ? (r.podcast_config?.ignore_before ?? null) : ((r.keywords ?? []).join(', ').toLowerCase() || null)
     case 'drafts': return r.recent_drafts
     case 'auto': return r.auto_publish ? 1 : 0
   }
 }
+
+// Newest item older than this reads as a feed that has probably moved or died.
+const STALE_DAYS = 90
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// What the last ingest fetch says about a feed. `rank` orders the column:
+// higher is worse, so sorting descending puts broken feeds first.
+function fetchHealth(r: RssSource): { label: string; tone: 'bad' | 'warn' | 'ok' | 'none'; title: string; rank: number | null } {
+  if (r.kind === 'podcast') return { label: '—', tone: 'none', title: 'Podcasts are not fetched by ingest', rank: null }
+  if (!r.last_fetch_at) return { label: 'not run', tone: 'none', title: 'No ingest run has recorded a fetch for this URL yet', rank: null }
+  const when = `Last fetched ${r.last_fetch_at.slice(0, 16).replace('T', ' ')} UTC`
+  if (r.last_fetch_error) return { label: 'error', tone: 'bad', title: `${when}: ${r.last_fetch_error}`, rank: 1e6 }
+  if (!r.last_fetch_items) return { label: 'empty', tone: 'bad', title: `${when}: the feed parsed but has no items`, rank: 1e6 - 1 }
+  if (!r.last_fetch_newest_at) return { label: 'no dates', tone: 'ok', title: `${when}: ${r.last_fetch_items} items, none dated`, rank: 0 }
+  const age = Math.floor((Date.now() - new Date(r.last_fetch_newest_at).getTime()) / DAY_MS)
+  return {
+    label: `${age}d`,
+    tone: age > STALE_DAYS ? 'warn' : 'ok',
+    title: `${when}: ${r.last_fetch_items} items, newest ${r.last_fetch_newest_at.slice(0, 10)}${age > STALE_DAYS ? ' — nothing new in months, the feed may be obsolete' : ''}`,
+    rank: Math.max(0, age),
+  }
+}
+const TONE_COLOR = { bad: '#dc2626', warn: 'var(--gold, #93650F)', ok: 'var(--muted)', none: 'var(--muted)' }
 
 const selectStyle = { background: 'var(--surface, var(--bg))', color: 'var(--text)', borderColor: 'var(--border)' }
 
@@ -138,6 +162,7 @@ export default function SourcesPage() {
     feeds: rows.filter(r => r.active && r.kind !== 'podcast').length,
     podcasts: rows.filter(r => r.active && r.kind === 'podcast').length,
     disabled: rows.filter(r => !r.active).length,
+    failing: rows.filter(r => r.active && fetchHealth(r).tone === 'bad').length,
   }
 
   return (
@@ -146,6 +171,11 @@ export default function SourcesPage() {
         <h1 className="font-bold" style={{ color: 'var(--text)', fontSize: '1.125rem', lineHeight: 1.2, margin: 0 }}>Sources</h1>
         <span style={{ color: 'var(--muted)' }}>
           {counts.feeds} feeds · {batchCount} batch{batchCount !== 1 ? 'es' : ''} · {counts.podcasts} podcast{counts.podcasts !== 1 ? 's' : ''} · {counts.disabled} disabled
+          {counts.failing > 0 && (
+            <button type="button" className="hover:underline" style={{ color: TONE_COLOR.bad, marginLeft: 4 }} onClick={() => setSort({ key: 'fetch', dir: -1 })} title="Sort by fetch health, broken first">
+              · {counts.failing} failing
+            </button>
+          )}
         </span>
         <Button size="xs" className="ml-auto" variant={adding ? 'ghost' : 'primary'} onClick={() => setAdding(a => !a)}>
           {adding ? '− Close' : '+ Add'}
@@ -198,6 +228,7 @@ export default function SourcesPage() {
               <SortTh k="batch" label="Batch" className="w-10" />
               <SortTh k="name" label="Source" />
               <SortTh k="type" label="Type" className="w-16" />
+              <SortTh k="fetch" label="Fetch" className="w-14" title="Last ingest fetch: error / empty, or the age of the newest item (amber past 90 days)" />
               <SortTh k="keywords" label="Keywords" className="hidden md:table-cell" />
               <SortTh k="drafts" label="30d" className="w-10 text-right" title="Drafts in the last 30 days" />
               <SortTh k="auto" label="Auto" className="w-10 text-center" title="Feeds: drafts are approved automatically. Podcasts: new full episodes after the baseline are generated and published on the scheduled runs." />
@@ -219,6 +250,10 @@ export default function SourcesPage() {
                       </div>
                     </td>
                     <td className="px-2 py-0.5" style={{ color: 'var(--muted)' }}>{isPodcast ? 'podcast' : 'feed'}</td>
+                    {(() => {
+                      const h = fetchHealth(r)
+                      return <td className="px-2 py-0.5 whitespace-nowrap font-mono" style={{ color: TONE_COLOR[h.tone] }} title={h.title}>{h.label}</td>
+                    })()}
                     <td className="px-2 py-0.5 hidden md:table-cell max-w-[14rem] truncate" style={{ color: 'var(--muted)' }} title={(r.keywords ?? []).join(', ')}>
                       {isPodcast
                         ? (r.podcast_config?.ignore_before ? `new after ${r.podcast_config.ignore_before.slice(0, 10)}` : 'no baseline')
@@ -261,7 +296,7 @@ export default function SourcesPage() {
                   {open && (
                     <tr style={{ background: 'var(--bg-secondary)' }}>
                       <td />
-                      <td colSpan={6} className="px-2 py-0.5.5">
+                      <td colSpan={7} className="px-2 py-0.5.5">
                         {open === 'edit'
                           ? <EditRow row={r} onSaved={() => { setPanel(null); load() }} onCancel={() => setPanel(null)} />
                           : <PodcastEpisodes sourceId={r.id} />}
@@ -272,7 +307,7 @@ export default function SourcesPage() {
               )
             })}
             {visible.length === 0 && (
-              <tr><td colSpan={7} className="px-2 py-3 text-center" style={{ color: 'var(--muted)' }}>No sources match the filters.</td></tr>
+              <tr><td colSpan={8} className="px-2 py-3 text-center" style={{ color: 'var(--muted)' }}>No sources match the filters.</td></tr>
             )}
           </tbody>
         </table>
