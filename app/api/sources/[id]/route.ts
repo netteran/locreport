@@ -13,6 +13,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     body.podcast_config = parsed.config
   }
   const supabase = createServiceClient()
+  // A new URL makes the last fetch result meaningless — clear it so the
+  // admin table doesn't keep showing the old URL's error until the next run.
+  if (typeof body.url === 'string') {
+    const { data: current } = await supabase.from('rss_sources').select('url').eq('id', id).single()
+    if (current && current.url !== body.url) {
+      Object.assign(body, { last_fetch_at: null, last_fetch_error: null, last_fetch_items: null, last_fetch_newest_at: null })
+    }
+  }
   const { data, error } = await supabase
     .from('rss_sources')
     .update(body)

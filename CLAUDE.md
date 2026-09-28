@@ -193,7 +193,7 @@ Several Compass and other sections use co-located client components:
 | `/admin/drafts/[id]` | Edit/approve/reject individual draft |
 | `/admin/compose` | Manually write a new article |
 | `/admin/prompts` | Edit LLM system prompts stored in DB |
-| `/admin/sources` | One compact, filterable table of every source (feeds + podcasts, active + disabled). Columns: **Batch** (active feeds grouped by 3 in creation order; podcasts/disabled show —), source (name · URL on one line), type, keywords (podcasts: baseline date), drafts in 30 d, **Auto** checkbox, and xs action buttons (Ingest, Episodes for podcasts, Edit, Enable/Disable, ×). Filters: text, type, status (default Active), auto, batch — picking a batch shows an **Ingest batch N** button. Every column header sorts on click (ascending → descending → back to creation order; empty values sink). **Disable** sets `active=false` — kept, skipped by ingest, re-enable any time; **× Delete** removes the row, and `drafts.source_feed_id` is `ON DELETE SET NULL`, so its drafts/articles survive but lose the source link (30d count, podcast-style Re-run on pending podcast drafts, and the `LocReport Industry Desk` author that `approveDraft` gives sourced drafts). Edit and a podcast's Episodes open as a panel row under the source. The add form sits on top behind **+ Add**. See Auto-Publish and Podcasts below |
+| `/admin/sources` | One compact, filterable table of every source (feeds + podcasts, active + disabled). Columns: **Batch** (active feeds grouped by 3 in creation order; podcasts/disabled show —), source (name · URL on one line), type, **Fetch** (last ingest fetch health — see `rss_sources`), keywords (podcasts: baseline date), drafts in 30 d, **Auto** checkbox, and xs action buttons (Ingest, Episodes for podcasts, Edit, Enable/Disable, ×). Filters: text, type, status (default Active), auto, batch — picking a batch shows an **Ingest batch N** button. Every column header sorts on click (ascending → descending → back to creation order; empty values sink). **Disable** sets `active=false` — kept, skipped by ingest, re-enable any time; **× Delete** removes the row, and `drafts.source_feed_id` is `ON DELETE SET NULL`, so its drafts/articles survive but lose the source link (30d count, podcast-style Re-run on pending podcast drafts, and the `LocReport Industry Desk` author that `approveDraft` gives sourced drafts). Edit and a podcast's Episodes open as a panel row under the source. The add form sits on top behind **+ Add**. See Auto-Publish and Podcasts below |
 | `/admin/scraped-feeds` | Feed generator: generated **feeds** (HTML selectors or keyword-refiltered feeds) published at `/api/feeds/[name]`. Deliberately says "feeds", never "sources", so it is not confused with `/admin/sources` — the old `/admin/scraped-sources` path 301s here via `vercel.json`. Per-feed and run-all triggers, inline JSON config editor, an **Add to Sources** button per feed, and a badge showing whether ingest can see it (`in Sources` / `not in Sources` / `0 items`) |
 | `/admin/direct` | Direct article ingestion tool |
 | `/admin/digest-history` | Read-only archive of every past Weekly send, grouped by issue (period) and newest first. Each row is one subscriber's copy (identical content since 2026-09-25, when per-subscriber preferences were removed) — subject, article count, and a **View** link that opens the exact stored HTML in a new tab via `/api/digest/history/[id]`. Rows from before the `subject`/`html` snapshot columns existed (`supabase/migrations/20260917_digest_sends_html.sql`) show with no View link rather than a reconstructed guess |
@@ -329,8 +329,17 @@ auto_publish boolean    — true skips /admin/drafts entirely; see Auto-Publish 
                           automatic generation of new episodes on the scheduled runs (see Podcasts)
 kind text               — 'feed' (default) | 'podcast'. /api/ingest skips 'podcast' rows; see Podcasts below
 podcast_config jsonb    — kind='podcast' only: show name, platform links, people + LinkedIn URLs, Gemini model id
+last_fetch_at / last_fetch_error / last_fetch_items / last_fetch_newest_at
+                        — written by /api/ingest on every run (migration 20260928); cleared by PATCH when the url changes
 created_at timestamptz
 ```
+
+**Dead feeds used to be invisible.** `fetchFeed` returns `[]` on any HTTP or parse error, so a broken
+URL looked exactly like a quiet feed. `ATA Industry News` sat active from June to September 2026 with zero
+drafts because its `/news/industry-news/feed/` path had stopped serving the section (articles had moved to
+`/industry-news/…`). Ingest now calls `fetchFeedResult` and records the outcome on the row, and the
+**Fetch** column on `/admin/sources` shows `error` / `empty` (red), or the age of the newest item (amber past
+90 days — the feed parses but has probably been abandoned). A header link counts failing active sources.
 
 **Google News sources need `keywords` populated, unlike ordinary feeds.** The ~17 `rss_sources` rows
 named `Google News – *` point at `news.google.com/rss/search` queries built as `(topic OR terms) (business
