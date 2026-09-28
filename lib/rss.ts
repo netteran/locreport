@@ -10,6 +10,26 @@ export interface RssItem {
 
 const parser = new Parser()
 
+// Fallback for feeds that aren't well-formed XML (Nimdzi's WordPress feed
+// carries a bare HTML attribute like `<iframe allowfullscreen>`, which the
+// strict parser rejects outright). Non-strict sax upper-cases names, so they
+// are lower-cased back, restoring the two camelCase tags rss-parser reads.
+const CAMEL_TAGS: Record<string, string> = { pubdate: 'pubDate', lastbuilddate: 'lastBuildDate' }
+const lowerName = (name: string) => CAMEL_TAGS[name.toLowerCase()] ?? name.toLowerCase()
+const lenientParser = new Parser({ xml2js: { strict: false, tagNameProcessors: [lowerName], attrNameProcessors: [lowerName] } })
+
+async function parseFeedXml(xml: string) {
+  try {
+    return await parser.parseString(xml)
+  } catch (err) {
+    try {
+      return await lenientParser.parseString(xml)
+    } catch {
+      throw err
+    }
+  }
+}
+
 /**
  * Fetch the full text of an article URL by downloading the page HTML and
  * stripping tags. Returns null if the fetch fails or the URL looks like it
@@ -106,9 +126,18 @@ export async function fetchFeedResult(url: string): Promise<{ items: RssItem[]; 
         'Accept-Language': 'en-US,en;q=0.9',
       },
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+      throw new Error(res.status === 403
+        ? 'HTTP 403 — the site refuses server requests (bot protection), not a wrong URL'
+        : `HTTP ${res.status}`)
+    }
     const xml = await res.text()
-    const feed = await parser.parseString(xml)
+    const feed = await parseFeedXml(xml)
+    // WordPress serves /<page>/feed/ for a *page* as that page's comments feed:
+    // valid RSS, zero items, forever. Say so rather than report a quiet feed.
+    if (feed.items.length === 0 && /^comments on:/i.test(feed.title ?? '')) {
+      throw new Error(`WordPress comments feed ("${feed.title}"), not a posts feed — use the site's /feed/ or a /category/<name>/feed/ URL`)
+    }
     const base = new URL(url).origin
     const items = feed.items.map((item) => {
       let link = item.link ?? ''
