@@ -43,7 +43,7 @@ function fetchHealth(r: RssSource): { label: string; tone: 'bad' | 'warn' | 'ok'
   if (!r.last_fetch_at) return { label: 'not run', tone: 'none', title: 'No ingest run has recorded a fetch for this URL yet', rank: null }
   const when = `Last fetched ${r.last_fetch_at.slice(0, 16).replace('T', ' ')} UTC`
   if (r.last_fetch_error) return { label: 'error', tone: 'bad', title: `${when}: ${r.last_fetch_error}`, rank: 1e6 }
-  if (!r.last_fetch_items) return { label: 'empty', tone: 'bad', title: `${when}: the feed parsed but has no items`, rank: 1e6 - 1 }
+  if (!r.last_fetch_items) return { label: 'empty', tone: 'warn', title: `${when}: the feed parsed but has no items — fine for a narrow Google News query, suspect for a blog or a generated feed`, rank: 1e6 - 1 }
   if (!r.last_fetch_newest_at) return { label: 'no dates', tone: 'ok', title: `${when}: ${r.last_fetch_items} items, none dated`, rank: 0 }
   const age = Math.floor((Date.now() - new Date(r.last_fetch_newest_at).getTime()) / DAY_MS)
   return {
@@ -228,7 +228,7 @@ export default function SourcesPage() {
               <SortTh k="batch" label="Batch" className="w-10" />
               <SortTh k="name" label="Source" />
               <SortTh k="type" label="Type" className="w-16" />
-              <SortTh k="fetch" label="Fetch" className="w-14" title="Last ingest fetch: error / empty, or the age of the newest item (amber past 90 days)" />
+              <SortTh k="fetch" label="Fetch" className="w-14" title="Last ingest fetch: error (red), empty (amber), or the age of the newest item (amber past 90 days)" />
               <SortTh k="keywords" label="Keywords" className="hidden md:table-cell" />
               <SortTh k="drafts" label="30d" className="w-10 text-right" title="Drafts in the last 30 days" />
               <SortTh k="auto" label="Auto" className="w-10 text-center" title="Feeds: drafts are approved automatically. Podcasts: new full episodes after the baseline are generated and published on the scheduled runs." />

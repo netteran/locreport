@@ -338,8 +338,18 @@ created_at timestamptz
 URL looked exactly like a quiet feed. `ATA Industry News` sat active from June to September 2026 with zero
 drafts because its `/news/industry-news/feed/` path had stopped serving the section (articles had moved to
 `/industry-news/…`). Ingest now calls `fetchFeedResult` and records the outcome on the row, and the
-**Fetch** column on `/admin/sources` shows `error` / `empty` (red), or the age of the newest item (amber past
-90 days — the feed parses but has probably been abandoned). A header link counts failing active sources.
+**Fetch** column on `/admin/sources` shows `error` (red), `empty` (amber — normal for a narrow Google News
+query, suspect for a blog), or the age of the newest item (amber past 90 days — the feed parses but has
+probably been abandoned). A header link counts active sources in error.
+
+What the first run (2026-09-28) turned up, and what the errors mean:
+- `HTTP 403` — bot protection refusing Vercel's servers (ATA, MultiLingual, thebigword). Not a URL problem:
+  ATA's old and new URLs are both refused. A different URL on the same site won't help.
+- WordPress **comments feeds**: `/<page>/feed/` on a WordPress *page* (not a category) is that page's
+  comments feed — valid RSS with 0 items forever. `fetchFeedResult` now reports it as an error naming the
+  fix (the site's `/feed/` or a `/category/<name>/feed/`).
+- Malformed XML (Nimdzi: a bare HTML attribute in an item) — the strict parser rejects the whole feed, so
+  `parseFeedXml` retries with a lenient parser before giving up.
 
 **Google News sources need `keywords` populated, unlike ordinary feeds.** The ~17 `rss_sources` rows
 named `Google News – *` point at `news.google.com/rss/search` queries built as `(topic OR terms) (business
