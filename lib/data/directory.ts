@@ -1419,4 +1419,17 @@ export const DIRECTORY: DirectoryEntry[] = [
     type: `SaaS / Studio`,
     tags: ['av-localization', 'ai', 'api'],
   },
+  {
+    name: `Modulate`,
+    slug: `modulate`,
+    category: `voice-ai`,
+    website: `https://www.modulate.ai`,
+    description: `Audio-native voice intelligence: the Velma conversation-understanding platform and ToxMod multilingual voice-chat moderation.`,
+    long_description: `Modulate builds AI that listens to voice conversations directly rather than working from transcripts, reading emotion, tone, intent, emphasis, synthetic speech, and conversational behaviour from the audio itself. Founded in 2017 by MIT physics graduates Mike Pappas and Carter Huffman and based in Somerville, Massachusetts, the company started out on voice modulation for gaming before building ToxMod, a real-time voice-chat moderation system now deployed in titles including Activision's Call of Duty. ToxMod works across 18 languages and is designed to follow a conversation that mixes languages, escalating harms that a single-language system would miss. Its newer Velma platform uses what Modulate calls an Ensemble Listening Model — more than 100 small, specialised audio models selected and combined per task — to flag events such as fraud attempts, deepfake voices, AI agent failures, harassment, and customer dissatisfaction, in real time or after the fact, exposed to developers through APIs. In September 2026 Modulate raised USD 25m led by Future Ventures, with Hyperplane and Lakestar participating, bringing total funding to USD 60m. For the language industry it is a clear example of multilingual speech understanding moving past transcription into judging what was meant, across languages, as it is said.`,
+    founded: 2017,
+    hq: `Somerville, USA`,
+    address: `One Davis Square, Suite 300, Somerville, MA 02144, USA`,
+    type: `SaaS / API`,
+    tags: ['voice-ai', 'ai', 'api'],
+  },
 ]
