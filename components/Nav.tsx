@@ -41,6 +41,9 @@ export function Nav() {
   const [email, setEmail] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  // Drafts awaiting approval, shown as "Drafts (N)" in the Admin menu.
+  // null until the first fetch lands, so the label never shows a wrong 0.
+  const [pendingDrafts, setPendingDrafts] = useState<number | null>(null)
   // Whether the primary input can hover (mouse/trackpad) vs. touch-only.
   // Drives the Admin menu: hover-intent open/close on desktop, tap-to-toggle
   // on touch — checked by input capability, not viewport width, so it holds
@@ -100,6 +103,17 @@ export function Nav() {
       setIsAdmin(isAdmin)
     })
   }, [])
+
+  // Loaded once the viewer is known to be an admin, then again every time the
+  // Admin menu opens, so approving drafts is reflected without a page reload.
+  const adminMenuOpen = isAdmin && openDropdown === ADMIN_MENU_KEY
+  useEffect(() => {
+    if (!isAdmin) return
+    fetch('/api/stats')
+      .then(r => r.json())
+      .then(({ drafts }) => { if (typeof drafts === 'number') setPendingDrafts(drafts) })
+      .catch(() => {})
+  }, [isAdmin, adminMenuOpen])
 
   function toggleTheme() {
     const next = theme === 'light' ? 'dark' : 'light'
@@ -274,7 +288,9 @@ export function Nav() {
                   >
                     {ADMIN_LINKS.map(({ href, label }) => (
                       <li key={href} role="none">
-                        <Link href={href} role="menuitem" onClick={() => setOpenDropdown(null)}>{label}</Link>
+                        <Link href={href} role="menuitem" onClick={() => setOpenDropdown(null)}>
+                          {href === '/admin/drafts' && pendingDrafts !== null ? `${label} (${pendingDrafts})` : label}
+                        </Link>
                       </li>
                     ))}
                   </ul>
