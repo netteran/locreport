@@ -1,7 +1,18 @@
 import { MetadataRoute } from 'next'
-import { createClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/server'
+import { required } from '@/lib/supabase/required'
+import { fetchDirectoryEntries } from '@/lib/directory'
+import { SIGNALS } from '@/lib/signals'
+import { articleHref } from '@/lib/utils'
 
 const BASE_URL = 'https://locreport.com'
+
+// Cookie-free client keeps this cacheable; an hour matches the listing pages.
+export const revalidate = 3600
+
+// PostgREST caps a response at 1,000 rows, so a single select silently dropped
+// the oldest articles once the archive grew past that.
+const PAGE_SIZE = 1000
 
 const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: BASE_URL, changeFrequency: 'daily', priority: 1.0 },
@@ -21,20 +32,61 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${BASE_URL}/contact`, changeFrequency: 'yearly', priority: 0.3 },
 ]
 
+type Row = { slug: string; published_at: string; updated_at: string | null }
+
+async function fetchAllArticles(): Promise<Row[]> {
+  const supabase = createPublicClient()
+  const rows: Row[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    // Primary content: throw rather than publish a sitemap missing every article.
+    const page = required(
+      await supabase
+        .from('articles')
+        .select('slug, published_at, updated_at')
+        .order('published_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1),
+      'sitemap articles'
+    ) as Row[] | null
+    rows.push(...(page ?? []))
+    if (!page || page.length < PAGE_SIZE) return rows
+  }
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const supabase = await createClient()
+  const [articles, directory] = await Promise.all([
+    fetchAllArticles(),
+    fetchDirectoryEntries(createPublicClient()),
+  ])
 
-  const { data: articles } = await supabase
-    .from('articles')
-    .select('slug, published_at, updated_at')
-    .order('published_at', { ascending: false })
+  // List the canonical URL, never the legacy date path: those 301 to the clean
+  // one, and a sitemap full of redirects contradicts each page's canonical tag.
+  // Newest first, so a clean URL shared by duplicate imports keeps its latest date.
+  const seen = new Set<string>()
+  const articleUrls: MetadataRoute.Sitemap = []
+  for (const a of articles) {
+    const url = `${BASE_URL}${articleHref(a.slug)}`
+    if (seen.has(url)) continue
+    seen.add(url)
+    articleUrls.push({
+      url,
+      lastModified: new Date(a.updated_at ?? a.published_at),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    })
+  }
 
-  const articleUrls: MetadataRoute.Sitemap = (articles ?? []).map((a) => ({
-    url: `${BASE_URL}/articles/${a.slug}`,
-    lastModified: new Date(a.updated_at ?? a.published_at),
+  const signalUrls: MetadataRoute.Sitemap = SIGNALS.map((s) => ({
+    url: `${BASE_URL}/intelligence/signals/${s.id}`,
     changeFrequency: 'weekly',
-    priority: 0.8,
+    priority: 0.6,
   }))
 
-  return [...STATIC_PAGES, ...articleUrls]
+  const directoryUrls: MetadataRoute.Sitemap = directory.map((e) => ({
+    url: `${BASE_URL}/compass/directory/${e.slug}`,
+    changeFrequency: 'monthly',
+    priority: 0.5,
+  }))
+
+  return [...STATIC_PAGES, ...signalUrls, ...directoryUrls, ...articleUrls]
 }
