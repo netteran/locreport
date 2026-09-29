@@ -1045,7 +1045,13 @@ Pro upgrade.
 
 - **Metadata API:** Next.js metadata exports on every public page
 - **OG image:** `/public/og-image.jpg` (1200×630)
-- **Sitemap:** `app/sitemap.ts` → `/sitemap.xml` (dynamic, includes all published articles)
+- **Sitemap:** `app/sitemap.ts` → `/sitemap.xml` (1h ISR): static pages, the 13 signal pages, every directory company, and every
+  article at its **canonical** `articleHref()` URL, paged past PostgREST's 1,000-row cap. Never list a legacy
+  `/articles/YYYY/MM/DD/slug` path there: those 301, and on 2026-09-29 Search Console showed 650 of the 897
+  migrated (date-slug) articles in "Crawled – currently not indexed" vs 87 of 347 clean-slug ones, while the sitemap
+  listed the redirecting form and the page's canonical named the clean one. Legacy article lookups redirect with
+  `permanentRedirect` (308) and tolerate Jekyll's collapsed hyphen runs (`chatbot-lets` → DB `chatbot---lets`).
+  11 stories exist twice under different date prefixes; their shared clean URL serves the earliest copy
 - **Robots:** `app/robots.ts` → `/robots.txt` (blocks crawlers from admin, api, CLAUDE.md, /subscribe pages)
 - **RSS:** `/feed.xml` (all articles) + `/fact-flow/feed.xml` (facts); RSS alternate declared in root layout metadata
 - **301 Redirects:** `vercel.json` — preserves SEO from legacy Jekyll URLs and old route names:

@@ -1,4 +1,4 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/server'
 import AdminEditLink from '@/components/AdminEditLink'
 import { cache } from 'react'
@@ -38,9 +38,13 @@ const fetchArticle = cache(async (slugParts: string[]) => {
     .from('articles').select(ARTICLE_WITH_EMBEDDING).eq('slug', joined).maybeSingle())
   if (exact) return { article: exact as unknown as Article, shouldRedirect: slugParts.length > 1 }
 
+  // A handful of stories were ingested twice under different date prefixes, so
+  // one clean URL can match several legacy rows. maybeSingle() errors on that,
+  // which took those URLs down entirely; serve the earliest copy instead.
   const bySuffix = orThrow(await supabase
-    .from('articles').select(ARTICLE_WITH_EMBEDDING).ilike('slug', `%/${bare}`).maybeSingle())
-  if (bySuffix) return { article: bySuffix as unknown as Article, shouldRedirect: false }
+    .from('articles').select(ARTICLE_WITH_EMBEDDING).ilike('slug', `%/${bare}`)
+    .order('published_at', { ascending: true }).limit(1))
+  if (bySuffix?.length) return { article: bySuffix[0] as unknown as Article, shouldRedirect: false }
 
   // Legacy URLs (pre-migration Jekyll permalinks, RSS-title truncation) sometimes carry a
   // slug that's a truncated/un-deduped prefix of the current one (slugify() cuts titles to
@@ -49,6 +53,20 @@ const fetchArticle = cache(async (slugParts: string[]) => {
   const byPrefix = orThrow(await supabase
     .from('articles').select(ARTICLE_WITH_EMBEDDING).ilike('slug', `${bare}%`).limit(2))
   if (byPrefix?.length === 1) return { article: byPrefix[0] as unknown as Article, shouldRedirect: true }
+
+  // The Jekyll site collapsed runs of hyphens ("chatbot-lets") where the DB slug
+  // kept them ("chatbot---lets", from a dropped " - " or "&" in the title), so
+  // old inbound links and Google's index 404ed. Widen each hyphen to "-%", then
+  // keep only candidates that are equal once hyphen runs are collapsed.
+  if (bare.includes('-')) {
+    const collapse = (s: string) => s.replace(/-+/g, '-')
+    const wanted = collapse(bare)
+    const loose = orThrow(await supabase
+      .from('articles').select(ARTICLE_WITH_EMBEDDING)
+      .ilike('slug', `%${wanted.replace(/-/g, '-%')}`).limit(5))
+    const hits = ((loose ?? []) as unknown as Article[]).filter(r => collapse(r.slug.split('/').pop()!) === wanted)
+    if (hits.length === 1) return { article: hits[0], shouldRedirect: true }
+  }
 
   return null
 })
@@ -76,8 +94,9 @@ export default async function ArticlePage({ params }: Props) {
 
   const { article, shouldRedirect } = result!
 
+  // Permanent, so Google moves the old URL's signals onto the clean one.
   if (shouldRedirect) {
-    redirect(articleHref(article.slug))
+    permanentRedirect(articleHref(article.slug))
   }
 
   const a = article as Article
