@@ -25,7 +25,7 @@ export default function CompassPage() {
           <span className="compass-card__badge">Live data</span>
           <p className="compass-card__title">LocStock</p>
           <p className="compass-card__subtitle">The Localization Market Index</p>
-          <p className="compass-card__desc">Live equity overview of 38 publicly traded companies with exposure to language services, AI translation, and localization technology across 14 global exchanges.</p>
+          <p className="compass-card__desc">Live equity overview of 39 publicly traded companies with exposure to language services, AI translation, and localization technology across 14 global exchanges.</p>
           <span className="compass-card__arrow">Explore →</span>
         </Link>
 
