@@ -324,6 +324,15 @@ export function Nav() {
                         </Link>
                       </li>
                     ))}
+                    <li role="none" className="admin-menu-divider">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => { setOpenDropdown(null); signOut() }}
+                      >
+                        Log out
+                      </button>
+                    </li>
                   </ul>
                 </div>
               )}
