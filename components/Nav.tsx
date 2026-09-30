@@ -68,6 +68,7 @@ export function Nav() {
   }
 
   function scheduleClose() {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
     closeTimer.current = setTimeout(() => setOpenDropdown(null), 150)
   }
 
@@ -308,8 +309,6 @@ export function Nav() {
             <ul
               className={`admin-menu-dropdown${openDropdown === ADMIN_MENU_KEY ? ' is-open' : ''}`}
               role="menu"
-              onMouseEnter={canHover ? () => openMenu(ADMIN_MENU_KEY) : undefined}
-              onMouseLeave={canHover ? scheduleClose : undefined}
             >
               {ADMIN_LINKS.map(({ href, label }) => (
                 <li key={href} role="none">

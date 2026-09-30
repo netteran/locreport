@@ -475,6 +475,20 @@ ul.nav-dropdown-menu {
   list-style: none;
   margin: 0;
 }
+/* Hover bridge across the 6px gap above the menu, spanning the menu's full
+   width. The inherited .nav-has-dropdown::after bridge is only as wide as
+   the short "Admin" button, while this menu is 190px and right-aligned, so
+   moving diagonally down-left crossed dead space and closed it. Lives on
+   the menu itself so it inherits pointer-events: none while closed and
+   can't open the menu when the cursor merely passes under the header. */
+.admin-menu-dropdown::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 12px;
+}
 .admin-menu-dropdown.is-open {
   opacity: 1;
   pointer-events: auto;
