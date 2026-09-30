@@ -31,7 +31,7 @@ export const LOCSTOCK_COMPANIES = [
   { t:'ZOO.L',     s:'ZOO',    n:'ZOO Digital Group plc',   ex:'LSE AIM',        co:'UK', cat:'lsp'               },
   { t:'APX.AX',    s:'APX',    n:'Appen Limited',           ex:'ASX',            co:'AU', cat:'lsp'               },
   { t:'AIM.AX',    s:'AIM',    n:'Ai-Media Technologies',   ex:'ASX',            co:'AU', cat:'lsp'               },
-  { t:'STG.AX',    s:'STG',    n:'Straker Limited',         ex:'ASX',            co:'NZ', cat:'lsp'               },
+  { t:'AGT.AX',    s:'AGT',    n:'Arbitr Group Limited',    ex:'ASX',            co:'NZ', cat:'lsp'               }, // formerly Straker (STG), renamed 2026-09-29
   { t:'2483.T',    s:'2483',   n:'Honyaku Center Inc.',     ex:'TSE',            co:'JP', cat:'lsp'               },
   { t:'6182.T',    s:'6182',   n:'Metareal Corp.',          ex:'TSE',            co:'JP', cat:'lsp'               },
   { t:'7812.T',    s:'7812',   n:'CRESTEC Inc.',            ex:'TSE',            co:'JP', cat:'lsp'               },
