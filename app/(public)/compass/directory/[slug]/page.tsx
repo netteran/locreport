@@ -83,10 +83,12 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
           <span className="dir-entry-meta-label">Type</span>
           <span className="dir-entry-meta-value">{entry.type}</span>
         </div>
-        <div className="dir-entry-meta-item">
-          <span className="dir-entry-meta-label">Founded</span>
-          <span className="dir-entry-meta-value">{entry.founded}</span>
-        </div>
+        {entry.founded ? (
+          <div className="dir-entry-meta-item">
+            <span className="dir-entry-meta-label">Founded</span>
+            <span className="dir-entry-meta-value">{entry.founded}</span>
+          </div>
+        ) : null}
         <div className="dir-entry-meta-item">
           <span className="dir-entry-meta-label">Headquarters</span>
           <span className="dir-entry-meta-value">{entry.hq}</span>

@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { LOCSTOCK_COMPANIES as COMPANIES } from '@/lib/data/locstock'
 
 const LocStockChart = dynamic(
@@ -173,7 +174,9 @@ export function LocStockClient({ quotes, updatedAt }: Props) {
           return (
             <div key={co.t} className={`market-card ${dir}${isFeatured ? ' featured' : ''}`}>
               <div className="market-card-ticker">{co.s}</div>
-              <div className="market-card-name">{co.n}</div>
+              <div className="market-card-name">
+                <Link href={`/compass/directory/${co.dir}`} className="market-card-name-link">{co.n}</Link>
+              </div>
               {q ? (
                 <>
                   <div className="market-card-price">{formatPrice(q.price, q.currency)}</div>

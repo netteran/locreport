@@ -70,6 +70,8 @@ export function DirectoryClient({ entries }: Props) {
     return [...filtered].sort((a, b) => {
       if (sort === 'az') return a.name.localeCompare(b.name)
       if (sort === 'za') return b.name.localeCompare(a.name)
+      // An unknown founding year (0/null) sinks to the end either way.
+      if (!a.founded || !b.founded) return (b.founded ? 1 : 0) - (a.founded ? 1 : 0)
       if (sort === 'newest') return b.founded - a.founded
       return a.founded - b.founded
     })
@@ -126,7 +128,7 @@ export function DirectoryClient({ entries }: Props) {
                 </div>
                 <div className="dir-card-meta">
                   <span>{entry.hq}</span>
-                  <span>Est. {entry.founded}</span>
+                  {entry.founded ? <span>Est. {entry.founded}</span> : null}
                 </div>
               </div>
             </div>
