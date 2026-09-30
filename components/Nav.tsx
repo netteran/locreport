@@ -98,10 +98,41 @@ export function Nav() {
     // sync state in case hydration raced it.
     const current = document.documentElement.getAttribute('data-theme')
     if (current === 'dark' || current === 'light') setTheme(current)
-    fetch('/api/me').then(r => r.json()).then(({ email, isAdmin }) => {
-      setEmail(email)
-      setIsAdmin(isAdmin)
+  }, [])
+
+  useEffect(() => {
+    // Nav lives in the persistent layout, so it mounts once and survives the
+    // client-side navigation that follows sign-in. Asking /api/me only on mount
+    // left the Admin menu hidden after logging in until a reload happened to
+    // land after the session cookie was settled. Re-ask on every auth change
+    // instead: INITIAL_SESSION on mount, SIGNED_IN right after login (the
+    // cookie is written before the event fires), TOKEN_REFRESHED when an
+    // expired access token was swapped on load, SIGNED_OUT on sign-out.
+    const supabase = createClient()
+    let seq = 0
+    const check = () => {
+      const id = ++seq
+      fetch('/api/me', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(({ email, isAdmin }) => {
+          if (id !== seq) return // a newer check superseded this one
+          setEmail(email)
+          setIsAdmin(isAdmin)
+        })
+        .catch(() => {})
+    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        seq++
+        setEmail(null)
+        setIsAdmin(false)
+        return
+      }
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        check()
+      }
     })
+    return () => subscription.unsubscribe()
   }, [])
 
   // Loaded once the viewer is known to be an admin, then again every time the
