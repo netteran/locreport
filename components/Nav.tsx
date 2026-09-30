@@ -38,7 +38,6 @@ const ADMIN_MENU_KEY = '__admin-menu__'
 export function Nav() {
   const router = useRouter()
   const [isAdmin, setIsAdmin] = useState(false)
-  const [email, setEmail] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   // Drafts awaiting approval, shown as "Drafts (N)" in the Admin menu.
@@ -114,9 +113,8 @@ export function Nav() {
       const id = ++seq
       fetch('/api/me', { cache: 'no-store' })
         .then(r => r.json())
-        .then(({ email, isAdmin }) => {
+        .then(({ isAdmin }) => {
           if (id !== seq) return // a newer check superseded this one
-          setEmail(email)
           setIsAdmin(isAdmin)
         })
         .catch(() => {})
@@ -124,7 +122,6 @@ export function Nav() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
         seq++
-        setEmail(null)
         setIsAdmin(false)
         return
       }
@@ -161,7 +158,6 @@ export function Nav() {
   async function signOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
-    setEmail(null)
     setIsAdmin(false)
     router.push('/')
     router.refresh()
@@ -284,66 +280,56 @@ export function Nav() {
             </svg>
           </button>
 
-          {email ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {isAdmin && (
-                <div
-                  ref={adminMenuRef}
-                  className="nav-has-dropdown admin-menu"
-                  onMouseEnter={canHover ? () => openMenu(ADMIN_MENU_KEY) : undefined}
-                  onMouseLeave={canHover ? scheduleClose : undefined}
-                >
-                  <button
-                    onClick={() => setOpenDropdown(v => v === ADMIN_MENU_KEY ? null : ADMIN_MENU_KEY)}
-                    aria-haspopup="true"
-                    aria-expanded={openDropdown === ADMIN_MENU_KEY}
-                    aria-label="Toggle admin menu"
-                  >
-                    Admin
-                    <svg
-                      className="nav-dropdown-chevron"
-                      width="10"
-                      height="10"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      aria-hidden="true"
-                    >
-                      <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </button>
-                  <ul
-                    className={`admin-menu-dropdown${openDropdown === ADMIN_MENU_KEY ? ' is-open' : ''}`}
-                    role="menu"
-                    onMouseEnter={canHover ? () => openMenu(ADMIN_MENU_KEY) : undefined}
-                    onMouseLeave={canHover ? scheduleClose : undefined}
-                  >
-                    {ADMIN_LINKS.map(({ href, label }) => (
-                      <li key={href} role="none">
-                        <Link href={href} role="menuitem" onClick={() => setOpenDropdown(null)}>
-                          {href === '/admin/drafts' && pendingDrafts !== null ? `${label} (${pendingDrafts})` : label}
-                        </Link>
-                      </li>
-                    ))}
-                    <li role="none" className="admin-menu-divider">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => { setOpenDropdown(null); signOut() }}
-                      >
-                        Log out
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-              )}
-              <button
-                onClick={signOut}
-                style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 10px' }}
+          {isAdmin && (
+          <div
+            ref={adminMenuRef}
+            className="nav-has-dropdown admin-menu"
+            onMouseEnter={canHover ? () => openMenu(ADMIN_MENU_KEY) : undefined}
+            onMouseLeave={canHover ? scheduleClose : undefined}
+          >
+            <button
+              onClick={() => setOpenDropdown(v => v === ADMIN_MENU_KEY ? null : ADMIN_MENU_KEY)}
+              aria-haspopup="true"
+              aria-expanded={openDropdown === ADMIN_MENU_KEY}
+              aria-label="Toggle admin menu"
+            >
+              Admin
+              <svg
+                className="nav-dropdown-chevron"
+                width="10"
+                height="10"
+                viewBox="0 0 12 12"
+                fill="none"
+                aria-hidden="true"
               >
-                Sign out
-              </button>
-            </div>
-          ) : null}
+                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <ul
+              className={`admin-menu-dropdown${openDropdown === ADMIN_MENU_KEY ? ' is-open' : ''}`}
+              role="menu"
+              onMouseEnter={canHover ? () => openMenu(ADMIN_MENU_KEY) : undefined}
+              onMouseLeave={canHover ? scheduleClose : undefined}
+            >
+              {ADMIN_LINKS.map(({ href, label }) => (
+                <li key={href} role="none">
+                  <Link href={href} role="menuitem" onClick={() => setOpenDropdown(null)}>
+                    {href === '/admin/drafts' && pendingDrafts !== null ? `${label} (${pendingDrafts})` : label}
+                  </Link>
+                </li>
+              ))}
+              <li role="none" className="admin-menu-divider">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setOpenDropdown(null); signOut() }}
+                >
+                  Log out
+                </button>
+              </li>
+            </ul>
+          </div>
+          )}
         </div>
       </div>
       <ReadingProgress />
