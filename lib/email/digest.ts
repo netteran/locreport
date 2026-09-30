@@ -185,9 +185,14 @@ function companyBlurb(entry: DirectoryEntry): string {
 // the week key decides, so the pick changes every week, is identical for
 // every subscriber and for the admin preview, and doesn't shift when a
 // company is added mid-week unless the newcomer happens to win. Companies
-// with a logo the email can show are preferred.
+// with a logo the email can show are preferred. The tech-platform and bpo
+// categories hold the big listed companies LocStock tracks (NVIDIA, SAP,
+// Infosys…); they have directory profiles so LocStock can link to them, but
+// they aren't language companies and don't belong in this slot.
+const NOT_FEATURED_CATEGORIES = new Set(['tech-platform', 'bpo'])
+
 export function pickCompanyOfWeek(entries: DirectoryEntry[], periodEnd: Date): DigestCompany | null {
-  const described = entries.filter(e => e.slug && (e.long_description || e.description))
+  const described = entries.filter(e => e.slug && (e.long_description || e.description) && !NOT_FEATURED_CATEGORIES.has(e.category))
   if (described.length === 0) return null
   const withLogo = described.filter(e => emailSafeLogo(e.logo_url))
   const pool = withLogo.length > 0 ? withLogo : described
