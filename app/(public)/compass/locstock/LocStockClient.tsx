@@ -3,29 +3,17 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { LOCSTOCK_COMPANIES as COMPANIES } from '@/lib/data/locstock'
+import { COUNTRY_FLAGS, Sparkline, formatMCap, formatPrice, type Quote } from './marketFormat'
 
 const LocStockChart = dynamic(
   () => import('./LocStockChart').then(m => ({ default: m.LocStockChart })),
   { ssr: false, loading: () => <div className="market-chart-section" style={{height:60,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:'0.82rem',color:'var(--muted)'}}>Loading chart…</span></div> }
 )
 
-interface HistoryPoint { date: string; close: number }
-
-interface Quote {
-  price: number
-  change: number
-  change_pct: number
-  prev_close: number
-  currency: string
-  market_cap: number
-  history?: HistoryPoint[]
-}
-
 interface Props {
   quotes: Record<string, unknown>
   updatedAt: string
 }
-
 
 // Featured tickers shown in the performance chart
 
@@ -33,16 +21,6 @@ const CAT_LABELS: Record<string, string> = {
   all:'All', aiplatform:'AI Platform', bigtech:'Big Tech',
   media:'Media', learning:'Learning', lsp:'Language Services',
   enterprise:'Enterprise SW', bpo:'BPO & Staffing', aidata:'AI & Data',
-}
-
-const COUNTRY_FLAGS: Record<string, string> = {
-  US:'🇺🇸', UK:'🇬🇧', CN:'🇨🇳', KR:'🇰🇷', HK:'🇭🇰', SE:'🇸🇪', DE:'🇩🇪',
-  FR:'🇫🇷', IN:'🇮🇳', AU:'🇦🇺', NZ:'🇳🇿', JP:'🇯🇵', CA:'🇨🇦', IT:'🇮🇹',
-}
-
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  USD:'$', EUR:'€', GBP:'£', GBp:'p', HKD:'HK$', KRW:'₩', JPY:'¥',
-  AUD:'A$', CAD:'C$', NZD:'NZ$', CNY:'CN¥',
 }
 
 const DELISTED = [
@@ -54,47 +32,12 @@ const DELISTED = [
   { ticker:'SUL',  name:'Summa Linguae',       ex:'WSE',      reason:'Delisted from Warsaw Stock Exchange' },
 ]
 
-function formatMCap(v: number): string {
-  if (v >= 1e12) return `${(v/1e12).toFixed(1)}T`
-  if (v >= 1e9)  return `${(v/1e9).toFixed(1)}B`
-  if (v >= 1e6)  return `${(v/1e6).toFixed(1)}M`
-  return v.toLocaleString()
-}
-
-function formatPrice(price: number, currency: string): string {
-  const sym = CURRENCY_SYMBOLS[currency] ?? currency + ' '
-  if (['KRW','JPY'].includes(currency)) return `${sym}${Math.round(price).toLocaleString()}`
-  return `${sym}${price.toFixed(2)}`
-}
-
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString('en-GB', {
     day:'numeric', month:'short', year:'numeric',
     hour:'2-digit', minute:'2-digit', timeZoneName:'short',
   })
 }
-
-// SVG sparkline from history array
-function Sparkline({ history, dir }: { history: HistoryPoint[]; dir: string }) {
-  if (!history || history.length < 2) return null
-  const prices = history.map(h => h.close)
-  const min = Math.min(...prices)
-  const max = Math.max(...prices)
-  const range = max - min || 1
-  const W = 80, H = 28
-  const points = prices.map((p, i) => {
-    const x = (i / (prices.length - 1)) * W
-    const y = H - ((p - min) / range) * H
-    return `${x},${y}`
-  }).join(' ')
-  const color = dir === 'up' ? '#16a34a' : dir === 'down' ? '#dc2626' : '#94a3b8'
-  return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="market-sparkline">
-      <polyline fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" points={points} />
-    </svg>
-  )
-}
-
 
 export function LocStockClient({ quotes, updatedAt }: Props) {
   const [activeFilter, setActiveFilter] = useState<string>('all')

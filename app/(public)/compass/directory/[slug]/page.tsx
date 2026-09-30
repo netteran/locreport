@@ -5,6 +5,8 @@ import { CATEGORY_SHORT, DIRECTORY } from '@/lib/data/directory'
 import { createPublicClient } from '@/lib/supabase/server'
 import { DirectoryLogo } from './DirectoryLogo'
 import { AdminEditButton } from './AdminEditButton'
+import { MarketCard } from './MarketCard'
+import { locstockByDirectorySlug } from '@/lib/data/locstock'
 
 export const revalidate = 3600
 
@@ -44,6 +46,7 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
   if (!entry) notFound()
 
   const catLabel = CAT_DISPLAY[entry.category] ?? entry.category
+  const listed = locstockByDirectorySlug(entry.slug)
   const domain = entry.website.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
   const logoUrl = `https://logo.clearbit.com/${domain}`
 
@@ -69,6 +72,8 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
           <p className="dir-entry-tagline">{entry.description}</p>
         </div>
         <div className="dir-entry-hero-aside">
+          {/* Market tile — only for publicly listed companies tracked on LocStock */}
+          {listed && <MarketCard company={listed} />}
           <DirectoryLogo domain={domain} name={entry.name} logoUrl={entry.logo_url} website={entry.website} />
         </div>
       </div>

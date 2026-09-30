@@ -44,3 +44,9 @@ export const LOCSTOCK_COMPANIES = [
   { t:'301236.SZ', s:'301236', n:'iSoftStone Technology',   ex:'SZSE',           co:'CN', cat:'aidata', dir:'isoftstone' },
   { t:'002230.SZ', s:'002230', n:'iFlytek Co., Ltd.',       ex:'SZSE',           co:'CN', cat:'aidata', dir:'iflytek' },
 ] as const
+
+// The LocStock company whose Tech Directory profile has this slug, if any —
+// drives the market card on /compass/directory/[slug].
+export function locstockByDirectorySlug(slug: string) {
+  return LOCSTOCK_COMPANIES.find(c => c.dir === slug)
+}
