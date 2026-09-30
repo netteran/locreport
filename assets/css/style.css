@@ -5630,7 +5630,7 @@ article.page > h1 {
 .dir-entry-name { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 800; color: var(--text); margin: 0; line-height: 1.1; font-family: var(--font-display); }
 .dir-entry-cat { font-size: 0.7rem; font-weight: 700; padding: 4px 12px; border-radius: 100px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
 .dir-entry-tagline { font-size: 1.05rem; color: var(--muted); line-height: 1.6; max-width: 640px; margin: 0; }
-.dir-entry-hero-aside { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); flex-shrink: 0; }
+.dir-entry-hero-aside { display: flex; flex-direction: row; align-items: flex-start; gap: var(--space-3); flex-shrink: 0; flex-wrap: wrap; }
 .dir-entry-logo-link { display: block; border-radius: var(--radius-md); transition: opacity 0.15s; }
 .dir-entry-logo-link:hover { opacity: 0.82; }
 .dir-entry-logo { width: 192px; height: 192px; object-fit: contain; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--border); padding: 16px; display: block; }
@@ -5643,6 +5643,32 @@ article.page > h1 {
 .dir-entry-meta-value { font-size: 0.9rem; font-weight: 500; color: var(--text); }
 .dir-entry-meta-link { font-size: 0.9rem; font-weight: 500; color: var(--accent); text-decoration: none; }
 .dir-entry-meta-link:hover { text-decoration: underline; }
+.dir-market-card { width: 192px; height: 192px; box-sizing: border-box; padding: 14px 16px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+.dir-market-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.dir-market-card.up { border-color: rgba(34,197,94,0.3); } .dir-market-card.down { border-color: rgba(239,68,68,0.3); }
+.dir-market-card.up::before { background: linear-gradient(90deg,#22c55e,transparent 70%); }
+.dir-market-card.down::before { background: linear-gradient(90deg,#ef4444,transparent 70%); }
+.dir-market-top { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.dir-market-ticker { font-weight: 900; font-size: 1.2rem; color: var(--text); letter-spacing: -0.02em; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dir-market-exchange { font-size: 0.68rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dir-market-price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.dir-market-price-value { font-weight: 800; font-size: 1.05rem; color: var(--text); line-height: 1.1; }
+.dir-market-mcap { font-size: 0.68rem; color: var(--muted); font-weight: 600; }
+.dir-market-warn { font-size: 0.65rem; color: var(--muted); }
+.dir-market-empty { font-size: 0.75rem; color: var(--muted); margin: 0; line-height: 1.4; }
+.dir-market-link { margin-top: auto; font-size: 0.72rem; font-weight: 600; color: var(--accent); text-decoration: none; }
+.dir-market-link:hover { text-decoration: underline; }
+.dir-market-card .market-sparkline { width: 100%; height: 30px; margin: 0; }
+/* On narrow screens the name/tagline take the full row and the squares wrap below. */
+@media (max-width: 640px) {
+  .dir-entry-hero-main { flex: 1 1 100%; }
+}
+/* Two 192px squares plus the gap don't fit a phone; shrink both so they stay side by side. */
+@media (max-width: 480px) {
+  .dir-market-card, .dir-entry-logo, .dir-entry-logo-fallback { width: 150px; height: 150px; }
+  .dir-market-card { padding: 10px 12px; gap: 4px; }
+  .dir-entry-logo-fallback { font-size: 3rem; }
+}
 .dir-entry-body { margin-bottom: var(--space-6); padding: var(--space-5) var(--space-6); background: var(--bg-secondary); border-radius: var(--radius-lg); border: 1px solid var(--border); }
 .dir-entry-section-title { font-size: 1rem; font-weight: 700; color: var(--text); margin: 0 0 var(--space-3) 0; font-family: var(--font-display); }
 .dir-entry-long-desc { font-size: 0.95rem; color: var(--text); line-height: 1.75; margin: 0; }
