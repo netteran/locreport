@@ -35,6 +35,7 @@ export const LOCSTOCK_COMPANIES = [
   { t:'2483.T',    s:'2483',   n:'Honyaku Center Inc.',     ex:'TSE',            co:'JP', cat:'lsp'               },
   { t:'6182.T',    s:'6182',   n:'Metareal Corp.',          ex:'TSE',            co:'JP', cat:'lsp'               },
   { t:'7812.T',    s:'7812',   n:'CRESTEC Inc.',            ex:'TSE',            co:'JP', cat:'lsp'               },
+  { t:'7921.T',    s:'7921',   n:'TAKARA & COMPANY Ltd.',   ex:'TSE',            co:'JP', cat:'lsp'               },
   { t:'300080.KQ', s:'300080', n:'Flitto Inc.',             ex:'KOSDAQ',         co:'KR', cat:'lsp'               },
   { t:'VQS.V',     s:'VQS',    n:'VIQ Solutions Inc.',      ex:'TSX-V',          co:'CA', cat:'lsp'               },
   { t:'ONEI',      s:'ONEI',   n:'OneMeta Inc.',            ex:'OTCQB',          co:'US', cat:'lsp'               },

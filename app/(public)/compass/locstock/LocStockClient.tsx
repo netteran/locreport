@@ -120,7 +120,7 @@ export function LocStockClient({ quotes, updatedAt }: Props) {
       <div className="market-hero">
         <h1>LocStock</h1>
         <p className="market-subtitle">
-          Live equity overview of 38 publicly traded companies with exposure to language services,
+          Live equity overview of 39 publicly traded companies with exposure to language services,
           AI translation, and localization technology across 14 global exchanges.
         </p>
       </div>
