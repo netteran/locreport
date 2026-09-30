@@ -497,6 +497,30 @@ ul.nav-dropdown-menu {
   color: var(--text);
   background: var(--accent-soft);
 }
+.admin-menu-divider {
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border);
+}
+.admin-menu-dropdown button {
+  display: flex;
+  width: 100%;
+  padding: 9px 14px;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--text) 72%, var(--muted));
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.admin-menu-dropdown button:hover {
+  color: var(--text);
+  background: var(--accent-soft);
+}
 
 /* ── Admin Dashboard stats banner ───────────────────────────
    Single-line strip, not full stat cards — this is a quick
