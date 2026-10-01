@@ -844,6 +844,7 @@ a.admin-stats-banner__value--danger:hover { color: #dc2626; }
 .search-inline-icon {
   color: var(--muted);
   flex-shrink: 0;
+  margin-right: 2px; /* breathing room between the glass and the typed text */
 }
 .search-inline-input {
   flex: 1;
