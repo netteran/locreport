@@ -881,6 +881,14 @@ address. On open, focus goes to the dialog itself, **never the email field**: au
 the phone keyboard and shoved the layout. The input is 16px so iOS doesn't zoom on tap, and the overlay
 tracks `visualViewport` so the card stays centred above the keyboard. The button reads **Sign up**.
 
+**Look (2026-10-01).** Two columns on desktop — an illustration panel (`DigestArt` in `DigestPopup.tsx`) and
+the form — stacked on phones with the art as a short banner. The art is markup + CSS only, built from brand
+assets: the icon's square-and-L motif faded behind a tilted mock Friday issue (wordmark, headline bars, a
+sparkline, a chip) and an envelope sealed with `/icon.png`. It is laid out on a fixed 340×400 stage scaled by
+`--art-scale`, so adjust positions there, not per breakpoint. The form side carries the wordmark
+(`logolight.png`/`logodark.png` swapped by theme), the title **Weekly summary!** and the line "Quick roundup
+of the week’s stories and what really mattered, straight to your inbox every Friday."
+
 **Bottom-left launcher.** The same component renders a round envelope button (`.digest-launcher`) fixed in
 the bottom-left corner — the popup's minimised form, mirroring `BackToTop` in the bottom-right. Closing the
 dialog (×, Esc, backdrop) animates it shrinking into the launcher (`MINIMIZE_MS`, offset computed from the
