@@ -1,11 +1,12 @@
 'use client'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState, useRef } from 'react'
 import { ReadingProgress } from '@/components/ReadingProgress'
 import { ADMIN_LINKS } from '@/lib/adminNav'
+import { OPEN_DIGEST_EVENT } from '@/components/DigestPopup'
 
 const NAV_LINKS = [
   { href: '/articles', label: 'All articles' },
@@ -37,6 +38,7 @@ const ADMIN_MENU_KEY = '__admin-menu__'
 
 export function Nav() {
   const router = useRouter()
+  const pathname = usePathname()
   const [isAdmin, setIsAdmin] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
@@ -85,6 +87,28 @@ export function Nav() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  // The mobile menu closes on any navigation, including back/forward.
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [pathname])
+
+  // While the mobile menu is open: Esc closes it and the page behind it
+  // stays put, so a scroll inside the sheet can't drift the article.
+  useEffect(() => {
+    if (!menuOpen) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    const { overflow } = document.body.style
+    const isSheet = window.matchMedia('(max-width: 640px)').matches
+    if (isSheet) document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      if (isSheet) document.body.style.overflow = overflow
+    }
+  }, [menuOpen])
 
   useEffect(() => {
     const mql = window.matchMedia('(hover: hover)')
@@ -165,6 +189,7 @@ export function Nav() {
   }
 
   const allLinks = NAV_LINKS
+  const current = (href: string) => (pathname === href ? 'page' as const : undefined)
 
   return (
     <header className="site-header">
@@ -178,14 +203,18 @@ export function Nav() {
           <button
             className="nav-toggle"
             id="nav-toggle"
-            aria-label="Toggle menu"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
+            aria-controls="site-menu"
             onClick={() => setMenuOpen(v => !v)}
           >
             <span className="hamburger-bar" />
             <span className="hamburger-bar" />
             <span className="hamburger-bar" />
           </button>
+
+          {/* Mobile only: dims the page under the open menu sheet. */}
+          <div className="nav-backdrop" aria-hidden="true" onClick={() => setMenuOpen(false)} />
 
           <ul id="site-menu">
             {allLinks.map(link => (
@@ -195,7 +224,7 @@ export function Nav() {
                   onMouseLeave={scheduleClose}
                 >
                   <div className="nav-dropdown-trigger">
-                    <Link href={link.href} onClick={() => setMenuOpen(false)}>{link.label}</Link>
+                    <Link href={link.href} aria-current={current(link.href)} onClick={() => setMenuOpen(false)}>{link.label}</Link>
                     <button aria-haspopup="true" aria-expanded={openDropdown === link.href} aria-label={`Toggle ${link.label} menu`}>
                       <svg className="nav-dropdown-chevron" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                         <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -208,14 +237,14 @@ export function Nav() {
                   >
                     {link.dropdown.map(child => (
                       <li key={child.href} role="none">
-                        <Link href={child.href} role="menuitem" onClick={() => { setOpenDropdown(null); setMenuOpen(false) }}>{child.label}</Link>
+                        <Link href={child.href} role="menuitem" aria-current={current(child.href)} onClick={() => { setOpenDropdown(null); setMenuOpen(false) }}>{child.label}</Link>
                       </li>
                     ))}
                   </ul>
                 </li>
               ) : (
                 <li key={link.href}>
-                  <Link href={link.href} onClick={() => setMenuOpen(false)}>
+                  <Link href={link.href} aria-current={current(link.href)} onClick={() => setMenuOpen(false)}>
                     {link.label}
                     {'live' in link && link.live && (
                       <span className="nav-live-badge" title="Updated in real-time">
@@ -227,6 +256,19 @@ export function Nav() {
                 </li>
               )
             ))}
+            {/* Mobile sheet only — hidden in the desktop bar. */}
+            <li className="nav-menu-weekly">
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); window.dispatchEvent(new Event(OPEN_DIGEST_EVENT)) }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="3" y="5.5" width="18" height="13" rx="3" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="M4 7.5l8 5.5 8-5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Get The Weekly
+              </button>
+            </li>
           </ul>
         </nav>
 
