@@ -732,10 +732,9 @@ a.admin-stats-banner__value--danger:hover { color: #dc2626; }
 }
 
 .site-nav .nav-menu-weekly, .nav-backdrop { display: none; } /* mobile sheet only — see the 640px block */
-@keyframes nav-sheet-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
-@keyframes nav-sheet-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes nav-sheet-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .site-nav.is-open > #site-menu, .site-nav.is-open .nav-backdrop { animation: none; }
+  .site-nav.is-open > #site-menu { animation: none; }
 }
 
 /* ── Hamburger Toggle ───────────────────────────────────── */
@@ -2498,13 +2497,12 @@ article.page > h1 {
 }
 
 @media (max-width: 640px) {
-  /* ── Mobile header + menu sheet ──
+  /* ── Mobile header + menu dropdown ──
      Header reads logo · search · theme · menu: the hamburger is the last
-     control on the right, where thumbs and convention expect it. The DOM keeps
-     the toggle before its menu (so Tab goes toggle → items); only the visual
-     order changes. The open menu is a full-width sheet hanging off the header
-     over a dimmed page: plain links as full-width rows, each section as a
-     header row plus a two-column grid of tap-sized tiles. */
+     control on the right. The DOM keeps the toggle before its menu (so Tab
+     goes toggle → items); only the visual order changes. The open menu is a
+     compact dropdown card under the hamburger, styled like the Admin menu:
+     plain text rows, section children indented, hairlines between groups. */
   .header-shell { display: flex; align-items: center; gap: var(--space-1); height: 56px; }
   .site-logo { margin-right: auto; }
   .nav-actions { order: 1; }
@@ -2512,92 +2510,75 @@ article.page > h1 {
   .nav-toggle { display: flex; }
   .site-header:has(.site-nav.is-open) { z-index: 60; } /* above the bottom-left Weekly launcher */
 
-  .nav-backdrop {
-    display: none;
-    position: fixed; inset: 56px 0 0 0; z-index: 49;
-    background: rgba(10, 12, 20, 0.36);
-    animation: nav-sheet-fade 0.2s ease both;
-  }
+  /* Invisible tap-catcher: a tap outside the card closes the menu without
+     also hitting whatever link sits underneath. Starts below the header so
+     the hamburger (now an ×) stays tappable. */
+  .nav-backdrop { display: none; position: fixed; inset: 56px 0 0 0; z-index: 49; background: transparent; }
   .site-nav.is-open .nav-backdrop { display: block; }
 
   .site-nav > #site-menu {
     display: none;
-    position: fixed; top: 56px; left: 0; right: 0; z-index: 50;
-    max-height: calc(100dvh - 56px);
+    position: fixed; top: 60px; right: var(--page-gutter); z-index: 50;
+    width: min(240px, calc(100vw - 2 * var(--page-gutter)));
+    max-height: calc(100dvh - 72px);
     overflow-y: auto; overscroll-behavior: contain;
-    flex-direction: column; align-items: stretch; gap: 0;
-    padding: var(--space-1) var(--page-gutter) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+    flex-direction: column; align-items: stretch; gap: 1px;
+    padding: var(--space-1);
     background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.16);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 16px rgba(23, 24, 28, 0.10);
   }
-  .site-nav.is-open > #site-menu { display: flex; animation: nav-sheet-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
-  .site-nav > #site-menu > li { width: 100%; border-bottom: 1px solid var(--border); }
-  .site-nav > #site-menu > li.nav-menu-weekly { border-bottom: 0; }
+  .site-nav.is-open > #site-menu { display: flex; animation: nav-sheet-in 0.15s ease both; }
+  .site-nav > #site-menu > li { width: 100%; }
+  /* A hairline before each section, like the Admin menu's divider. */
+  .site-nav > #site-menu > li.nav-has-dropdown,
+  .site-nav > #site-menu > li.nav-menu-weekly {
+    margin-top: var(--space-1); padding-top: var(--space-1);
+    border-top: 1px solid var(--border);
+  }
 
-  /* Top-level rows: plain links and section headers share one look. */
+  /* Every row: the Admin menu's item look. */
   .site-nav > #site-menu > li > a,
-  .site-nav .nav-dropdown-trigger,
-  .site-nav .nav-dropdown-trigger a {
+  .site-nav .nav-dropdown-trigger a,
+  .site-nav .nav-dropdown-menu a,
+  .site-nav .nav-menu-weekly button {
     display: flex; align-items: center; width: 100%;
-    min-height: 54px; padding: 0;
-    font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em;
+    padding: 9px 14px;
+    font-family: var(--font-ui); font-size: 0.875rem; font-weight: 500; line-height: 1.3;
+    text-align: left; white-space: normal;
     color: var(--text);
-    background: none; border-radius: 0;
+    background: none; border: 0; border-radius: var(--radius-sm);
+    transition: color 0.2s ease, background 0.2s ease;
   }
-  .site-nav .nav-dropdown-trigger { min-height: 0; }
+  .site-nav .nav-dropdown-trigger { display: block; padding: 0; background: none; }
   .site-nav .nav-dropdown-trigger > button { display: none; } /* desktop-only chevron */
-  .site-nav > #site-menu > li > a::after,
-  .site-nav .nav-dropdown-trigger a::after {
-    content: ''; flex: none; margin: 0 4px 0 auto;
-    width: 7px; height: 7px;
-    border-top: 1.6px solid currentColor; border-right: 1.6px solid currentColor;
-    transform: rotate(45deg); opacity: 0.35;
-  }
-  .site-nav > #site-menu > li > a:active,
-  .site-nav .nav-dropdown-trigger a:active { color: var(--accent); }
-  .site-nav > #site-menu > li > a[aria-current="page"],
-  .site-nav .nav-dropdown-trigger a[aria-current="page"] { color: var(--accent); }
   .site-nav .nav-has-dropdown:hover .nav-dropdown-trigger,
-  .site-nav .nav-has-dropdown.is-open .nav-dropdown-trigger,
-  .site-nav a:hover { background: none; }
-  .site-nav .nav-live-badge { margin-left: 8px; }
+  .site-nav .nav-has-dropdown.is-open .nav-dropdown-trigger { background: none; }
+  .site-nav .nav-live-badge { margin-left: 6px; }
 
-  /* Section children: a two-column grid of tiles; an odd last tile spans. */
+  /* Section children: indented, a step quieter. */
   .site-nav ul.nav-dropdown-menu {
-    display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);
+    display: flex; flex-direction: column; gap: 1px;
     position: static; opacity: 1; pointer-events: auto; transform: none;
-    min-width: 0; margin: 0; padding: 0 0 var(--space-4);
+    min-width: 0; margin: 0; padding: 0;
     background: none; border: 0; border-radius: 0; box-shadow: none;
   }
-  .site-nav ul.nav-dropdown-menu > li:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .site-nav .nav-dropdown-menu a {
-    display: flex; align-items: center; width: 100%; height: 100%;
-    min-height: 46px; padding: 10px 14px;
-    font-size: 0.875rem; font-weight: 500; line-height: 1.3; white-space: normal;
-    color: var(--text);
-    /* Mixed from the surface rather than --bg-secondary, which is nearly
-       the sheet's own colour in dark mode. */
-    background: color-mix(in srgb, var(--text) 5%, var(--surface));
-    border: 1px solid transparent; border-radius: var(--radius-md);
-    transition: background 0.15s, border-color 0.15s;
-  }
-  .site-nav .nav-dropdown-menu a:active { background: var(--accent-soft); }
-  .site-nav .nav-dropdown-menu a[aria-current="page"] {
-    color: var(--accent); background: var(--accent-soft);
-    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+    padding-left: 26px;
+    font-weight: 400;
+    color: color-mix(in srgb, var(--text) 72%, var(--muted));
   }
 
-  /* The Weekly, as the sheet's closing call to action. */
-  .site-nav .nav-menu-weekly { display: block; padding-top: var(--space-4); }
-  .nav-menu-weekly button {
-    display: flex; align-items: center; justify-content: center; gap: var(--space-2);
-    width: 100%; height: 48px;
-    font-family: var(--font-body); font-size: 0.95rem; font-weight: 600;
-    color: #fff; background: var(--accent);
-    border: 0; border-radius: var(--radius-lg); cursor: pointer;
-  }
-  .nav-menu-weekly button:active { background: var(--accent-hover); }
+  .site-nav > #site-menu a:hover,
+  .site-nav > #site-menu a:active,
+  .site-nav .nav-menu-weekly button:hover { color: var(--text); background: var(--accent-soft); }
+  .site-nav > #site-menu a[aria-current="page"] { color: var(--accent); font-weight: 600; }
+
+  /* The Weekly: a plain row, the one accent-coloured line in the menu. */
+  .site-nav .nav-menu-weekly { display: block; }
+  .site-nav .nav-menu-weekly button { gap: var(--space-2); color: var(--accent); font-weight: 600; cursor: pointer; }
+  .site-nav .nav-menu-weekly svg { width: 16px; height: 16px; flex: none; }
   h1 { font-size: 1.8rem; }
   article.post h1 { font-size: 2rem; }
   .post-content blockquote { padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5); }

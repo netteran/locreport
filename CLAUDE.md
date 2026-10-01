@@ -46,9 +46,10 @@ components/
   ui/                    — Primitive UI components (Button, Card, Input, Badge, Textarea, Label)
   Nav.tsx                — Site header with dropdown nav + search + theme toggle. ≤640px: logo · search ·
                            theme · hamburger (rightmost, via CSS order — DOM keeps toggle before its menu);
-                           the menu is a full-width sheet over a dimmed page (rows + 2-col section tiles,
-                           current page highlighted, Esc/backdrop/route change close it, body scroll
-                           locked, ends with a Get The Weekly button that opens DigestPopup)
+                           the menu is a compact right-aligned dropdown card styled like the Admin menu
+                           (plain text rows, section children indented, hairlines between groups, current
+                           page highlighted; Esc/outside tap/route change close it, body scroll locked;
+                           last row "Get The Weekly" opens DigestPopup)
   DigestPopup.tsx        — The site's ONLY digest signup. Modal rendered once from
                            (public)/layout.tsx; auto-opens once per visitor, reopenable forever
                            from the footer trigger or the bottom-left launcher it keeps docked
