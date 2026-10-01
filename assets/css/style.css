@@ -731,6 +731,13 @@ a.admin-stats-banner__value--danger:hover { color: #dc2626; }
   .admin-action__panel-actions > * { flex: 1 1 auto; justify-content: center; min-height: 36px; }
 }
 
+.site-nav .nav-menu-weekly, .nav-backdrop { display: none; } /* mobile sheet only — see the 640px block */
+@keyframes nav-sheet-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes nav-sheet-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .site-nav.is-open > #site-menu, .site-nav.is-open .nav-backdrop { animation: none; }
+}
+
 /* ── Hamburger Toggle ───────────────────────────────────── */
 .nav-toggle {
   display: none;
@@ -2491,77 +2498,106 @@ article.page > h1 {
 }
 
 @media (max-width: 640px) {
+  /* ── Mobile header + menu sheet ──
+     Header reads logo · search · theme · menu: the hamburger is the last
+     control on the right, where thumbs and convention expect it. The DOM keeps
+     the toggle before its menu (so Tab goes toggle → items); only the visual
+     order changes. The open menu is a full-width sheet hanging off the header
+     over a dimmed page: plain links as full-width rows, each section as a
+     header row plus a two-column grid of tap-sized tiles. */
+  .header-shell { display: flex; align-items: center; gap: var(--space-1); height: 56px; }
+  .site-logo { margin-right: auto; }
+  .nav-actions { order: 1; }
+  .site-nav { order: 2; position: static; justify-content: flex-end; }
   .nav-toggle { display: flex; }
-  .header-shell { height: 56px; grid-template-columns: auto 1fr auto; }
-  .site-nav { position: static; justify-content: flex-start; }
+  .site-header:has(.site-nav.is-open) { z-index: 60; } /* above the bottom-left Weekly launcher */
+
+  .nav-backdrop {
+    display: none;
+    position: fixed; inset: 56px 0 0 0; z-index: 49;
+    background: rgba(10, 12, 20, 0.36);
+    animation: nav-sheet-fade 0.2s ease both;
+  }
+  .site-nav.is-open .nav-backdrop { display: block; }
+
   .site-nav > #site-menu {
     display: none;
-    position: fixed;
-    top: 64px;
-    left: var(--page-gutter);
-    right: var(--page-gutter);
-    flex-direction: column;
-    align-items: stretch;
+    position: fixed; top: 56px; left: 0; right: 0; z-index: 50;
+    max-height: calc(100dvh - 56px);
+    overflow-y: auto; overscroll-behavior: contain;
+    flex-direction: column; align-items: stretch; gap: 0;
+    padding: var(--space-1) var(--page-gutter) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
-    padding: var(--space-3) var(--space-3) var(--space-4);
-    z-index: 50;
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.16);
   }
-  .site-nav.is-open > #site-menu { display: flex; animation: fadeInDown 0.2s ease; }
-  .site-nav li { width: 100%; }
-  .site-nav a { display: flex; align-items: center; padding: var(--space-2) var(--space-2); font-size: 0.9rem; border-radius: var(--radius-sm); }
-  .nav-dropdown-chevron { display: none; }
+  .site-nav.is-open > #site-menu { display: flex; animation: nav-sheet-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+  .site-nav > #site-menu > li { width: 100%; border-bottom: 1px solid var(--border); }
+  .site-nav > #site-menu > li.nav-menu-weekly { border-bottom: 0; }
 
-  /* Bold top-level nav links */
-  .site-nav > #site-menu > li > a {
-    font-weight: 600;
-    font-size: 0.95rem;
+  /* Top-level rows: plain links and section headers share one look. */
+  .site-nav > #site-menu > li > a,
+  .site-nav .nav-dropdown-trigger,
+  .site-nav .nav-dropdown-trigger a {
+    display: flex; align-items: center; width: 100%;
+    min-height: 54px; padding: 0;
+    font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em;
     color: var(--text);
-    padding: var(--space-2) var(--space-2);
+    background: none; border-radius: 0;
+  }
+  .site-nav .nav-dropdown-trigger { min-height: 0; }
+  .site-nav .nav-dropdown-trigger > button { display: none; } /* desktop-only chevron */
+  .site-nav > #site-menu > li > a::after,
+  .site-nav .nav-dropdown-trigger a::after {
+    content: ''; flex: none; margin: 0 4px 0 auto;
+    width: 7px; height: 7px;
+    border-top: 1.6px solid currentColor; border-right: 1.6px solid currentColor;
+    transform: rotate(45deg); opacity: 0.35;
+  }
+  .site-nav > #site-menu > li > a:active,
+  .site-nav .nav-dropdown-trigger a:active { color: var(--accent); }
+  .site-nav > #site-menu > li > a[aria-current="page"],
+  .site-nav .nav-dropdown-trigger a[aria-current="page"] { color: var(--accent); }
+  .site-nav .nav-has-dropdown:hover .nav-dropdown-trigger,
+  .site-nav .nav-has-dropdown.is-open .nav-dropdown-trigger,
+  .site-nav a:hover { background: none; }
+  .site-nav .nav-live-badge { margin-left: 8px; }
+
+  /* Section children: a two-column grid of tiles; an odd last tile spans. */
+  .site-nav ul.nav-dropdown-menu {
+    display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);
+    position: static; opacity: 1; pointer-events: auto; transform: none;
+    min-width: 0; margin: 0; padding: 0 0 var(--space-4);
+    background: none; border: 0; border-radius: 0; box-shadow: none;
+  }
+  .site-nav ul.nav-dropdown-menu > li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .site-nav .nav-dropdown-menu a {
+    display: flex; align-items: center; width: 100%; height: 100%;
+    min-height: 46px; padding: 10px 14px;
+    font-size: 0.875rem; font-weight: 500; line-height: 1.3; white-space: normal;
+    color: var(--text);
+    /* Mixed from the surface rather than --bg-secondary, which is nearly
+       the sheet's own colour in dark mode. */
+    background: color-mix(in srgb, var(--text) 5%, var(--surface));
+    border: 1px solid transparent; border-radius: var(--radius-md);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .site-nav .nav-dropdown-menu a:active { background: var(--accent-soft); }
+  .site-nav .nav-dropdown-menu a[aria-current="page"] {
+    color: var(--accent); background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   }
 
-  /* Sub-menu: indented with accent stripe and dash prefix */
-  .nav-dropdown-menu {
-    display: flex;
-    flex-direction: column;
-    position: static;
-    opacity: 1;
-    pointer-events: auto;
-    transform: none;
-    box-shadow: none;
-    border: none;
-    border-left: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
-    border-radius: 0;
-    background: transparent;
-    padding: var(--space-1) 0 var(--space-2);
-    min-width: auto;
-    margin: 0 0 var(--space-1) var(--space-3);
-    gap: 0;
+  /* The Weekly, as the sheet's closing call to action. */
+  .site-nav .nav-menu-weekly { display: block; padding-top: var(--space-4); }
+  .nav-menu-weekly button {
+    display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+    width: 100%; height: 48px;
+    font-family: var(--font-body); font-size: 0.95rem; font-weight: 600;
+    color: #fff; background: var(--accent);
+    border: 0; border-radius: var(--radius-lg); cursor: pointer;
   }
-  .nav-dropdown-menu a {
-    padding: var(--space-1) var(--space-3);
-    font-size: 0.85rem;
-    font-weight: 400;
-    color: var(--muted);
-    border-radius: var(--radius-sm);
-    white-space: normal;
-    line-height: 1.4;
-    overflow-wrap: anywhere;
-    gap: var(--space-2);
-  }
-  .nav-dropdown-menu a::before {
-    content: "–";
-    color: var(--accent-light);
-    flex-shrink: 0;
-    font-size: 0.9em;
-  }
-  .nav-dropdown-menu a:hover,
-  .nav-dropdown-menu a.active {
-    background: var(--accent-soft);
-    color: var(--text);
-  }
+  .nav-menu-weekly button:active { background: var(--accent-hover); }
   h1 { font-size: 1.8rem; }
   article.post h1 { font-size: 2rem; }
   .post-content blockquote { padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5); }
@@ -2572,7 +2608,8 @@ article.page > h1 {
   .footer-bottom { flex-direction: column; gap: var(--space-3); text-align: center; }
   .cta-inner { padding: var(--space-8) var(--space-5); }
   .cta-actions { flex-direction: column; align-items: center; }
-  .search-inline.is-expanded .search-inline-field { width: 200px; }
+  /* Leaves room for logo · theme · menu so the hamburger never gets pushed off-screen. */
+  .search-inline.is-expanded .search-inline-field { width: min(200px, calc(100vw - 2 * var(--page-gutter) - 220px)); }
   .search-inline-dropdown { width: calc(100vw - 2 * var(--page-gutter)); right: calc(-1 * var(--space-3)); }
   .search-inline-dropdown-footer-hint { display: none; }
   .signal-accordion__summary { flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) var(--space-4); }
@@ -6103,8 +6140,95 @@ kbd, code {
   from { opacity: 0; transform: translateY(16px) scale(0.96); }
   to { opacity: 1; transform: none; }
 }
+/* Closing: the dialog shrinks into the launcher. --digest-dx/-dy are the
+   offset from the dialog's centre to the launcher's, set by DigestPopup;
+   the duration matches MINIMIZE_MS there. */
+.digest-popup__overlay.is-minimizing { animation: digest-popup-fade-out 0.38s ease forwards; pointer-events: none; }
+.digest-popup.is-minimizing { animation: digest-popup-minimize 0.38s cubic-bezier(0.55, 0, 0.7, 0.2) forwards; }
+@keyframes digest-popup-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes digest-popup-minimize {
+  from { opacity: 1; transform: none; }
+  70% { opacity: 0.9; }
+  to { opacity: 0; transform: translate(var(--digest-dx, 0), var(--digest-dy, 0)) scale(0.08); border-radius: 50%; }
+}
+
+/* ── Digest launcher — the popup, minimised to the bottom-left corner ──────
+   Always present on public pages until the visitor subscribes. A round
+   envelope that unfolds into "Get The Weekly" on hover/focus, and for a few
+   seconds after the dialog lands in it (.is-peeking). Mirrors BackToTop on
+   the opposite corner: same offset and stacking level. */
+.digest-launcher {
+  position: fixed; left: 1.75rem; bottom: 1.75rem; z-index: 50;
+  display: inline-flex; align-items: center;
+  height: 48px; padding: 0 4px; max-width: calc(100vw - 2rem);
+  font-family: var(--font-body); font-size: 0.86rem; color: var(--text);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 999px; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.12);
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+  animation: digest-launcher-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.digest-launcher:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 12px 30px rgba(0, 0, 0, 0.16);
+}
+.digest-launcher:active { transform: scale(0.97); }
+.digest-launcher:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--accent), 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.digest-launcher__icon {
+  flex: none; position: relative;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  background: linear-gradient(160deg, var(--accent-light), var(--accent));
+  border-radius: 50%;
+}
+/* A soft halo that breathes twice when the dialog lands, then stops. */
+.digest-launcher__icon::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  opacity: 0;
+}
+.digest-launcher.is-peeking .digest-launcher__icon::after { animation: digest-launcher-halo 1.4s ease-out 2; }
+.digest-launcher.is-peeking .digest-launcher__icon { animation: digest-launcher-land 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+.digest-launcher__label {
+  display: inline-block; overflow: hidden; white-space: nowrap;
+  max-width: 0; opacity: 0;
+  transition: max-width 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.2s, padding 0.35s;
+}
+.digest-launcher__label strong { font-weight: 600; color: var(--accent); }
+.digest-launcher:hover .digest-launcher__label,
+.digest-launcher:focus-visible .digest-launcher__label,
+.digest-launcher.is-peeking .digest-launcher__label {
+  max-width: 12em; opacity: 1; padding: 0 14px 0 10px;
+}
+@media (max-width: 640px) {
+  .digest-launcher { left: 1rem; bottom: 1rem; height: 44px; }
+  .digest-launcher__icon { width: 34px; height: 34px; }
+  .digest-launcher__icon svg { width: 18px; height: 18px; }
+}
+@media print { .digest-launcher { display: none; } }
+@keyframes digest-launcher-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.85); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes digest-launcher-land {
+  0% { transform: scale(0.7); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@keyframes digest-launcher-halo {
+  0% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+  100% { opacity: 0; box-shadow: 0 0 0 14px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .digest-popup__overlay, .digest-popup { animation: none; }
+  .digest-popup__overlay, .digest-popup,
+  .digest-launcher, .digest-launcher__icon, .digest-launcher__icon::after { animation: none !important; }
+  .digest-launcher, .digest-launcher__label { transition: none; }
 }
 
 /* ── Subscribe status + manage pages ── */
