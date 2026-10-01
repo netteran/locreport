@@ -872,6 +872,14 @@ Auto-open rules (all tunable via the constants at the top of the file):
 `DISMISS_DAYS` (60), `subscribed` suppresses it permanently. Every storage read/write is wrapped in
 try/catch — private windows and blocked site data throw, and the page must still render.
 
+**While open, the page is frozen (mobile stability).** The overlay is portalled into `<body>`; every other
+body child gets `inert`, the body is pinned with `position: fixed` at its scroll offset (plain
+`overflow: hidden` doesn't stop iOS) and restored exactly on close, and the backdrop takes no gestures.
+Clicking the backdrop does **not** close it — only ×, Esc and Done do — so a stray tap can't lose a typed
+address. On open, focus goes to the dialog itself, **never the email field**: auto-focusing the input popped
+the phone keyboard and shoved the layout. The input is 16px so iOS doesn't zoom on tap, and the overlay
+tracks `visualViewport` so the card stays centred above the keyboard. The button reads **Sign up**.
+
 **Bottom-left launcher.** The same component renders a round envelope button (`.digest-launcher`) fixed in
 the bottom-left corner — the popup's minimised form, mirroring `BackToTop` in the bottom-right. Closing the
 dialog (×, Esc, backdrop) animates it shrinking into the launcher (`MINIMIZE_MS`, offset computed from the
