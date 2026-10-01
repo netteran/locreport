@@ -6103,8 +6103,95 @@ kbd, code {
   from { opacity: 0; transform: translateY(16px) scale(0.96); }
   to { opacity: 1; transform: none; }
 }
+/* Closing: the dialog shrinks into the launcher. --digest-dx/-dy are the
+   offset from the dialog's centre to the launcher's, set by DigestPopup;
+   the duration matches MINIMIZE_MS there. */
+.digest-popup__overlay.is-minimizing { animation: digest-popup-fade-out 0.38s ease forwards; pointer-events: none; }
+.digest-popup.is-minimizing { animation: digest-popup-minimize 0.38s cubic-bezier(0.55, 0, 0.7, 0.2) forwards; }
+@keyframes digest-popup-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes digest-popup-minimize {
+  from { opacity: 1; transform: none; }
+  70% { opacity: 0.9; }
+  to { opacity: 0; transform: translate(var(--digest-dx, 0), var(--digest-dy, 0)) scale(0.08); border-radius: 50%; }
+}
+
+/* ── Digest launcher — the popup, minimised to the bottom-left corner ──────
+   Always present on public pages until the visitor subscribes. A round
+   envelope that unfolds into "Get The Weekly" on hover/focus, and for a few
+   seconds after the dialog lands in it (.is-peeking). Mirrors BackToTop on
+   the opposite corner: same offset and stacking level. */
+.digest-launcher {
+  position: fixed; left: 1.75rem; bottom: 1.75rem; z-index: 50;
+  display: inline-flex; align-items: center;
+  height: 48px; padding: 0 4px; max-width: calc(100vw - 2rem);
+  font-family: var(--font-body); font-size: 0.86rem; color: var(--text);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 999px; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.12);
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+  animation: digest-launcher-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.digest-launcher:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 12px 30px rgba(0, 0, 0, 0.16);
+}
+.digest-launcher:active { transform: scale(0.97); }
+.digest-launcher:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--accent), 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.digest-launcher__icon {
+  flex: none; position: relative;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  background: linear-gradient(160deg, var(--accent-light), var(--accent));
+  border-radius: 50%;
+}
+/* A soft halo that breathes twice when the dialog lands, then stops. */
+.digest-launcher__icon::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  opacity: 0;
+}
+.digest-launcher.is-peeking .digest-launcher__icon::after { animation: digest-launcher-halo 1.4s ease-out 2; }
+.digest-launcher.is-peeking .digest-launcher__icon { animation: digest-launcher-land 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+.digest-launcher__label {
+  display: inline-block; overflow: hidden; white-space: nowrap;
+  max-width: 0; opacity: 0;
+  transition: max-width 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.2s, padding 0.35s;
+}
+.digest-launcher__label strong { font-weight: 600; color: var(--accent); }
+.digest-launcher:hover .digest-launcher__label,
+.digest-launcher:focus-visible .digest-launcher__label,
+.digest-launcher.is-peeking .digest-launcher__label {
+  max-width: 12em; opacity: 1; padding: 0 14px 0 10px;
+}
+@media (max-width: 640px) {
+  .digest-launcher { left: 1rem; bottom: 1rem; height: 44px; }
+  .digest-launcher__icon { width: 34px; height: 34px; }
+  .digest-launcher__icon svg { width: 18px; height: 18px; }
+}
+@media print { .digest-launcher { display: none; } }
+@keyframes digest-launcher-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.85); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes digest-launcher-land {
+  0% { transform: scale(0.7); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@keyframes digest-launcher-halo {
+  0% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+  100% { opacity: 0; box-shadow: 0 0 0 14px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .digest-popup__overlay, .digest-popup { animation: none; }
+  .digest-popup__overlay, .digest-popup,
+  .digest-launcher, .digest-launcher__icon, .digest-launcher__icon::after { animation: none !important; }
+  .digest-launcher, .digest-launcher__label { transition: none; }
 }
 
 /* ── Subscribe status + manage pages ── */

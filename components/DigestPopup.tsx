@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 
 // The site's only digest signup. It surfaces itself once per visitor — after
-// they've shown some engagement — and can be reopened from the footer link
-// (components/DigestPopupTrigger.tsx) at any time.
+// they've shown some engagement — and can be reopened at any time from the
+// footer link (components/DigestPopupTrigger.tsx) or from the launcher it
+// keeps docked in the bottom-left corner. Closing the dialog visibly shrinks
+// it into that launcher, so the visitor sees where it went.
 export const OPEN_DIGEST_EVENT = 'locreport:digest-open'
 
 const STORE_KEY = 'locreport.digest'
@@ -64,6 +66,21 @@ function bumpPageViews(): number {
   }
 }
 
+/** Length of the shrink-into-the-corner animation; keep in step with style.css. */
+const MINIMIZE_MS = 380
+/** How long the launcher shows its label after the dialog lands in it. */
+const PEEK_MS = 4000
+/** Pages where the launcher would be noise: the admin desk and its sign-in. */
+const NO_LAUNCHER = /^\/(admin|login)(\/|$)/
+
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  } catch {
+    return false
+  }
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function DigestPopup() {
@@ -72,24 +89,65 @@ export function DigestPopup() {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [message, setMessage] = useState('')
+  const [minimizing, setMinimizing] = useState(false)
+  // The launcher is client-only: whether to show it depends on localStorage.
+  const [mounted, setMounted] = useState(false)
+  const [subscribed, setSubscribed] = useState(false)
+  const [peek, setPeek] = useState(false)
 
   const dialogRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const restoreFocusRef = useRef<HTMLElement | null>(null)
+  const launcherRef = useRef<HTMLButtonElement>(null)
+  const minimizingRef = useRef(false)
   // Auto-open fires at most once per page load, whichever trigger wins.
   const armedRef = useRef(false)
 
   const close = useCallback(() => {
-    setOpen(false)
+    if (minimizingRef.current) return
     // Only a dismissal needs recording; a successful signup already stored
     // 'subscribed', and overwriting it would re-arm the popup in 60 days.
     if (readStore()?.status !== 'subscribed') writeStore('dismissed')
+
+    const launcher = launcherRef.current
+    const dialog = dialogRef.current
+    if (!launcher || !dialog || prefersReducedMotion()) {
+      setOpen(false)
+      return
+    }
+
+    // Shrink the dialog into the launcher: aim its centre at the launcher's.
+    const from = dialog.getBoundingClientRect()
+    const to = launcher.getBoundingClientRect()
+    dialog.style.setProperty('--digest-dx', `${to.left + to.width / 2 - (from.left + from.width / 2)}px`)
+    dialog.style.setProperty('--digest-dy', `${to.top + to.height / 2 - (from.top + from.height / 2)}px`)
+    minimizingRef.current = true
+    setMinimizing(true)
+    window.setTimeout(() => {
+      minimizingRef.current = false
+      setMinimizing(false)
+      setOpen(false)
+      setPeek(true)
+    }, MINIMIZE_MS)
   }, [])
+
+  useEffect(() => {
+    setMounted(true)
+    setSubscribed(readStore()?.status === 'subscribed')
+  }, [])
+
+  // After landing, the launcher spells out what it is for a few seconds.
+  useEffect(() => {
+    if (!peek) return
+    const t = window.setTimeout(() => setPeek(false), PEEK_MS)
+    return () => window.clearTimeout(t)
+  }, [peek])
 
   const show = useCallback(() => {
     if (armedRef.current) return
     armedRef.current = true
     restoreFocusRef.current = document.activeElement as HTMLElement | null
+    setPeek(false)
     setOpen(true)
   }, [])
 
@@ -170,7 +228,11 @@ export function DigestPopup() {
     return () => {
       document.removeEventListener('keydown', onKeyDown)
       document.body.style.overflow = overflow
-      restoreFocusRef.current?.focus?.()
+      // An auto-open had nothing focused; hand focus to the launcher the
+      // dialog just went into rather than dropping it on <body>.
+      const back = restoreFocusRef.current
+      if (back && back !== document.body && back.isConnected) back.focus?.()
+      else launcherRef.current?.focus({ preventScroll: true })
     }
   }, [open, close])
 
@@ -200,21 +262,20 @@ export function DigestPopup() {
       setStatus('sent')
       setEmail('')
       writeStore('subscribed')
+      setSubscribed(true)
     } catch {
       setMessage('Something went wrong — please try again.')
       setStatus('error')
     }
   }
 
-  if (!open) return null
-
-  return (
+  const dialogEl = open && (
     <div
-      className="digest-popup__overlay"
+      className={`digest-popup__overlay${minimizing ? ' is-minimizing' : ''}`}
       onMouseDown={e => { if (e.target === e.currentTarget) close() }}
     >
       <div
-        className="digest-popup"
+        className={`digest-popup${minimizing ? ' is-minimizing' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="digest-popup-title"
@@ -286,5 +347,33 @@ export function DigestPopup() {
         )}
       </div>
     </div>
+  )
+
+  const showLauncher = mounted && !subscribed && !NO_LAUNCHER.test(pathname ?? '')
+
+  return (
+    <>
+      {showLauncher && (
+        <button
+          ref={launcherRef}
+          type="button"
+          className={`digest-launcher${peek ? ' is-peeking' : ''}`}
+          onClick={() => { armedRef.current = false; show() }}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          <span className="digest-launcher__icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="5.5" width="18" height="13" rx="3" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M4 7.5l8 5.5 8-5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span className="digest-launcher__label">
+            Get <strong>The Weekly</strong>
+          </span>
+        </button>
+      )}
+      {dialogEl}
+    </>
   )
 }

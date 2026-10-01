@@ -47,7 +47,8 @@ components/
   Nav.tsx                — Site header with dropdown nav + search + theme toggle
   DigestPopup.tsx        — The site's ONLY digest signup. Modal rendered once from
                            (public)/layout.tsx; auto-opens once per visitor, reopenable forever
-                           from the footer trigger. See Digest Signup below
+                           from the footer trigger or the bottom-left launcher it keeps docked
+                           (closing shrinks the modal into it). See Digest Signup below
   DigestPopupTrigger.tsx — Footer button that reopens DigestPopup via a window event
   SignalSparkline.tsx    — Tiny weekly-volume area chart (signals index/detail + MomentumStrip; Recharts, client)
   MomentumStrip.tsx      — Homepage strip: 4 signals by coverage momentum + sparklines
@@ -866,6 +867,15 @@ Auto-open rules (all tunable via the constants at the top of the file):
 `localStorage['locreport.digest']` holds `{status, at}`: `dismissed` suppresses the auto-open for
 `DISMISS_DAYS` (60), `subscribed` suppresses it permanently. Every storage read/write is wrapped in
 try/catch — private windows and blocked site data throw, and the page must still render.
+
+**Bottom-left launcher.** The same component renders a round envelope button (`.digest-launcher`) fixed in
+the bottom-left corner — the popup's minimised form, mirroring `BackToTop` in the bottom-right. Closing the
+dialog (×, Esc, backdrop) animates it shrinking into the launcher (`MINIMIZE_MS`, offset computed from the
+two elements' rects; skipped under `prefers-reduced-motion`), after which the launcher shows its
+"Get The Weekly" label for `PEEK_MS` and focus lands on it. The label also unfolds on hover/keyboard focus.
+Clicking it opens the dialog, bypassing suppression like the footer trigger. It is client-only (mounted after
+reading `localStorage`), hidden once the visitor has subscribed, and hidden on `/admin` and `/login`. This is
+a button into the popup, not a second signup form.
 
 The footer trigger dispatches the `locreport:digest-open` window event, which **bypasses every
 suppression rule** — the visitor asked for it. That event is the supported way to open the popup from
