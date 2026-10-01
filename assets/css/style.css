@@ -6027,14 +6027,12 @@ kbd, code {
 }
 .digest-popup {
   position: relative;
-  width: 100%; max-width: 400px; max-height: 100%;
+  width: 100%; max-width: 760px; max-height: 100%;
   overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
-  padding: 44px 36px 28px;
-  text-align: center;
-  /* A gentle accent wash fading into the plain surface. */
-  background:
-    radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--accent) 11%, transparent) 0%, transparent 70%),
-    var(--surface);
+  display: grid; grid-template-columns: 330px 1fr;
+  padding: 0;
+  text-align: left;
+  background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 24px;
   box-shadow:
@@ -6043,9 +6041,18 @@ kbd, code {
     0 40px 80px rgba(0, 0, 0, 0.12);
   animation: digest-popup-rise 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
 }
-.digest-popup:focus { outline: none; } /* focused on open only to keep focus inside, not to show */
+.digest-popup:focus { outline: none; }
+.digest-popup__body {
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 48px 40px 32px;
+}
+.digest-popup__logo { display: block; width: 116px; margin: 0 0 22px; }
+.digest-logo img { display: block; width: 100%; height: auto; }
+.digest-logo__dark { display: none !important; }
+[data-theme="dark"] .digest-logo__light { display: none !important; }
+[data-theme="dark"] .digest-logo__dark { display: block !important; } /* focused on open only to keep focus inside, not to show */
 .digest-popup__close {
-  position: absolute; top: 14px; right: 14px;
+  position: absolute; top: 14px; right: 14px; z-index: 2;
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
   color: var(--muted);
@@ -6068,20 +6075,20 @@ kbd, code {
   color: var(--accent); margin: 0 0 6px;
 }
 .digest-popup__title {
-  font-family: var(--font-display); font-size: 1.45rem; font-weight: 600;
-  letter-spacing: -0.02em; line-height: 1.2; margin: 0 auto 10px;
-  max-width: 17em; text-wrap: balance;
+  font-family: var(--font-display); font-size: 1.9rem; font-weight: 700;
+  letter-spacing: -0.03em; line-height: 1.1; margin: 0 0 12px;
+  text-wrap: balance;
 }
 .digest-popup__text {
-  font-size: 0.92rem; line-height: 1.55; color: var(--muted);
-  margin: 0 auto 24px; max-width: 30em; text-wrap: pretty;
+  font-size: 0.95rem; line-height: 1.55; color: var(--muted);
+  margin: 0 0 26px; max-width: 30em; text-wrap: pretty;
 }
 .digest-popup__form { display: flex; flex-direction: column; gap: 10px; }
 .digest-popup__input {
   width: 100%; height: 48px; padding: 0 18px;
   /* 16px exactly: anything smaller makes iOS Safari zoom the page when the
      field is tapped, which wrecks the layout. */
-  font-size: 16px; font-family: var(--font-body); color: var(--text); text-align: center;
+  font-size: 16px; font-family: var(--font-body); color: var(--text); text-align: left;
   background: color-mix(in srgb, var(--text) 4%, var(--surface));
   border: 1px solid transparent; border-radius: 14px;
   outline: none; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
@@ -6110,9 +6117,111 @@ kbd, code {
   font-size: 0.75rem; color: var(--muted); margin: 16px 0 0;
 }
 .digest-popup__note span { margin: 0 0.4em; opacity: 0.6; }
-@media (max-width: 480px) {
-  .digest-popup { padding: 40px 22px 24px; border-radius: 20px; }
-  .digest-popup__title { font-size: 1.3rem; }
+.digest-popup__icon { margin: 0 0 16px; }
+
+/* ── Popup illustration (DigestArt) ──
+   Everything is laid out on a fixed 340×400 stage, centred in the panel and
+   scaled with --art-scale, so the composition stays intact at any size. */
+.digest-art {
+  position: relative; overflow: hidden; min-height: 400px;
+  background:
+    radial-gradient(90% 70% at 30% 20%, color-mix(in srgb, #83A0FA 38%, transparent), transparent 70%),
+    linear-gradient(160deg, #EEF1FE 0%, #DCE3FD 100%);
+}
+[data-theme="dark"] .digest-art {
+  background:
+    radial-gradient(90% 70% at 30% 20%, rgba(53, 80, 245, 0.30), transparent 70%),
+    linear-gradient(160deg, #1B2042 0%, #11142A 100%);
+}
+.digest-art__stage {
+  position: absolute; left: 50%; top: 50%;
+  width: 340px; height: 400px;
+  transform: translate(-50%, -50%) scale(var(--art-scale, 1));
+}
+/* The icon itself, blown up and faded behind everything: the solid square
+   with the light L hanging off its bottom-right corner. */
+.digest-art__sq { position: absolute; display: block; border-radius: 4px; }
+.digest-art__sq--a { left: 22px; top: 30px; width: 128px; height: 128px; background: #3550F5; opacity: 0.14; }
+.digest-art__sq--b {
+  left: 150px; top: 158px; width: 132px; height: 132px; background: #83A0FA; opacity: 0.32;
+  clip-path: polygon(0 0, 100% 0, 100% 50%, 50% 50%, 50% 100%, 0 100%);
+}
+[data-theme="dark"] .digest-art__sq--a { opacity: 0.32; }
+[data-theme="dark"] .digest-art__sq--b { opacity: 0.22; }
+.digest-art__spark { position: absolute; color: #3550F5; line-height: 1; opacity: 0.55; }
+.digest-art__spark--1 { left: 40px; top: 300px; font-size: 18px; }
+.digest-art__spark--2 { right: 46px; top: 56px; font-size: 14px; }
+.digest-art__spark--3 { left: 268px; top: 118px; font-size: 10px; opacity: 0.4; }
+[data-theme="dark"] .digest-art__spark { color: #A2ADEF; }
+
+/* A Friday issue, tilted on the desk. */
+.digest-art__issue {
+  position: absolute; left: 62px; top: 58px; width: 186px; padding: 16px 16px 18px;
+  display: flex; flex-direction: column; gap: 7px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(28, 40, 120, 0.18), 0 2px 6px rgba(0, 0, 0, 0.06);
+  transform: rotate(-6deg);
+}
+.digest-art__issue-logo { width: 84px; margin-bottom: 4px; }
+.digest-art__kicker {
+  font-family: var(--font-mono); font-size: 8.5px; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #3550F5; margin-bottom: 2px;
+}
+[data-theme="dark"] .digest-art__kicker { color: #A2ADEF; }
+.digest-art__line { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--text) 12%, transparent); }
+.digest-art__line--strong { height: 8px; background: color-mix(in srgb, var(--text) 70%, transparent); }
+.digest-art__chart { width: 100%; height: 44px; margin: 6px 0 4px; overflow: visible; }
+.digest-art__chart-area { fill: color-mix(in srgb, #3550F5 14%, transparent); }
+.digest-art__chart-line { fill: none; stroke: #3550F5; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+[data-theme="dark"] .digest-art__chart-line { stroke: #8A9BF2; }
+.digest-art__chip {
+  align-self: flex-start; margin-top: 6px; padding: 3px 9px;
+  font-size: 9.5px; font-weight: 600; color: #3550F5;
+  background: color-mix(in srgb, #3550F5 10%, transparent); border-radius: 999px;
+}
+[data-theme="dark"] .digest-art__chip { color: #A2ADEF; background: rgba(162, 173, 239, 0.14); }
+
+/* The envelope flying in with the icon as its seal. */
+.digest-art__flight {
+  position: absolute; left: 120px; top: 258px;
+  display: flex; align-items: center; gap: 4px;
+  animation: digest-art-float 4.5s ease-in-out infinite;
+}
+.digest-art__speed { width: 52px; height: 44px; fill: none; stroke: #3550F5; stroke-width: 2.4; stroke-linecap: round; opacity: 0.45; }
+[data-theme="dark"] .digest-art__speed { stroke: #8A9BF2; }
+.digest-art__envelope { position: relative; width: 132px; height: 88px; transform: rotate(8deg); filter: drop-shadow(0 14px 22px rgba(28, 40, 120, 0.25)); }
+.digest-art__envelope svg { width: 100%; height: 100%; display: block; }
+.digest-art__env-body { fill: #fff; stroke: #2C3CB8; stroke-width: 2.4; }
+.digest-art__env-flap { fill: #EEF1FE; stroke: #2C3CB8; stroke-width: 2.4; stroke-linejoin: round; }
+.digest-art__env-fold { fill: none; stroke: #2C3CB8; stroke-width: 2; stroke-linecap: round; opacity: 0.5; }
+.digest-art__seal {
+  position: absolute; left: 50%; top: 52%; width: 34px; height: 34px;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center; justify-content: center;
+  background: #fff; border: 2px solid #2C3CB8; border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(28, 40, 120, 0.25);
+}
+.digest-art__seal img { width: 20px; height: 20px; display: block; }
+@keyframes digest-art-float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(6px, -8px); }
+}
+@media (prefers-reduced-motion: reduce) { .digest-art__flight { animation: none; } }
+
+/* Phones: the art becomes a short banner above the form. */
+@media (max-width: 640px) {
+  .digest-popup { grid-template-columns: 1fr; max-width: 420px; border-radius: 20px; }
+  .digest-art { min-height: 0; height: 168px; --art-scale: 0.56; }
+  .digest-art__stage { top: 52%; }
+  .digest-popup__body { padding: 22px 22px 22px; text-align: center; align-items: stretch; }
+  .digest-popup__logo { display: none; } /* the issue card in the banner already carries it */
+  .digest-popup__title { font-size: 1.5rem; }
+  .digest-popup__text { margin: 0 auto 20px; font-size: 0.92rem; }
+  .digest-popup__input { text-align: center; }
+  .digest-popup__icon { margin: 0 auto 14px; }
+  .digest-popup__close { background: color-mix(in srgb, var(--surface) 85%, transparent); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
 }
 .footer-digest-link {
   /* Block + fit-content so the social icons that follow it in the footer

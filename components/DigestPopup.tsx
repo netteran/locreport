@@ -351,6 +351,9 @@ export function DigestPopup() {
           </svg>
         </button>
 
+        <DigestArt />
+
+        <div className="digest-popup__body">
         {status === 'sent' && (
           <div className="digest-popup__icon" aria-hidden="true">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
@@ -369,13 +372,13 @@ export function DigestPopup() {
           </>
         ) : (
           <>
-            <p className="digest-popup__eyebrow">The Weekly</p>
+            <BrandLogo className="digest-popup__logo" />
             <h2 className="digest-popup__title" id="digest-popup-title">
-              Curious about where translation &amp; AI are heading?
+              Weekly summary!
             </h2>
             <p className="digest-popup__text">
-              We send a quick 5-minute roundup of the week’s best stories every
-              Friday. Clean, useful, and zero spam.
+              Quick roundup of the week’s stories and what really mattered,
+              straight to your inbox every Friday.
             </p>
             <form className="digest-popup__form" onSubmit={submit} noValidate>
               <input
@@ -403,6 +406,7 @@ export function DigestPopup() {
             </p>
           </>
         )}
+        </div>
       </div>
     </div>
   )
@@ -433,5 +437,71 @@ export function DigestPopup() {
       )}
       {dialogEl && createPortal(dialogEl, document.body)}
     </>
+  )
+}
+
+/** The wordmark, swapped for the light-on-dark version under the dark theme. */
+function BrandLogo({ className }: { className?: string }) {
+  return (
+    <span className={`digest-logo ${className ?? ''}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logolight.png" alt="LocReport" width={862} height={247} className="digest-logo__light" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logodark.png" alt="" aria-hidden="true" width={862} height={247} className="digest-logo__dark" />
+    </span>
+  )
+}
+
+/**
+ * The popup's illustration, built from the brand's own pieces rather than a
+ * stock picture: the icon's two-square motif in the background, a tilted
+ * mock of a Friday issue (wordmark, headlines, a signal sparkline, a fact
+ * chip) and an envelope flying in with the icon as its seal. Pure markup and
+ * CSS, so it follows the light/dark theme and costs no extra image weight.
+ * Everything is drawn on a fixed 340×400 stage that style.css scales down on
+ * phones.
+ */
+function DigestArt() {
+  return (
+    <div className="digest-art" aria-hidden="true">
+      <div className="digest-art__stage">
+        <span className="digest-art__sq digest-art__sq--a" />
+        <span className="digest-art__sq digest-art__sq--b" />
+        <span className="digest-art__spark digest-art__spark--1">✦</span>
+        <span className="digest-art__spark digest-art__spark--2">✦</span>
+        <span className="digest-art__spark digest-art__spark--3">✦</span>
+
+        <div className="digest-art__issue">
+          <BrandLogo className="digest-art__issue-logo" />
+          <span className="digest-art__kicker">Friday roundup</span>
+          <span className="digest-art__line digest-art__line--strong" style={{ width: '92%' }} />
+          <span className="digest-art__line digest-art__line--strong" style={{ width: '64%' }} />
+          <svg className="digest-art__chart" viewBox="0 0 140 44" preserveAspectRatio="none">
+            <path d="M0 36 L20 30 L38 33 L58 22 L78 25 L98 12 L118 15 L140 4 L140 44 L0 44 Z" className="digest-art__chart-area" />
+            <path d="M0 36 L20 30 L38 33 L58 22 L78 25 L98 12 L118 15 L140 4" className="digest-art__chart-line" />
+          </svg>
+          <span className="digest-art__line" style={{ width: '88%' }} />
+          <span className="digest-art__line" style={{ width: '70%' }} />
+          <span className="digest-art__chip">↗ What mattered</span>
+        </div>
+
+        <div className="digest-art__flight">
+          <svg className="digest-art__speed" viewBox="0 0 60 50">
+            <path d="M58 8 L22 8 M58 24 L6 24 M58 40 L30 40" />
+          </svg>
+          <div className="digest-art__envelope">
+            <svg viewBox="0 0 120 80">
+              <rect x="1.5" y="1.5" width="117" height="77" rx="9" className="digest-art__env-body" />
+              <path d="M4 8 L60 46 L116 8" className="digest-art__env-flap" />
+              <path d="M4 76 L46 38 M116 76 L74 38" className="digest-art__env-fold" />
+            </svg>
+            <span className="digest-art__seal">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icon.png" alt="" width={622} height={622} />
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
