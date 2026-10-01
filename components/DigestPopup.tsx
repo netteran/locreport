@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 
 // The site's only digest signup. It surfaces itself once per visitor — after
@@ -96,7 +97,7 @@ export function DigestPopup() {
   const [peek, setPeek] = useState(false)
 
   const dialogRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const minimizingRef = useRef(false)
@@ -195,13 +196,61 @@ export function DigestPopup() {
     }
   }, [pathname, show])
 
-  // While open: lock the background, trap Tab inside the dialog, close on Esc.
+  // While open the page behind is frozen: nothing scrolls, nothing behind
+  // the overlay can be focused or clicked, and only the dialog's own controls
+  // work. Tab is trapped inside it and Esc closes it.
   useEffect(() => {
     if (!open) return
 
-    const { overflow } = document.body.style
-    document.body.style.overflow = 'hidden'
-    inputRef.current?.focus()
+    // Freeze the page in place. overflow:hidden alone doesn't stop iOS Safari
+    // scrolling the body, so pin it with position:fixed at its current offset
+    // and put it back exactly there on close.
+    const body = document.body
+    const html = document.documentElement
+    const scrollY = window.scrollY
+    const saved = {
+      position: body.style.position, top: body.style.top, left: body.style.left,
+      right: body.style.right, width: body.style.width, overflow: body.style.overflow,
+      paddingRight: body.style.paddingRight, overscroll: html.style.overscrollBehavior,
+    }
+    const scrollbar = window.innerWidth - html.clientWidth // avoid a desktop layout jump
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.left = '0'
+    body.style.right = '0'
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+    if (scrollbar > 0) body.style.paddingRight = `${scrollbar}px`
+    html.style.overscrollBehavior = 'none'
+
+    // Everything else on the page becomes inert: unfocusable, unclickable,
+    // hidden from screen readers. The overlay is portalled straight into
+    // <body>, so it is the one child left alone.
+    const inerted: Element[] = []
+    for (const el of Array.from(body.children)) {
+      if (el === overlayRef.current || el.hasAttribute('inert')) continue
+      if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK') continue
+      el.setAttribute('inert', '')
+      inerted.push(el)
+    }
+
+    // Focus the dialog itself, never the email field: focusing the input
+    // would pop the on-screen keyboard on phones and shove the layout around.
+    // The keyboard appears only when the visitor taps the field.
+    dialogRef.current?.focus({ preventScroll: true })
+
+    // When the keyboard does open, keep the overlay sized to the part of the
+    // screen that is still visible, so the dialog stays centred above it.
+    const vv = window.visualViewport
+    function fitViewport() {
+      const overlay = overlayRef.current
+      if (!overlay || !vv) return
+      overlay.style.top = `${vv.offsetTop}px`
+      overlay.style.height = `${vv.height}px`
+    }
+    fitViewport()
+    vv?.addEventListener('resize', fitViewport)
+    vv?.addEventListener('scroll', fitViewport)
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -227,7 +276,18 @@ export function DigestPopup() {
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = overflow
+      vv?.removeEventListener('resize', fitViewport)
+      vv?.removeEventListener('scroll', fitViewport)
+      for (const el of inerted) el.removeAttribute('inert')
+      body.style.position = saved.position
+      body.style.top = saved.top
+      body.style.left = saved.left
+      body.style.right = saved.right
+      body.style.width = saved.width
+      body.style.overflow = saved.overflow
+      body.style.paddingRight = saved.paddingRight
+      html.style.overscrollBehavior = saved.overscroll
+      window.scrollTo({ top: scrollY, behavior: 'instant' })
       // An auto-open had nothing focused; hand focus to the launcher the
       // dialog just went into rather than dropping it on <body>.
       const back = restoreFocusRef.current
@@ -270,9 +330,12 @@ export function DigestPopup() {
   }
 
   const dialogEl = open && (
+    // No click-outside-to-close: a stray tap beside the card (easy on a
+    // phone, especially while the keyboard is sliding away) must not throw
+    // away what was typed. × , Esc and Done are the ways out.
     <div
+      ref={overlayRef}
       className={`digest-popup__overlay${minimizing ? ' is-minimizing' : ''}`}
-      onMouseDown={e => { if (e.target === e.currentTarget) close() }}
     >
       <div
         className={`digest-popup${minimizing ? ' is-minimizing' : ''}`}
@@ -280,6 +343,7 @@ export function DigestPopup() {
         aria-modal="true"
         aria-labelledby="digest-popup-title"
         ref={dialogRef}
+        tabIndex={-1}
       >
         <button type="button" className="digest-popup__close" onClick={close} aria-label="Close">
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
@@ -287,18 +351,13 @@ export function DigestPopup() {
           </svg>
         </button>
 
-        <div className="digest-popup__icon" aria-hidden="true">
-          {status === 'sent' ? (
+        {status === 'sent' && (
+          <div className="digest-popup__icon" aria-hidden="true">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
               <path d="M5 12.5l4.2 4.2L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          ) : (
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="5.5" width="18" height="13" rx="3" stroke="currentColor" strokeWidth="1.7" />
-              <path d="M4 7.5l8 5.5 8-5.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
-        </div>
+          </div>
+        )}
 
         {status === 'sent' ? (
           <>
@@ -320,7 +379,6 @@ export function DigestPopup() {
             </p>
             <form className="digest-popup__form" onSubmit={submit} noValidate>
               <input
-                ref={inputRef}
                 type="email"
                 className="digest-popup__input"
                 placeholder="your.email@address.com"
@@ -334,7 +392,7 @@ export function DigestPopup() {
                 className="digest-popup__btn"
                 disabled={status === 'sending'}
               >
-                {status === 'sending' ? 'Joining…' : 'Join in'}
+                {status === 'sending' ? 'Signing up…' : 'Sign up'}
               </button>
             </form>
             {status === 'error' && (
@@ -373,7 +431,7 @@ export function DigestPopup() {
           </span>
         </button>
       )}
-      {dialogEl}
+      {dialogEl && createPortal(dialogEl, document.body)}
     </>
   )
 }

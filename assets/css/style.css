@@ -6038,11 +6038,15 @@ kbd, code {
   background: rgba(10, 12, 20, 0.32);
   backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
   animation: digest-popup-fade 0.3s ease both;
+  /* No gesture on the backdrop may scroll or zoom the page underneath.
+     DigestPopup sets top/height from visualViewport so the overlay tracks the
+     visible area when the on-screen keyboard is up. */
+  touch-action: none; overscroll-behavior: contain;
 }
 .digest-popup {
   position: relative;
-  width: 100%; max-width: 400px; max-height: calc(100vh - var(--space-8));
-  overflow-y: auto;
+  width: 100%; max-width: 400px; max-height: 100%;
+  overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
   padding: 44px 36px 28px;
   text-align: center;
   /* A gentle accent wash fading into the plain surface. */
@@ -6057,6 +6061,7 @@ kbd, code {
     0 40px 80px rgba(0, 0, 0, 0.12);
   animation: digest-popup-rise 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
 }
+.digest-popup:focus { outline: none; } /* focused on open only to keep focus inside, not to show */
 .digest-popup__close {
   position: absolute; top: 14px; right: 14px;
   width: 28px; height: 28px;
@@ -6092,7 +6097,9 @@ kbd, code {
 .digest-popup__form { display: flex; flex-direction: column; gap: 10px; }
 .digest-popup__input {
   width: 100%; height: 48px; padding: 0 18px;
-  font-size: 0.95rem; font-family: var(--font-body); color: var(--text); text-align: center;
+  /* 16px exactly: anything smaller makes iOS Safari zoom the page when the
+     field is tapped, which wrecks the layout. */
+  font-size: 16px; font-family: var(--font-body); color: var(--text); text-align: center;
   background: color-mix(in srgb, var(--text) 4%, var(--surface));
   border: 1px solid transparent; border-radius: 14px;
   outline: none; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
