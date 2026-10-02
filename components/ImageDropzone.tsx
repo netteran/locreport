@@ -11,6 +11,7 @@ import {
   isAllowedImageType,
 } from '@/lib/storage'
 import { Label } from '@/components/ui/label'
+import { ImageLibraryPicker, findDuplicate, invalidateImageLibrary, displayName } from '@/components/ImageLibrary'
 
 interface Props {
   /** Current image URL, or '' for none. */
@@ -22,19 +23,22 @@ interface Props {
 }
 
 /**
- * Drag-and-drop lead image field for the admin editors. Accepts a dropped
- * file, a click-to-browse pick, or a pasted image, uploads it to the
- * `locreport` Supabase Storage bucket, and reports back the public URL that
- * gets stored in `image_url`.
+ * Lead image field for the admin editors. Accepts a dropped file, a
+ * click-to-browse pick, or a pasted image, uploads it to the `images`
+ * Supabase Storage bucket (under articles/<yyyy>/<mm>/), and reports back the
+ * public URL that gets stored in `image_url`. "Choose from library" below it
+ * picks any image already in that bucket instead.
  *
  * The upload is a two-step handshake: /api/uploads/article-image authorises
  * the admin and returns a signed upload URL, then the browser sends the bytes
- * straight to Supabase.
+ * straight to Supabase. Before that, an identical file already in the bucket
+ * is reused rather than stored twice.
  */
 export function ImageDropzone({ value, onChange, label = 'Lead image', hint }: Props) {
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const busy = useRef(false)
 
@@ -52,7 +56,15 @@ export function ImageDropzone({ value, onChange, label = 'Lead image', hint }: P
     busy.current = true
     setUploading(true)
     setError('')
+    setNotice('')
     try {
+      const existing = await findDuplicate(file)
+      if (existing) {
+        onChange(existing.url)
+        setNotice(`This image is already in the library as “${displayName(existing.path)}” — reused it instead of uploading a copy.`)
+        return
+      }
+
       const res = await fetch('/api/uploads/article-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,6 +89,7 @@ export function ImageDropzone({ value, onChange, label = 'Lead image', hint }: P
         return
       }
 
+      invalidateImageLibrary()
       onChange(data.publicUrl)
     } catch {
       setError('Network error — please try again.')
@@ -194,7 +207,14 @@ export function ImageDropzone({ value, onChange, label = 'Lead image', hint }: P
         )}
       </div>
 
+      <ImageLibraryPicker
+        value={value}
+        onPick={url => { setError(''); setNotice(''); onChange(url) }}
+        disabled={uploading}
+      />
+
       {error && <p className="text-xs mt-1" style={{ color: '#dc2626' }}>{error}</p>}
+      {notice && <p className="text-xs mt-1" style={{ color: 'var(--accent)' }}>{notice}</p>}
 
       {value && (
         <div className="flex items-center gap-2 mt-1">
@@ -207,7 +227,7 @@ export function ImageDropzone({ value, onChange, label = 'Lead image', hint }: P
           </span>
           <button
             type="button"
-            onClick={() => { setError(''); onChange('') }}
+            onClick={() => { setError(''); setNotice(''); onChange('') }}
             disabled={uploading}
             className="text-xs underline shrink-0 disabled:opacity-50"
             style={{ color: 'var(--muted)' }}
