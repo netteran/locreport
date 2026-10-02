@@ -3448,6 +3448,30 @@ article.page > h1 {
 }
 .mr-card:hover .mr-card-link { gap: 8px; }
 
+/* Optional report lead images — rendered only when the report has one. */
+.mr-featured-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1200 / 630;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  margin: 0 0 var(--space-5);
+  background: rgba(255,255,255,0.08);
+}
+.mr-card-image,
+.report-card__image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1200 / 630;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+.mr-card-image { margin: 0 0 var(--space-4); }
+.report-card__image { margin: 0 0 var(--space-2); }
+.report-hero { margin: 0 0 var(--space-6); }
+
 
 @media (max-width: 540px) {
   .mr-hero { padding: var(--space-6) var(--space-5); }

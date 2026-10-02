@@ -1,14 +1,27 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Script from 'next/script'
+import { getReportImage } from '@/lib/reportImage'
 
-export const metadata: Metadata = {
-  title: '2026 Annual Global Market Report',
-  description: "LocReport's 2026 annual report on the localization and translation industry: market size, AI impact, competitive landscape, regional analysis, and outlook through 2030+.",
-  alternates: { canonical: '/reports/2026-annual-global-market-report' },
+const SLUG = '2026-annual-global-market-report'
+const TITLE = '2026 Annual Global Market Report'
+
+// The lead image is set from /admin/reports, which revalidates this page on save.
+export const revalidate = 86400
+
+export async function generateMetadata(): Promise<Metadata> {
+  // Only override the site-wide OG image when the report has its own.
+  const image = await getReportImage(SLUG)
+  return {
+    title: TITLE,
+    description: "LocReport's 2026 annual report on the localization and translation industry: market size, AI impact, competitive landscape, regional analysis, and outlook through 2030+.",
+    alternates: { canonical: `/reports/${SLUG}` },
+    ...(image ? { openGraph: { images: [{ url: image.url }] }, twitter: { images: [image.url] } } : {}),
+  }
 }
 
-export default function AnnualReport2026() {
+export default async function AnnualReport2026() {
+  const image = await getReportImage(SLUG)
   return (
     <div className="container" style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-12)' }}>
       <nav style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 'var(--space-5)', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -18,6 +31,13 @@ export default function AnnualReport2026() {
         <span>›</span>
         <span style={{ color: 'var(--text)' }}>2026 Annual Global Market Report</span>
       </nav>
+
+      {image && (
+        <figure className="post-hero report-hero">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={image.url} alt={image.alt || TITLE} loading="eager" decoding="async" />
+        </figure>
+      )}
 
       <div className="annual-report annual-report-2026" dangerouslySetInnerHTML={{ __html: ANNUAL_REPORT_HTML }} />
 
