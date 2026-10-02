@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { createPublicClient } from '@/lib/supabase/server'
 import { required } from '@/lib/supabase/required'
-import { articleHref } from '@/lib/utils'
+import { articleHref, safeImageUrl } from '@/lib/utils'
 
 export const metadata: Metadata = {
   title: 'Monthly Reports',
@@ -26,12 +26,13 @@ export default async function MonthlyReportsPage() {
   const supabase = createPublicClient()
   const result = await supabase
     .from('articles')
-    .select('id, title, slug, excerpt, published_at, signal_ids')
+    .select('id, title, slug, excerpt, published_at, signal_ids, image_url, image_alt')
     .eq('article_type', 'monthly-summary')
     .order('published_at', { ascending: false })
 
   const posts = required(result, 'monthly reports') ?? []
   const latest = posts[0]
+  const latestImage = latest ? safeImageUrl(latest.image_url) : null
   const archive = posts.slice(1)
 
   return (
@@ -42,7 +43,11 @@ export default async function MonthlyReportsPage() {
       ) : (
         <>
           {/* Featured — latest report */}
-          <div className="mr-featured">
+          <div className={`mr-featured${latestImage ? ' mr-featured--with-image' : ''}`}>
+            {latestImage && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="mr-featured-image" src={latestImage} alt={latest.image_alt?.trim() || latest.title} loading="eager" decoding="async" />
+            )}
             <div className="mr-featured-label">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
@@ -76,8 +81,13 @@ export default async function MonthlyReportsPage() {
               <div className="mr-archive-grid">
                 {archive.map(post => {
                   const chips = getTopicChips(post.title, post.excerpt ?? '')
+                  const image = safeImageUrl(post.image_url)
                   return (
                     <article key={post.id} className="mr-card">
+                      {image && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img className="mr-card-image" src={image} alt="" loading="lazy" decoding="async" />
+                      )}
                       <div className="mr-card-top">
                         <span className="mr-card-date">
                           {new Date(post.published_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}

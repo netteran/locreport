@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { ANNUAL_REPORTS, annualReportPath } from '@/lib/reports'
+import { getReportImage } from '@/lib/reportImage'
 
 export const metadata: Metadata = {
   title: 'Reports',
@@ -7,7 +9,12 @@ export const metadata: Metadata = {
   alternates: { canonical: '/reports' },
 }
 
-export default function ReportsPage() {
+// Annual report images are set from /admin/reports, which revalidates this page on save.
+export const revalidate = 86400
+
+export default async function ReportsPage() {
+  const annual = await Promise.all(ANNUAL_REPORTS.map(async r => ({ ...r, image: await getReportImage(r.slug) })))
+
   return (
     <div className="container" style={{ paddingBottom: 'var(--space-12)' }}>
       <section className="intel-hero">
@@ -19,15 +26,21 @@ export default function ReportsPage() {
       <section style={{ marginBottom: 'var(--space-10)' }}>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 'var(--space-4)', borderBottom: '2px solid var(--border)', paddingBottom: 'var(--space-3)' }}>Annual</h2>
         <div className="reports-list">
-          <Link href="/reports/2026-annual-global-market-report" className="report-card">
-            <div className="report-card__meta">
-              <span className="report-card__type">Annual Report</span>
-              <span className="report-card__date">April 2026</span>
-            </div>
-            <h3 className="report-card__title">2026 Annual Global Market Report</h3>
-            <p className="report-card__desc">A data-rich strategic brief covering market evolution, AI disruption, competitive dynamics, and forward-looking implications for language services stakeholders.</p>
-            <span className="report-card__cta">Read report →</span>
-          </Link>
+          {annual.map(r => (
+            <Link key={r.slug} href={annualReportPath(r.slug)} className="report-card">
+              {r.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="report-card__image" src={r.image.url} alt="" loading="lazy" decoding="async" />
+              )}
+              <div className="report-card__meta">
+                <span className="report-card__type">Annual Report</span>
+                <span className="report-card__date">{r.date}</span>
+              </div>
+              <h3 className="report-card__title">{r.title}</h3>
+              <p className="report-card__desc">{r.description}</p>
+              <span className="report-card__cta">Read report →</span>
+            </Link>
+          ))}
         </div>
       </section>
 

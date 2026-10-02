@@ -93,6 +93,9 @@ lib/
   publish.ts             — approveDraft(): draft → article, the one place that logic lives. Called by the
                            manual approve branch of /api/drafts/[id] and by /api/ingest for sources with
                            rss_sources.auto_publish. See Auto-Publish below
+  reports.ts             — ANNUAL_REPORTS (the static annual report pages) + reportImageKey(): annual-report
+                           lead images live in `settings` as `report_image:<slug>` → JSON {url, alt} (client-safe)
+  reportImage.ts         — getReportImage(slug): server-side reader for that setting; degrades to null
   topics.ts              — Topic definitions (signals + keywords) shared by /articles filters and badges
   email/
     templates.ts         — Inline-styled HTML email builders (confirm + digest)
@@ -196,6 +199,7 @@ Several Compass and other sections use co-located client components:
 | `/admin` | Dashboard: stats banner + a compact action list (`.admin-actions` in `style.css`). Each row is title + controls; the long description collapses behind the title toggle, while confirmation panels and result messages always render inline. Actions: ingest, embeddings backfill, monthly report, digest send (weekly, with a recipient dropdown — All subscribers or one address — a **View sample** button opening `/api/digest/preview` and a **Past sends →** link to `/admin/digest-history`), Fact Flow backfill (one slug, or **Backfill all** to walk every article still missing its fact), market quotes, LLM pricing |
 | `/admin/articles` | Article list management |
 | `/admin/articles/[id]` | Edit individual article |
+| `/admin/reports` | Report lead images. Annual reports (static pages, no `articles` row) get an inline `ImageDropzone` + alt text saved via `/api/reports/image`; monthly reports are listed with their current thumbnail and an **Add/Change image** link to `/admin/articles/[id]` |
 | `/admin/drafts` | Draft review queue (pending/approved/rejected) |
 | `/admin/drafts/[id]` | Edit/approve/reject individual draft |
 | `/admin/compose` | Manually write a new article |
@@ -219,6 +223,7 @@ Several Compass and other sections use co-located client components:
 | `/api/drafts/[id]/rerun` | POST | Re-run Stage 2 only — reuses `drafts.extracted_facts` so the facts can't drift. Optional JSON body `{ instruction }` (≤2000 chars) is injected as a second system message that may reshape angle/structure/emphasis/length but not the facts. Responds with the updated draft plus `facts_reused` |
 | `/api/articles` | GET/POST | List/create articles |
 | `/api/articles/[id]` | GET/PATCH/DELETE | Article CRUD |
+| `/api/reports/image` | POST | Admin-only: set (`{slug, image_url, image_alt}`) or clear (empty `image_url`) an annual report's lead image in `settings`, then revalidates the report page and `/reports` |
 | `/api/compose` | POST | Publish manually-composed article |
 | `/api/contact` | POST | Contact form → Resend email |
 | `/api/me` | GET | Current user + admin status |
@@ -1021,6 +1026,12 @@ previous deployment serving. Decorative extras (a sidebar rail, a fact strip) sh
   `articles/2026/10/…-googletranslate-1.png`; both copies still exist — clean up by hand if wanted.
 - Removing an image clears `image_url` only; the stored object is left in place, since a draft and its
   published article can point at the same file.
+- **Reports.** A monthly report is an article, so it uses the same field (in `/admin/articles/[id]`, or via
+  `/admin/reports`) and gets the same hero + OG/Twitter image; `/reports/monthly` also shows it on the
+  featured card and archive cards. Annual reports are hardcoded pages with no `articles` row, so their image
+  is stored in `settings` (`lib/reports.ts`) and set from `/admin/reports`; the annual page renders it as a
+  hero and OG/Twitter image, and `/reports` shows it on the report card. A new annual report must be added to
+  `ANNUAL_REPORTS` and call `getReportImage(slug)` the way the 2026 page does.
 - Legacy rows may still hold a third-party publisher URL — those keep rendering; only new images go to
   the bucket.
 - Rendered with plain `<img>`, not `next/image`: legacy sources are arbitrary publisher CDNs, and
