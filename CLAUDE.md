@@ -61,6 +61,7 @@ components/
   ArticleCard.tsx        — Article preview row; currently unrendered (the homepage inlines its own rows)
   ArticleEditor.tsx      — Markdown editor (admin only)
   ImageDropzone.tsx      — Drag/drop/paste lead-image field (admin); uploads to Supabase Storage
+  ImageLibrary.tsx       — "Choose from library" thumbnail picker under ImageDropzone + duplicate-upload check
   DraftCard.tsx          — Draft management card
   ShareButton.tsx        — Social share button on article pages
   ReadingProgress.tsx    — Scroll progress indicator
@@ -243,7 +244,7 @@ Several Compass and other sections use co-located client components:
 | `/api/admin/backfill-facts` | POST | Gives articles their missing Fact Flow fact. `{slug}`/`{article_id}` does one; `{all:true, limit}` walks the next batch with no fact (newest first, monthly reports excluded) and returns `{created, skipped, processed, remaining}`. Never overwrites an article that already has one, and dates each fact to its article's `published_at` so a backfill slots into the stream in order instead of burying it |
 | `/api/tweet-facts` | POST | Posts untweeted published facts to X (CRON_SECRET only). **Dormant — nothing calls it; see Fact Flow** |
 | `/api/admin/backfill-embeddings` | POST | Embed articles with null embedding, batched; returns `{embedded, remaining}` (admin session or CRON_SECRET) |
-| `/api/uploads/article-image` | POST | Admin-only: validates type/size, ensures the `images` storage bucket exists, returns a signed upload URL + public URL. The bytes never pass through the route |
+| `/api/uploads/article-image` | GET/POST | Admin-only. POST validates type/size, ensures the `images` storage bucket exists, returns a signed upload URL + public URL (the bytes never pass through the route). GET lists every image in the bucket (root + `articles/<yyyy>/<mm>/`, walked recursively), newest first, each with its public URL, size and `usedBy` (articles whose `image_url` points at it) — the image library picker |
 | `/api/subscribe` | POST | Digest signup → pending subscriber + Resend confirm email (double opt-in) |
 | `/api/subscribe/preferences` | POST | Token-authenticated `{unsubscribe:true}` or `{resubscribe:true}` (the latter refused for never-confirmed `pending` rows). No preference fields any more |
 | `/api/subscribe/unsubscribe` | GET/POST | GET (the Unsubscribe link in every issue, old ones included) no longer unsubscribes: it redirects to `/subscribe/manage?token=…&confirm=unsubscribe`, which opens on a **Yes, unsubscribe / Keep my subscription** confirmation — so a stray click or a mail scanner prefetching links can't end a subscription. POST stays immediate: it is the RFC 8058 `List-Unsubscribe=One-Click` target for the mail client's own button, and the spec requires no further step |
@@ -1010,6 +1011,14 @@ previous deployment serving. Decorative extras (a sidebar rail, a fact strip) sh
 - Limits live in `lib/storage.ts` (10 MB; JPG/PNG/WebP/AVIF/GIF — no SVG) and are mirrored onto the
   bucket itself, so Supabase enforces them independently of the client. `supabase/migrations/20260905_article_image_bucket.sql`
   pins those limits on the bucket.
+- **Image library.** Under the dropzone, **Choose from library** opens a dropdown with a searchable grid
+  of thumbnails of *every* image in the `images` bucket — the hand-uploaded root objects included — with
+  a "used ×N" count, so a recurring logo (Google Translate, DeepL…) is picked rather than uploaded again.
+  Picking just sets `image_url` to that object's public URL; nothing is copied.
+- **No duplicate uploads.** Before uploading, `findDuplicate()` (`components/ImageLibrary.tsx`) checks the
+  library for a byte-identical file (same size, then a byte compare of the candidates) and reuses it with a
+  notice instead. Added 2026-10-02 after `googletranslate.png` (root) had been uploaded again as
+  `articles/2026/10/…-googletranslate-1.png`; both copies still exist — clean up by hand if wanted.
 - Removing an image clears `image_url` only; the stored object is left in place, since a draft and its
   published article can point at the same file.
 - Legacy rows may still hold a third-party publisher URL — those keep rendering; only new images go to
