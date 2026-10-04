@@ -5717,6 +5717,9 @@ article.page > h1 {
 .dir-entry-long-desc { font-size: 0.95rem; color: var(--text); line-height: 1.75; margin: 0; }
 .dir-entry-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--space-6); }
 .dir-entry-tag { font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 100px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--muted); text-transform: lowercase; letter-spacing: 0.02em; }
+.dir-entry-rename { margin-bottom: var(--space-6); padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius-md); font-size: 0.9rem; line-height: 1.6; color: var(--text); }
+.dir-entry-rename-link { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.dir-entry-rename-link:hover { text-decoration: underline; }
 .dir-entry-coverage { margin-bottom: var(--space-6); }
 .dir-entry-count { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 500; color: var(--muted); margin-left: 6px; }
 .dir-entry-articles { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); }

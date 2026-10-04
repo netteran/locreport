@@ -41,6 +41,19 @@ export const CATEGORY_SHORT: Record<string, string> = Object.fromEntries(
   DIRECTORY_CATEGORIES.map(c => [c.value, c.short])
 )
 
+// Companies that are the same business under an old and a new name. Both
+// profiles stay up (articles keep linking to whichever name they used), and
+// each shows a note pointing at the other. Kept here rather than as a field on
+// DirectoryEntry because a `directory` table row replaces the static entry
+// wholesale, and would silently drop a field the table doesn't have.
+export const DIRECTORY_RENAMES: { from: string; to: string; note: string }[] = [
+  {
+    from: 'acrolinx',
+    to: 'markup-ai',
+    note: 'In September 2025 Acrolinx rebranded as Markup AI, alongside a USD 27.5m Series A.',
+  },
+]
+
 export const DIRECTORY: DirectoryEntry[] = [
   {
     name: `Phrase`,
@@ -301,6 +314,19 @@ export const DIRECTORY: DirectoryEntry[] = [
     address: `Invalidenstrasse 116, 10115 Berlin, Germany`,
     type: `SaaS`,
     tags: ['terminology'],
+  },
+  {
+    name: `Markup AI`,
+    slug: `markup-ai`,
+    category: `terminology`,
+    website: `https://markup.ai`,
+    description: `Content Guardian Agents that scan, score and rewrite content against brand, terminology and compliance rules. Formerly Acrolinx.`,
+    long_description: `Markup AI is the company Acrolinx became in September 2025, when it rebranded and raised a USD 27.5m Series A (equity and debt) co-led by Genui Partners and EMH Partners. CEO Matt Blumberg called it "more of a restart than a rebrand": an AI-native platform, a new team and a new base in New York, built on the linguistic engineering Acrolinx developed over two decades. Its Content Guardian Agents scan, score and rewrite text against customisable brand, terminology, compliance and industry standards, and are offered both inside authoring tools and as APIs, so content produced by people or by generative AI can be checked before it is published or sent for translation.`,
+    founded: 2025,
+    hq: `New York, NY, USA`,
+    address: ``,
+    type: `SaaS / API`,
+    tags: ['content-governance', 'ai-agents', 'terminology'],
   },
   {
     name: `GALA`,

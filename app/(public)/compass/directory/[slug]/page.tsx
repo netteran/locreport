@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { CATEGORY_SHORT, DIRECTORY } from '@/lib/data/directory'
+import { CATEGORY_SHORT, DIRECTORY, DIRECTORY_RENAMES } from '@/lib/data/directory'
 import { createPublicClient } from '@/lib/supabase/server'
 import { DirectoryLogo } from './DirectoryLogo'
 import { AdminEditButton } from './AdminEditButton'
@@ -17,6 +17,20 @@ const CAT_DISPLAY = CATEGORY_SHORT
 // Body-only mentions can run long (Slator is cited in 100+ articles), so the
 // list is capped and the rest are a search away.
 const MENTIONS_SHOWN = 10
+
+// The note shown when this company is one half of a rename (see DIRECTORY_RENAMES).
+function renameNote(slug: string) {
+  const nameOf = (s: string) => DIRECTORY.find(e => e.slug === s)?.name ?? s
+  const renamed = DIRECTORY_RENAMES.find(r => r.from === slug)
+  if (renamed) {
+    return { label: `Now ${nameOf(renamed.to)}`, note: renamed.note, href: `/compass/directory/${renamed.to}`, link: `See the ${nameOf(renamed.to)} profile` }
+  }
+  const formerly = DIRECTORY_RENAMES.find(r => r.to === slug)
+  if (formerly) {
+    return { label: `Formerly ${nameOf(formerly.from)}`, note: formerly.note, href: `/compass/directory/${formerly.from}`, link: `Earlier coverage is on the ${nameOf(formerly.from)} profile` }
+  }
+  return null
+}
 
 function ArticleList({ articles }: { articles: CompanyArticle[] }) {
   return (
@@ -73,6 +87,7 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
   const listed = locstockByDirectorySlug(entry.slug)
   const domain = entry.website.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
   const logoUrl = `https://logo.clearbit.com/${domain}`
+  const rename = renameNote(entry.slug)
   const { coverage, mentions } = await getCompanyArticles(createPublicClient(), entry.name)
 
   return (
@@ -102,6 +117,13 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
           <DirectoryLogo domain={domain} name={entry.name} logoUrl={entry.logo_url} website={entry.website} />
         </div>
       </div>
+
+      {rename && (
+        <aside className="dir-entry-rename" aria-label="Company name change">
+          <strong>{rename.label}.</strong> {rename.note}{' '}
+          <Link href={rename.href} className="dir-entry-rename-link">{rename.link} →</Link>
+        </aside>
+      )}
 
       {/* Meta grid — Category | Type | Founded | HQ | Website, then Address full-width */}
       <div className="dir-entry-meta-grid">
