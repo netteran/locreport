@@ -135,7 +135,9 @@ lib/
                            invalidation every article/fact write path calls, so a publish appears at once
                            instead of waiting out the page's ISR window. See ISR Revalidation below
   data/
-    directory.ts         — 31 localization tech vendors (hardcoded)
+    directory.ts         — 31 localization tech vendors (hardcoded) + DIRECTORY_RENAMES: old/new-name pairs of the same
+                           company (Acrolinx → Markup AI). Both profiles stay up and each shows a note linking the
+                           other. A map, not a DirectoryEntry field, because a `directory` row replaces its static entry
     locstock.ts          — LocStock company list (ticker → symbol/name/category); used by /compass/locstock
                            and The Weekly's market brief
     llm-pricing.ts       — LLM provider pricing (22 models tracked across 9 providers incl. OpenAI, Anthropic, Google, Meta, DeepSeek, Moonshot AI/Kimi, xAI, Alibaba/Qwen, Mistral); static values are the seed/fallback, overlaid at render time with live data from `llm_pricing_quotes`/`llm_pricing_history` (see `/api/llm-pricing`)
