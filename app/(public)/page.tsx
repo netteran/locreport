@@ -17,7 +17,6 @@ export const metadata: Metadata = {
 const HERO_TOOLS = [
   { href: '/compass/llm-pricing', name: 'AI Cost Simulator', desc: 'Compare LLM pricing for localization' },
   { href: '/compass/locstock', name: 'LocStock', desc: 'Language-industry market tracker' },
-  { href: '/intelligence/signals', name: 'Signals Tracker', desc: 'Trends shaping the industry' },
   { href: '/compass/directory', name: 'Tech Directory', desc: 'Language technology providers' },
 ]
 
