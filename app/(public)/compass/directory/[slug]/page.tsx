@@ -7,10 +7,34 @@ import { DirectoryLogo } from './DirectoryLogo'
 import { AdminEditButton } from './AdminEditButton'
 import { MarketCard } from './MarketCard'
 import { locstockByDirectorySlug } from '@/lib/data/locstock'
+import { getCompanyArticles, type CompanyArticle } from '@/lib/companyArticles'
+import { articleHref } from '@/lib/utils'
 
 export const revalidate = 3600
 
 const CAT_DISPLAY = CATEGORY_SHORT
+
+// Body-only mentions can run long (Slator is cited in 100+ articles), so the
+// list is capped and the rest are a search away.
+const MENTIONS_SHOWN = 10
+
+function ArticleList({ articles }: { articles: CompanyArticle[] }) {
+  return (
+    <ul className="dir-entry-articles">
+      {articles.map(a => (
+        <li key={a.id} className="dir-entry-article">
+          <Link href={articleHref(a.slug)} className="dir-entry-article-title">{a.title}</Link>
+          <span className="dir-entry-article-meta">
+            <time dateTime={a.published_at}>
+              {new Date(a.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </time>
+            {a.publisher && <> · {a.publisher}</>}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 async function getEntry(slug: string) {
   try {
@@ -49,6 +73,7 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
   const listed = locstockByDirectorySlug(entry.slug)
   const domain = entry.website.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
   const logoUrl = `https://logo.clearbit.com/${domain}`
+  const { coverage, mentions } = await getCompanyArticles(createPublicClient(), entry.name)
 
   return (
     <div className="container" style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-12)' }}>
@@ -130,6 +155,29 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
             <span key={tag} className="dir-entry-tag">{tag}</span>
           ))}
         </div>
+      )}
+
+      {/* Articles naming the company — headline coverage first, passing mentions after */}
+      {coverage.length > 0 && (
+        <section className="dir-entry-coverage" aria-label={`LocReport coverage of ${entry.name}`}>
+          <h2 className="dir-entry-section-title">
+            {entry.name} in the news <span className="dir-entry-count">{coverage.length}</span>
+          </h2>
+          <ArticleList articles={coverage} />
+        </section>
+      )}
+      {mentions.length > 0 && (
+        <section className="dir-entry-coverage" aria-label={`Other articles mentioning ${entry.name}`}>
+          <h2 className="dir-entry-section-title">
+            Also mentioned in <span className="dir-entry-count">{mentions.length}</span>
+          </h2>
+          <ArticleList articles={mentions.slice(0, MENTIONS_SHOWN)} />
+          {mentions.length > MENTIONS_SHOWN && (
+            <Link href={`/search?q=${encodeURIComponent(entry.name)}`} className="dir-entry-more">
+              Search all articles mentioning {entry.name} →
+            </Link>
+          )}
+        </section>
       )}
 
       {/* Back link */}

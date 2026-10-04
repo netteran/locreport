@@ -142,14 +142,14 @@ body {
 
 a { color: inherit; text-decoration: none; }
 
-p a, li a:not(.site-nav a):not(.admin-menu-dropdown a):not(.footer-links a):not(.topic-pill):not(.signal-page__related-link):not(.signal-page__evidence-title) {
+p a, li a:not(.site-nav a):not(.admin-menu-dropdown a):not(.footer-links a):not(.topic-pill):not(.signal-page__related-link):not(.signal-page__evidence-title):not(.dir-entry-article-title) {
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
   transition: text-decoration-color 0.2s ease;
 }
-p a:hover, li a:not(.site-nav a):not(.footer-links a):not(.topic-pill):not(.signal-page__related-link):not(.signal-page__evidence-title):hover {
+p a:hover, li a:not(.site-nav a):not(.footer-links a):not(.topic-pill):not(.signal-page__related-link):not(.signal-page__evidence-title):not(.dir-entry-article-title):hover {
   text-decoration-color: var(--accent);
 }
 
@@ -5717,6 +5717,15 @@ article.page > h1 {
 .dir-entry-long-desc { font-size: 0.95rem; color: var(--text); line-height: 1.75; margin: 0; }
 .dir-entry-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--space-6); }
 .dir-entry-tag { font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 100px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--muted); text-transform: lowercase; letter-spacing: 0.02em; }
+.dir-entry-coverage { margin-bottom: var(--space-6); }
+.dir-entry-count { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 500; color: var(--muted); margin-left: 6px; }
+.dir-entry-articles { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); }
+.dir-entry-article { display: flex; flex-direction: column; gap: 3px; padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
+.dir-entry-article-title { font-weight: 600; color: var(--text); text-decoration: none; line-height: 1.4; }
+.dir-entry-article-title:hover { color: var(--accent); }
+.dir-entry-article-meta { font-size: 0.78rem; color: var(--muted); }
+.dir-entry-more { display: inline-block; margin-top: var(--space-3); font-size: 0.875rem; font-weight: 600; color: var(--accent); text-decoration: none; }
+.dir-entry-more:hover { text-decoration: underline; }
 .dir-entry-back { display: inline-flex; align-items: center; gap: 5px; font-size: 0.875rem; color: var(--muted); text-decoration: none; transition: color 0.15s; }
 .dir-entry-back:hover { color: var(--accent); }
 
