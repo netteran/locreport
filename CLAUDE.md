@@ -122,6 +122,12 @@ lib/
                            ScrapedFeedForm and the /admin/scraped-feeds inline editor
   feedUrl.ts             — feedUrl(name) → the canonical https://locreport.com/api/feeds/<name>. Shared by the
                            generator's atom:link and the admin "Add to Sources" button so they cannot disagree
+  companyLinks.ts        — linkifyCompanyMentions(): at write time (approveDraft, ingest, rerun, direct, /api/articles,
+                           podcasts) links the first case-sensitive whole-word mention of each directory company in an
+                           article body to /compass/directory/<slug>. Articles published before 2026-07-13 predate it
+  companyArticles.ts     — getCompanyArticles(): the reverse direction, for the profile page. Same case-sensitive
+                           whole-word rule, split into `coverage` (name in title/excerpt) and `mentions` (body only).
+                           Monthly reports excluded. Degrades to empty lists on error
   slugify.ts             — URL-safe slug generation
   storage.ts             — Supabase Storage constants for article images (bucket name, size/MIME limits, object key builder)
   utils.ts               — articleHref(), extractTeaser(), cn() (Tailwind merge), escapeXml() (shared by every RSS-emitting route)
@@ -169,6 +175,7 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 | `/compass/locstock` | `compass/locstock/page.tsx` | Market index + Recharts |
 | `/compass/llm-pricing` | `compass/llm-pricing/page.tsx` | Interactive LLM pricing simulator + history chart |
 | `/compass/directory` | `compass/directory/page.tsx` | 31 localization tech vendors |
+| `/compass/directory/[slug]` | `compass/directory/[slug]/page.tsx` | Company profile (static array merged with the `directory` table), 1h ISR. Ends with **"<Company> in the news"** (every article naming it in title/excerpt) and **"Also mentioned in"** (body-only mentions, first 10 + a `/search` link) via `lib/companyArticles.ts` — the hub half of the article ↔ company link pair |
 | `/fact-flow` | `fact-flow/page.tsx` | Day-grouped stream of published facts — one per article. Shows only facts with an `article_id` |
 | `/fact-flow/feed.xml` | `fact-flow/feed.xml/route.ts` | Fact Flow RSS (latest 100 linked facts) |
 | `/search` | `search/page.tsx` | Hybrid semantic + full-text search (`?q=...`), RRF-ranked via `hybrid_search_articles` RPC with keyword/ilike fallbacks |
