@@ -314,6 +314,7 @@ image_url text             — optional lead image, carried onto the article on 
 image_alt text
 status 'pending' | 'approved' | 'rejected' | 'rerunning' | 'rerun'
 extracted_facts text       — raw Stage 1 fact sheet the draft was written from; re-runs reuse it verbatim
+source_name text           — the outlet to credit when it is not the feed itself (Google News items); see below
 created_at timestamptz
 updated_at timestamptz
 ```
@@ -382,6 +383,18 @@ set to its query's topic-specific terms — never the generic qualifier words �
 keyword filter (`matchesKeywords` in `app/api/ingest/route.ts`, checked against fetched title + full
 article text) re-verifies relevance regardless of how loosely Google matched. Keep this populated on any
 new Google News source; an empty `keywords` array on one of these is a live bug, not a neutral default.
+
+**Google News sources are never the cited source.** A `Google News – *` name is our label for a search
+query, not a publisher — articles used to say "As Google News – Platforms notes…" and 173 facts carried it as
+`source_name`. Each Google News item names its real outlet in `<source>` (and as a " - Outlet" title
+suffix); `lib/rss.ts` lifts it into `RssItem.sourceName` and strips the suffix from the title, ingest pins it
+on `drafts.source_name` (migration `20261006_drafts_source_name.sql`), and every path that credits a source
+— Stage 2, re-run, `approveDraft`'s fact, the facts backfill, hand-written draft facts — resolves the name
+through `lib/sourceName.ts` → `draftSourceName()`. It returns the pinned outlet, else the feed name for an
+ordinary feed, else **null** for an aggregator — never the Google News label. When null, `sourceNameLine()`
+tells Stage 2 in the user message to credit the outlet named in the facts. Drafts ingested before the
+column carry no outlet, so their re-runs fall into that null case. The in-body link still points at the
+`news.google.com/rss/articles/…` redirect, since that URL is also ingest's dedupe key.
 
 ### `scraped_sources`
 ```

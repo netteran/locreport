@@ -6,9 +6,18 @@ export interface RssItem {
   contentSnippet?: string
   content?: string
   pubDate?: string
+  /**
+   * The outlet that actually published the item, when the feed says so.
+   * Aggregators (Google News) carry it in `<source>`; ordinary feeds don't,
+   * since the feed itself is the publisher.
+   */
+  sourceName?: string
 }
 
-const parser = new Parser()
+type SourceField = string | { _?: string } | undefined
+type ParsedItem = { source?: SourceField }
+
+const parser = new Parser<Record<string, unknown>, ParsedItem>({ customFields: { item: ['source'] } })
 
 // Fallback for feeds that aren't well-formed XML (Nimdzi's WordPress feed
 // carries a bare HTML attribute like `<iframe allowfullscreen>`, which the
@@ -16,7 +25,30 @@ const parser = new Parser()
 // are lower-cased back, restoring the two camelCase tags rss-parser reads.
 const CAMEL_TAGS: Record<string, string> = { pubdate: 'pubDate', lastbuilddate: 'lastBuildDate' }
 const lowerName = (name: string) => CAMEL_TAGS[name.toLowerCase()] ?? name.toLowerCase()
-const lenientParser = new Parser({ xml2js: { strict: false, tagNameProcessors: [lowerName], attrNameProcessors: [lowerName] } })
+const lenientParser = new Parser<Record<string, unknown>, ParsedItem>({
+  customFields: { item: ['source'] },
+  xml2js: { strict: false, tagNameProcessors: [lowerName], attrNameProcessors: [lowerName] },
+})
+
+export function isGoogleNewsUrl(url: string | null | undefined): boolean {
+  return !!url && /^https?:\/\/news\.google\.com\//i.test(url)
+}
+
+/**
+ * Google News items name the real outlet in `<source url="…">Outlet</source>`
+ * and repeat it as a " - Outlet" title suffix. The title loses the suffix, and
+ * the outlet is kept so the article can credit it instead of the feed.
+ */
+function splitAggregatorItem(title: string, source: SourceField, link: string) {
+  const fromTag = (typeof source === 'string' ? source : source?._ ?? '').trim()
+  if (!isGoogleNewsUrl(link)) return { title, sourceName: fromTag || undefined }
+
+  const cut = title.lastIndexOf(' - ')
+  const suffix = cut > 0 ? title.slice(cut + 3).trim() : ''
+  const sourceName = fromTag || suffix || undefined
+  const cleanTitle = sourceName && suffix === sourceName ? title.slice(0, cut).trim() : title
+  return { title: cleanTitle, sourceName }
+}
 
 async function parseFeedXml(xml: string) {
   try {
@@ -37,7 +69,7 @@ async function parseFeedXml(xml: string) {
  */
 export async function fetchArticleText(url: string): Promise<string | null> {
   // Google News redirect URLs: follow the HTTP redirect to reach the real article
-  if (url.includes('news.google.com/rss/articles/')) {
+  if (isGoogleNewsUrl(url) && url.includes('/rss/articles/')) {
     const resolved = await resolveGoogleNewsUrl(url)
     if (!resolved) return null
     console.log(`[rss] Google News resolved: ${url} → ${resolved}`)
@@ -142,9 +174,11 @@ export async function fetchFeedResult(url: string): Promise<{ items: RssItem[]; 
     const items = feed.items.map((item) => {
       let link = item.link ?? ''
       if (link && link.startsWith('/')) link = base + link
+      const { title, sourceName } = splitAggregatorItem(item.title ?? '', item.source, link)
       return {
-        title: item.title ?? '',
+        title,
         link,
+        sourceName,
         contentSnippet: item.contentSnippet,
         content: item.content,
         pubDate: item.pubDate,

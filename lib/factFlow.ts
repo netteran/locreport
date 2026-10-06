@@ -2,6 +2,7 @@ import type { createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
 import { DEFAULT_FACTFLOW_PROMPT, DEFAULT_EXTRACTOR_PROMPT, todayLine } from '@/lib/prompts'
 import { parseHeadlineFact } from '@/lib/facts'
+import { draftSourceName } from '@/lib/sourceName'
 
 type Service = ReturnType<typeof createServiceClient>
 
@@ -245,19 +246,12 @@ async function resolveDraftSource(supabase: Service, draftId: string, input: Sav
 
   const { data: draft } = await supabase
     .from('drafts')
-    .select('source_url, source_feed_id')
+    .select('*')
     .eq('id', draftId)
     .maybeSingle()
 
   let sourceName = input.sourceName ?? null
-  if (!sourceName && draft?.source_feed_id) {
-    const { data: feed } = await supabase
-      .from('rss_sources')
-      .select('name')
-      .eq('id', draft.source_feed_id)
-      .maybeSingle()
-    sourceName = feed?.name ?? null
-  }
+  if (!sourceName && draft) sourceName = await draftSourceName(supabase, draft)
 
   return {
     sourceUrl: input.sourceUrl !== undefined ? input.sourceUrl : (draft?.source_url ?? null),

@@ -7,6 +7,7 @@ import { embedAndStoreArticle } from '@/lib/embeddings'
 import { ensureArticleFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import { revalidateArticleSurfaces } from '@/lib/revalidate'
+import { draftSourceName } from '@/lib/sourceName'
 
 type Service = ReturnType<typeof createServiceClient>
 
@@ -93,15 +94,7 @@ export async function approveDraft(
       .single()
 
     if (articleRow?.id) {
-      let sourceName: string | null = null
-      if (draft.source_feed_id) {
-        const { data: feed } = await supabase
-          .from('rss_sources')
-          .select('name')
-          .eq('id', draft.source_feed_id)
-          .maybeSingle()
-        sourceName = feed?.name ?? null
-      }
+      const sourceName = await draftSourceName(supabase, draft)
 
       const factResult = await ensureArticleFact(supabase, {
         articleId: articleRow.id,

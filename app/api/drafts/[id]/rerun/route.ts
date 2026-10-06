@@ -4,6 +4,7 @@ import { getOpenAI } from '@/lib/openai'
 import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, todayLine } from '@/lib/prompts'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import { isYouTubeUrl, parsePodcastConfig, writePodcastArticle, type PodcastConfig } from '@/lib/podcast'
+import { draftSourceName, sourceNameLine } from '@/lib/sourceName'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -74,7 +75,6 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (draft.source_feed_id) {
     const { data: feed } = await service
       .from('rss_sources').select('*').eq('id', draft.source_feed_id).single()
-    sourceName = feed?.name ?? null
     if (feed?.kind === 'podcast') {
       const parsed = parsePodcastConfig(feed.podcast_config)
       if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
@@ -86,6 +86,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
     }
   }
+
+  if (!podcastConfig) sourceName = await draftSourceName(service, draft)
 
   // Mark as rerunning
   await service.from('drafts').update({ status: 'rerunning' }).eq('id', id)
@@ -142,7 +144,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const generateInput = [
       draft.source_url ? `Source URL: ${draft.source_url}` : '',
-      sourceName ? `Source name: ${sourceName}` : '',
+      sourceNameLine(sourceName, draft.source_url),
       `Suggested title: ${draft.title}`,
       `Extracted facts:\n${facts}`,
     ].filter(Boolean).join('\n\n')

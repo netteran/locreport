@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { fetchArticleText } from '@/lib/rss'
 import { ensureArticleFact } from '@/lib/factFlow'
 import { revalidateFactSurfaces } from '@/lib/revalidate'
+import { draftSourceName } from '@/lib/sourceName'
 
 export const maxDuration = 300
 
@@ -36,19 +37,12 @@ async function backfillOne(svc: ReturnType<typeof createServiceClient>, article:
   if (article.draft_id) {
     const { data: draft } = await svc
       .from('drafts')
-      .select('extracted_facts, source_feed_id')
+      .select('*')
       .eq('id', article.draft_id)
       .maybeSingle()
     factSheet = draft?.extracted_facts ?? null
 
-    if (draft?.source_feed_id) {
-      const { data: src } = await svc
-        .from('rss_sources')
-        .select('name')
-        .eq('id', draft.source_feed_id)
-        .maybeSingle()
-      sourceName = src?.name ?? null
-    }
+    if (draft) sourceName = await draftSourceName(svc, draft)
   }
 
   // Prefer the original source over the rewritten article body — it is the same
