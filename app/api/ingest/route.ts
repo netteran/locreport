@@ -9,6 +9,8 @@ import { extractTeaser } from '@/lib/utils'
 import { distillHeadlineFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import { approveDraft } from '@/lib/publish'
+import { isGoogleNewsUrl } from '@/lib/rss'
+import { sourceNameLine } from '@/lib/sourceName'
 
 async function getPrompt(supabase: ReturnType<typeof createServiceClient>, key: string, fallback: string): Promise<string> {
   try {
@@ -108,6 +110,9 @@ export async function POST(req: NextRequest) {
       return keywords.some(k => text.includes(k))
     }
     const fresh = recent.filter(i => i.link && !seen.has(i.link)).slice(0, 15)
+    // The outlet to credit: the feed itself, unless it is an aggregator, in
+    // which case only the item's own <source> counts (see lib/sourceName.ts).
+    const aggregator = isGoogleNewsUrl(source.url)
 
     for (const item of fresh) {
       try {
@@ -130,9 +135,14 @@ export async function POST(req: NextRequest) {
           continue
         }
 
+        const outlet = aggregator || isGoogleNewsUrl(item.link)
+          ? (item.sourceName ?? null)
+          : (source.name ?? null)
+
         const extractInput = [
           todayLine(),
           item.link ? `Source URL: ${item.link}` : '',
+          outlet ? `Published by: ${outlet}` : '',
           `Title: ${item.title}`,
           `Article content:\n${articleText}`,
         ].filter(Boolean).join('\n\n')
@@ -157,7 +167,7 @@ export async function POST(req: NextRequest) {
         // Stage 2: generate article
         const generateInput = [
           item.link ? `Source URL: ${item.link}` : '',
-          source.name ? `Source name: ${source.name}` : '',
+          sourceNameLine(outlet, item.link),
           `Suggested title: ${item.title}`,
           `Extracted facts:\n${facts}`,
         ].filter(Boolean).join('\n\n')
@@ -219,6 +229,20 @@ export async function POST(req: NextRequest) {
               console.error(`[ingest] could not store extracted facts for ${item.link}:`, factsError)
             }
 
+            // Pin an aggregator item's outlet too, so a re-run and the published
+            // fact credit the same publisher (ordinary feeds fall back to the
+            // feed name). Separate update so a missing column (before the
+            // 20261006 migration) costs only this, never the draft.
+            if (outlet && outlet !== source.name) {
+              const { error: outletError } = await supabase
+                .from('drafts')
+                .update({ source_name: outlet })
+                .eq('id', draftRow.id)
+              if (outletError) {
+                console.error(`[ingest] could not store source name for ${item.link}:`, outletError)
+              }
+            }
+
             // Fact Flow carries one fact per article — the most important one.
             // It is distilled here, off the pristine Stage 1 sheet, and stays
             // parked on the draft until approval promotes it onto the article.
@@ -230,7 +254,7 @@ export async function POST(req: NextRequest) {
                 content: headline,
                 category: 'news',
                 source_url: item.link,
-                source_name: source.name,
+                source_name: outlet,
                 draft_id: draftRow.id,
               })
               if (factError) {

@@ -159,7 +159,7 @@ Tone and style:
 • No speculation beyond what the source explicitly supports.
 • NO ## subheadings. NO "Key Takeaway" sections. NO "Industry Implications" sections. Flowing paragraphs only.
 
-SOURCE ATTRIBUTION RULE (MANDATORY): Every article MUST contain at least one markdown hyperlink to the original source, formatted [Name](link) — where Name is the original publishing outlet or author name exactly as given in the source information in the user message (if no source name is given, use the outlet name evident from context; never invent one) and link is the exact source URL given in the input. Never alter, shorten, or re-target the URL.
+SOURCE ATTRIBUTION RULE (MANDATORY): Every article MUST contain at least one markdown hyperlink to the original source, formatted [Name](link) — where Name is the original publishing outlet or author name exactly as given in the source information in the user message (if no source name is given, use the outlet name evident from context; never invent one) and link is the exact source URL given in the input. Never alter, shorten, or re-target the URL. Name is always the publisher of the story, never a news aggregator or feed that relayed it: never write "Google News" (or "Google News – <anything>") as the source.
 
 Weave the citation into the body as a skilled copywriter would — attached to the specific claim, statistic, or quote it backs, not appended as a trailing sentence. Use one of these forms, choosing whichever reads most naturally at that point in the prose (vary the form if the source is cited more than once):
 - [Name](link) outlines
