@@ -1,22 +1,25 @@
 'use server'
 
-import { createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { revalidateArticleSurfaces } from '@/lib/revalidate'
+import { deleteArticles as deleteArticlesWithFacts } from '@/lib/deleteArticles'
+
+// Server actions are reachable by POST regardless of the admin layout's
+// redirect, so they check the session themselves (same rule as the layout).
+async function assertAdmin() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.email !== process.env.ADMIN_EMAIL) throw new Error('Unauthorized')
+}
 
 export async function deleteArticle(id: string) {
-  const supabase = createServiceClient()
-  // Grab the slug first so the article's own cached detail page goes with it.
-  const { data: existing } = await supabase
-    .from('articles')
-    .select('slug, article_type')
-    .eq('id', id)
-    .maybeSingle()
-  const { error } = await supabase.from('articles').delete().eq('id', id)
-  if (error) throw new Error(error.message)
+  await deleteArticles([id])
+}
+
+/** Deletes the articles and their Fact Flow facts. */
+export async function deleteArticles(ids: string[]) {
+  await assertAdmin()
+  const result = await deleteArticlesWithFacts(createServiceClient(), ids)
   revalidatePath('/admin/articles')
-  revalidateArticleSurfaces({
-    slug: existing?.slug,
-    monthlyReport: existing?.article_type === 'monthly-summary',
-  })
+  return result
 }

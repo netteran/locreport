@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { embedAndStoreArticle } from '@/lib/embeddings'
 import { revalidateArticleSurfaces } from '@/lib/revalidate'
+import { deleteArticles } from '@/lib/deleteArticles'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -36,18 +37,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = createServiceClient()
-  // Read the slug before the row goes, so the deleted article's cached detail
-  // page can be dropped too rather than serving a ghost for another 24h.
-  const { data: existing } = await supabase
-    .from('articles')
-    .select('slug, article_type')
-    .eq('id', id)
-    .maybeSingle()
-  const { error } = await supabase.from('articles').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  revalidateArticleSurfaces({
-    slug: existing?.slug,
-    monthlyReport: existing?.article_type === 'monthly-summary',
-  })
+  try {
+    await deleteArticles(supabase, [id])
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 400 })
+  }
   return new NextResponse(null, { status: 204 })
 }

@@ -206,7 +206,7 @@ Several Compass and other sections use co-located client components:
 | Path | Purpose |
 |---|---|
 | `/admin` | Dashboard: stats banner + a compact action list (`.admin-actions` in `style.css`). Each row is title + controls; the long description collapses behind the title toggle, while confirmation panels and result messages always render inline. Actions: ingest, embeddings backfill, monthly report, digest send (weekly, with a recipient dropdown — All subscribers or one address — a **View sample** button opening `/api/digest/preview` and a **Past sends →** link to `/admin/digest-history`), Fact Flow backfill (one slug, or **Backfill all** to walk every article still missing its fact), market quotes, LLM pricing |
-| `/admin/articles` | Article list management |
+| `/admin/articles` | Article list management. Checkbox per row + select-all for bulk delete; every delete (single or bulk, and `DELETE /api/articles/[id]`) goes through `lib/deleteArticles.ts`, which deletes the articles' Fact Flow facts with them |
 | `/admin/articles/[id]` | Edit individual article |
 | `/admin/reports` | Report lead images. Annual reports (static pages, no `articles` row) get an inline `ImageDropzone` + alt text saved via `/api/reports/image`; monthly reports are listed with their current thumbnail and an **Add/Change image** link to `/admin/articles/[id]` |
 | `/admin/drafts` | Draft review queue (pending/approved/rejected) |
@@ -336,7 +336,8 @@ tweeted_at timestamptz / tweet_id text — written only by /api/tweet-facts (dor
 created_at timestamptz
 ```
 Public read via RLS (`facts_public_read`); writes are service-role only. **`article_id` is what
-publishes a fact** — `/fact-flow`, its RSS feed and the homepage rail all filter on
+publishes a fact** — and deleting the article deletes its fact (`ON DELETE CASCADE` since
+migration `20261008_facts_article_cascade.sql`; it was `SET NULL`, which left orphans) — `/fact-flow`, its RSS feed and the homepage rail all filter on
 `article_id is not null`, so a fact parked on a draft is invisible until that draft is approved.
 
 ### `rss_sources`
@@ -442,6 +443,14 @@ attribute, so the date comes from the element text ("September 1, 2026"), which 
 The listing URL is set to `https://www.deepl.com/en/press-release`; an earlier run against
 `https://www.deepl.com/en/press` returned HTTP 200 but contained no `/press-release/` href anywhere, not
 even via the anchor fallback.
+
+**Selector-miss fallback (Lokalise incident, 2026-10-08).** When `article_selector` matches nothing,
+`collectHtmlCandidates` falls back to JSON-LD + every on-origin anchor and still reports `success`. With no
+`link_pattern`, that used to mean the site's nav menu: `lokalise-blog`'s `[class*='BlogCard-module']` selector
+stopped matching, the feed filled with `/product/*` and `/solutions/*` links, and 12 product pages
+auto-published as articles. The anchor fallback now only accepts links *below* the listing page's path when
+`link_pattern` is unset, and `lokalise-blog` has `link_pattern='/blog/'`. Its selectors still need
+re-checking against the live markup (CSS-module class names rotate) — set a `link_pattern` on every html source.
 
 `DATAmundi-Newsroom` was removed on 2026-09-14: datamundi.ai answers `HTTP 403` to the scraper, which is bot protection rather than a selector problem. One older `aparasion.github.io` row also survives, inactive.
 
