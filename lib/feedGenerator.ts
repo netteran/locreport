@@ -231,6 +231,17 @@ function extractItemDate($: CheerioAPI, articleEl: AnyNode, source: ScrapedSourc
   return null
 }
 
+function isListingPage(link: string, listingUrl: string): boolean {
+  try {
+    const a = new URL(link)
+    const b = new URL(listingUrl)
+    const trim = (p: string) => p.replace(/\/+$/, '')
+    return a.origin === b.origin && trim(a.pathname) === trim(b.pathname)
+  } catch {
+    return false
+  }
+}
+
 function extractFromJsonLd($: CheerioAPI, source: ScrapedSource): RawArticle[] {
   const results: RawArticle[] = []
   $('script[type="application/ld+json"]').each((_, el) => {
@@ -256,6 +267,7 @@ function extractFromJsonLd($: CheerioAPI, source: ScrapedSource): RawArticle[] {
         const link = normalizeUrl(typeof obj.url === 'string' ? obj.url : null, source.url)
         if (!title || !link) continue
         if (!matchesLinkPattern(link, source.link_pattern)) continue
+        if (isListingPage(link, source.url)) continue
 
         results.push({
           title,
@@ -293,6 +305,14 @@ function extractFromAnchors($: CheerioAPI, source: ScrapedSource): RawArticle[] 
       if (siteOrigin && parsed.origin !== siteOrigin) return
       if (link === source.url) return
       if (listingPathname && parsed.pathname === listingPathname) return
+      // With no link_pattern, only links below the listing page count as
+      // articles. Without this, a selector miss on lokalise.com/blog/ (CSS-module
+      // class names rotated) turned the site's nav menu — /product/*, /solutions/*
+      // — into feed items, and 12 product pages auto-published on 2026-10-08.
+      if (!source.link_pattern && listingPathname && listingPathname !== '/') {
+        const prefix = listingPathname.endsWith('/') ? listingPathname : `${listingPathname}/`
+        if (!parsed.pathname.startsWith(prefix)) return
+      }
     } catch {
       return
     }
