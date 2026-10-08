@@ -361,6 +361,20 @@ async function collectHtmlCandidates(source: ScrapedSource): Promise<RawArticle[
 
   if (primary.length > 0) return primary
 
+  // A configured selector that matches nothing means the page changed — or, as
+  // with lokalise.com/blog/ on 2026-10-08, the site served a page without its
+  // article list (the 08:11 run matched; the 11:05 run got only the nav). The
+  // guessing fallback then published the nav menu, and the source auto-publishes.
+  // Fail instead: the run route keeps the previous generated_xml on error and
+  // shows the message on /admin/scraped-feeds. The fallback stays for sources
+  // configured without an article selector.
+  if (source.article_selector) {
+    throw new Error(
+      `article selector "${source.article_selector}" matched nothing on ${source.url} — ` +
+      'the page changed or was not served in full; keeping the previous feed',
+    )
+  }
+
   console.warn(`[feedGenerator] no articles matched selectors for ${source.name}; using fallback extraction`)
   return getFallbackArticles($, source).map(a => ({ ...a, description: truncate(a.description, MAX_DESCRIPTION_LENGTH) }))
 }
