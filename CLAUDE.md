@@ -448,9 +448,16 @@ even via the anchor fallback.
 `collectHtmlCandidates` falls back to JSON-LD + every on-origin anchor and still reports `success`. With no
 `link_pattern`, that used to mean the site's nav menu: `lokalise-blog`'s `[class*='BlogCard-module']` selector
 stopped matching, the feed filled with `/product/*` and `/solutions/*` links, and 12 product pages
-auto-published as articles. The anchor fallback now only accepts links *below* the listing page's path when
-`link_pattern` is unset, and `lokalise-blog` has `link_pattern='/blog/'`. Its selectors still need
-re-checking against the live markup (CSS-module class names rotate) — set a `link_pattern` on every html source.
+auto-published as articles. The selector itself was fine — the live markup still carried the class, and
+the 08:11 UTC run that day matched it. lokalise.com served the 11:05 run a page without its blog cards.
+Two fixes: (1) **a configured `article_selector` that matches nothing is now an error**, not a fallback —
+the run route keeps the previous `generated_xml`, and the message shows on `/admin/scraped-feeds`. The
+JSON-LD/anchor fallback only runs for a source with no `article_selector`, and there its anchors must sit
+below the listing path unless `link_pattern` is set. (2) `lokalise-blog` now selects on Lokalise's
+`data-test-id` attributes (`article[data-test-id='blog-card']`, `a[data-test-id='blog-card-link']`), which
+survive their frontend deploys, unlike the hashed `BlogCard-module__…` classes. When this change shipped,
+`RWS-Blog` looked fallback-fed (items included `/fr/blog/`, `/it/blog/`) and is expected to start
+reporting this error until its selector is fixed.
 
 `DATAmundi-Newsroom` was removed on 2026-09-14: datamundi.ai answers `HTTP 403` to the scraper, which is bot protection rather than a selector problem. One older `aparasion.github.io` row also survives, inactive.
 
