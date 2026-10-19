@@ -11,6 +11,7 @@ import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import { approveDraft } from '@/lib/publish'
 import { isGoogleNewsUrl } from '@/lib/rss'
 import { sourceNameLine } from '@/lib/sourceName'
+import { loadSeenUrls, rememberSeenUrl } from '@/lib/seenUrls'
 
 async function getPrompt(supabase: ReturnType<typeof createServiceClient>, key: string, fallback: string): Promise<string> {
   try {
@@ -54,23 +55,13 @@ export async function POST(req: NextRequest) {
 
   if (!sources.length) return NextResponse.json({ processed: 0 })
 
-  const { data: existingDrafts } = await supabase
-    .from('drafts')
-    .select('source_url')
-    .not('source_url', 'is', null)
-
-  const seen = new Set((existingDrafts ?? []).map(d => d.source_url))
-
-  const { data: existingArticles } = await supabase
-    .from('articles')
-    .select('source_url')
-    .not('source_url', 'is', null)
-
-  ;(existingArticles ?? []).forEach(a => seen.add(a.source_url))
-
-  // Also check seen_urls table (imported from Jekyll seen.json)
-  const { data: seenUrls } = await supabase.from('seen_urls').select('url')
-  ;(seenUrls ?? []).forEach(r => seen.add(r.url))
+  let seen: Set<string>
+  try {
+    seen = await loadSeenUrls(supabase)
+  } catch (error) {
+    // Never spend tokens or create drafts against incomplete history.
+    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
+  }
 
   const openai = getOpenAI()
   const extractorPrompt = await getPrompt(supabase, 'prompt_extractor', DEFAULT_EXTRACTOR_PROMPT)
@@ -115,6 +106,8 @@ export async function POST(req: NextRequest) {
     const aggregator = isGoogleNewsUrl(source.url)
 
     for (const item of fresh) {
+      // `fresh` was computed before this loop; a feed may repeat a URL.
+      if (seen.has(item.link)) continue
       try {
         // Prefer full article text over RSS snippet — RSS feeds only carry teasers
         const fetchedText = item.link ? await fetchArticleText(item.link) : null
@@ -160,6 +153,7 @@ export async function POST(req: NextRequest) {
         if (facts.trim() === 'UNUSABLE_CONTENT') {
           console.log(`[ingest] UNUSABLE_CONTENT: ${item.link}`)
           skipped.push(item.link)
+          await rememberSeenUrl(supabase, item.link)
           seen.add(item.link)
           continue
         }
@@ -209,6 +203,10 @@ export async function POST(req: NextRequest) {
           console.error(`[ingest] DB insert failed for ${item.link}:`, insertError)
           errors.push(`${item.link}: ${insertError.message}`)
         } else {
+          // Retain history even if enrichment fails or this draft is deleted.
+          seen.add(item.link)
+          processed++
+          await rememberSeenUrl(supabase, item.link)
           // Save extracted facts linked to the draft
           const { data: draftRow } = await supabase
             .from('drafts')
@@ -276,9 +274,6 @@ export async function POST(req: NextRequest) {
               }
             }
           }
-
-          seen.add(item.link)
-          processed++
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
