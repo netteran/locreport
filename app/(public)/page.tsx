@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Fragment } from 'react'
-import { HomeFeedAd } from '@/components/HomeFeedAd'
+import { DisplayAd, HomeFeedAd } from '@/components/HomeFeedAd'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { createPublicClient } from '@/lib/supabase/server'
@@ -270,6 +270,8 @@ export default async function HomePage() {
               </div>
             </section>
           )}
+
+          <DisplayAd placement="home-briefing" desktopSlot="5585148873" mobileSlot="6111888795" />
 
           <MomentumStrip items={momentumItems} />
 
