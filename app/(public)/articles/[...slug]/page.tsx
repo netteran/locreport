@@ -1,5 +1,7 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/server'
+import { DisplayAd } from '@/components/HomeFeedAd'
+import { splitArticleForAd } from '@/lib/articleAd'
 import AdminEditLink from '@/components/AdminEditLink'
 import { cache } from 'react'
 import { SITE_URL, ORG_ID, WEBSITE_ID, breadcrumbJsonLd } from '@/lib/seo'
@@ -109,6 +111,7 @@ export default async function ArticlePage({ params }: Props) {
   const rawHtml = marked.parse(content) as string
   // Add target/_blank + rel=noopener to all external links in rendered content
   const html = rawHtml.replace(/<a (href="https?:\/\/)/g, '<a target="_blank" rel="noopener" $1')
+  const articleParts = splitArticleForAd(html)
   const date = new Date(a.published_at).toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
   })
@@ -229,11 +232,22 @@ export default async function ArticlePage({ params }: Props) {
           </figure>
         )}
 
-        <div className="post-content" dangerouslySetInnerHTML={{ __html: html }} />
+        {articleParts ? (
+          <div className="post-content">
+            <div dangerouslySetInnerHTML={{ __html: articleParts.before }} />
+            <DisplayAd
+              key={a.id}
+              placement="article-inline"
+              desktopSlot="2718690269"
+              mobileSlot="1478382906"
+            />
+            <div dangerouslySetInnerHTML={{ __html: articleParts.after }} />
+          </div>
+        ) : (
+          <div className="post-content" dangerouslySetInnerHTML={{ __html: html }} />
+        )}
 
-        {/* ── Below the article, in order: Intelligence, newsletter,
-            Related Reading, support. No sidebar — everything shares the
-            article's own reading width. ── */}
+        {/* Below the article: Intelligence and Related Reading. */}
         {hasIntel && (
           <section className="post-intel" aria-label="Article intelligence">
             <h2 className="post-section-label">Intelligence</h2>
@@ -287,23 +301,6 @@ export default async function ArticlePage({ params }: Props) {
             </div>
           </section>
         )}
-
-        <div className="support-box">
-          <div className="support-box__inner">
-            <div className="support-box__copy">
-              <p className="support-box__headline">Keep independent coverage alive.</p>
-              <p className="support-box__text">No ads. No paywall. No corporate backing. Just sharp, weekly intelligence on the language industry — free, because it should be.</p>
-            </div>
-            <div className="support-box__actions">
-              <a href="https://buymeacoffee.com/locreport" target="_blank" rel="noopener" className="support-box__btn">
-                Support LocReport →
-              </a>
-              <a href={`https://twitter.com/intent/tweet?url=https://locreport.com${articleHref(a.slug)}&text=${encodeURIComponent(a.title)}`} target="_blank" rel="noopener" className="support-box__share">
-                Share this article
-              </a>
-            </div>
-          </div>
-        </div>
       </article>
     </div>
   )
