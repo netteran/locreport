@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import Script from 'next/script'
 import { getReportImage } from '@/lib/reportImage'
 
 const SLUG = '2026-annual-global-market-report'
@@ -40,11 +39,6 @@ export default async function AnnualReport2026() {
       )}
 
       <div className="annual-report annual-report-2026" dangerouslySetInnerHTML={{ __html: ANNUAL_REPORT_HTML }} />
-
-      <div className="support-box" style={{ marginTop: 'var(--space-10)' }}>
-        <p className="support-box__text">LocReport is free and independent. If it helps you stay informed, consider buying us a coffee — it goes a long way.</p>
-        <Script src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="locreport" data-color="#5F7FFF" data-emoji="" data-font="Cookie" data-text="Buy me a coffee" data-outline-color="#000000" data-font-color="#ffffff" data-coffee-color="#FFDD00" strategy="lazyOnload" />
-      </div>
     </div>
   )
 }

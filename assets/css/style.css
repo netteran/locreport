@@ -3815,84 +3815,20 @@ article.page > h1 {
 .post-source a:hover { color: var(--text); }
 .post-source__ext { font-size: 0.85em; }
 
-.support-box {
-  margin-top: var(--space-8);
-  border-radius: var(--radius-lg);
-  border-left: 3px solid var(--accent);
-  background: var(--bg-secondary);
-  padding: var(--space-6) var(--space-6) var(--space-6) calc(var(--space-6) - 3px);
-  overflow: hidden;
-}
-.support-box__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-6);
-}
-.support-box__copy {
-  flex: 1;
+/* Match reservation height to the format that fits the feed column. */
+.home-ad-reservation {
+  container-type: inline-size;
+  width: 100%;
   min-width: 0;
+  margin-block: var(--space-6);
 }
-.support-box__headline {
-  font-family: var(--font-display);
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 var(--space-2);
-  letter-spacing: -0.01em;
-}
-.support-box__text {
-  font-size: 0.88rem;
-  color: var(--muted);
-  margin: 0;
-  line-height: 1.6;
-}
-.support-box__actions {
+.home-ad-reservation__slot {
+  min-height: 100px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  flex-shrink: 0;
+  justify-content: center;
 }
-.support-box__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  padding: 10px 22px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.88rem;
-  font-weight: 700;
-  border-radius: var(--radius-md);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 2px 8px var(--accent-soft);
-}
-.support-box__btn:hover {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px var(--accent-soft);
-  color: #fff;
-}
-.support-box__share {
-  font-size: 0.8rem;
-  color: var(--muted);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.15s ease;
-}
-.support-box__share:hover { color: var(--accent); }
-
-@media (max-width: 640px) {
-  .support-box__inner {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .support-box__actions {
-    width: 100%;
-    align-items: flex-start;
-  }
+@container (min-width: 728px) {
+  .home-ad-reservation__slot { min-height: 90px; }
 }
 
 /* ── Manual forms (manform/) ────────────────────────────────────────────── */
