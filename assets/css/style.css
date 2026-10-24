@@ -3831,6 +3831,89 @@ article.page > h1 {
   .home-ad-reservation__slot { min-height: 90px; }
 }
 
+.service-support-notice {
+  --notice-accent: #b42335;
+  --notice-icon-bg: #fbe4e7;
+  width: 100%;
+  box-sizing: border-box;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid #efced3;
+  border-radius: 12px;
+  background: linear-gradient(115deg, #fff9fa, #fff1f3);
+  box-shadow: 0 2px 8px rgba(106, 24, 38, 0.04);
+  color: #59383e;
+  font-family: var(--font-ui);
+  line-height: 1.5;
+}
+.service-support-notice__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--notice-icon-bg);
+  color: var(--notice-accent);
+}
+.service-support-notice__copy { flex: 1; min-width: 0; }
+.service-support-notice .service-support-notice__title {
+  display: block;
+  color: var(--notice-accent);
+  font-size: 0.88rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.service-support-notice__text {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+}
+.service-support-notice__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e6b9c1;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--notice-accent);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.service-support-notice__button:hover { background: var(--notice-icon-bg); }
+.service-support-notice__button:focus-visible {
+  outline: 2px solid var(--notice-accent);
+  outline-offset: 3px;
+}
+[data-theme="dark"] .service-support-notice {
+  --notice-accent: #ffb3bf;
+  --notice-icon-bg: #4b2730;
+  background: linear-gradient(115deg, #2b1c22, #361e27);
+  border-color: #63333f;
+  color: #e2c2c9;
+  box-shadow: none;
+}
+[data-theme="dark"] .service-support-notice__button { border-color: #78424f; }
+@container (max-width: 500px) {
+  .service-support-notice {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 0.65rem;
+    padding: 0.9rem;
+  }
+  .service-support-notice__icon { width: 32px; height: 32px; border-radius: 9px; }
+  .service-support-notice__button { grid-column: 2; justify-self: start; }
+}
+
 /* ── Manual forms (manform/) ────────────────────────────────────────────── */
 .manform {
   max-width: 860px;
