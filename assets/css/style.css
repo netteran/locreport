@@ -4315,6 +4315,7 @@ article.page > h1 {
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
+  --feed-card-padding: var(--space-4);
 }
 [data-theme="dark"] .home-v1 {
   color: var(--text);
@@ -4912,13 +4913,15 @@ article.page > h1 {
 .home-v1 .article-list {
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
 }
-.home-v1 .article-row {
-  padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--border);
-}
-.home-v1 .article-row:last-child {
-  border-bottom: none;
+/* The stream and highlighted story share one quiet card frame. */
+.home-v1 .article-row,
+.home-v1 .briefing {
+  padding: var(--feed-card-padding);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 .home-v1 .article-row__header {
   display: flex;
@@ -5237,8 +5240,8 @@ article.page > h1 {
   .home-v1 .home-sidebar {
     grid-template-columns: 1fr;
   }
-  .home-v1 .article-row:not(.article-row--featured) {
-    padding-left: var(--space-3);
+  .home-v1 {
+    --feed-card-padding: var(--space-3);
   }
 }
 .home-v1 .hero h1,
@@ -5263,10 +5266,11 @@ article.page > h1 {
   color: var(--featured-text);
 }
 .home-v1 .briefing {
-  margin-bottom: var(--space-8); padding: var(--space-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl);
+  margin-bottom: var(--space-5);
+  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
 }
 .home-v1 .briefing__head {
-  display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4);
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4);
 }
 .home-v1 .briefing__eyebrow {
   font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent);
