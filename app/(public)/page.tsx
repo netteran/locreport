@@ -7,9 +7,7 @@ import { createPublicClient } from '@/lib/supabase/server'
 import { Article } from '@/lib/types'
 import { articleHref, safeImageUrl } from '@/lib/utils'
 import { SIGNALS, SIGNAL_MAP } from '@/lib/signals'
-import { MomentumStrip } from '@/components/MomentumStrip'
 import { DigestPopupTrigger } from '@/components/DigestPopupTrigger'
-import { getIntelligenceData, signalShortLabel } from '@/lib/intelligence'
 
 export const metadata: Metadata = {
   alternates: { canonical: '/' },
@@ -67,7 +65,7 @@ export default async function HomePage() {
 
   // Independent queries — run concurrently instead of paying for each
   // round trip in sequence.
-  const [articlesResult, { data: latestFacts }, { data: latestReport }, intel] = await Promise.all([
+  const [articlesResult, { data: latestFacts }, { data: latestReport }] = await Promise.all([
     supabase
       .from('articles')
       .select('id, title, slug, excerpt, author, image_url, signal_ids, impact_score, published_at')
@@ -86,7 +84,6 @@ export default async function HomePage() {
       .order('published_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    getIntelligenceData(supabase),
   ])
 
   // Depends on latestFacts, so it stays a follow-up query rather than
@@ -142,22 +139,6 @@ export default async function HomePage() {
   const thirdFeedArticleId = [...byDay.values()]
     .flat()
     .filter(article => article.id !== lead?.id)[2]?.id
-
-  // Signal momentum strip: rising signals first, busiest coverage as filler
-  const rising = intel.signalSeries.filter(s => s.observedMomentum === 'rising')
-  const filler = intel.signalSeries
-    .filter(s => s.observedMomentum !== 'rising')
-    .sort((a, b) => b.recentCount - a.recentCount)
-  const momentumItems = [...rising.sort((a, b) => b.recentCount - a.recentCount), ...filler]
-    .slice(0, 4)
-    .filter(s => s.recentCount > 0)
-    .map(s => ({
-      id: s.signalId,
-      label: signalShortLabel(s.signalId),
-      momentum: s.observedMomentum,
-      recentCount: s.recentCount,
-      weekly: s.weekly,
-    }))
 
   return (
     // The homepage keeps the pre-Aug-17 visual system. `.home-v1` scopes both
@@ -272,8 +253,6 @@ export default async function HomePage() {
           )}
 
           <DisplayAd placement="home-briefing" desktopSlot="5585148873" mobileSlot="6111888795" />
-
-          <MomentumStrip items={momentumItems} />
 
           {[...byDay.entries()].map(([, allDayArticles], dayIndex) => {
             const dayArticles = allDayArticles.filter(a => a.id !== lead?.id)
