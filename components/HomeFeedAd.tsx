@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 
 const CLIENT = 'ca-pub-4411470587763033'
 
-type Format = 'desktop' | 'mobile'
+type Format = 'desktop' | 'mobile' | 'feed'
 
 function AdUnit({ format, desktopSlot, mobileSlot }: { format: Format; desktopSlot: string; mobileSlot: string }) {
   const element = useRef<HTMLModElement>(null)
@@ -27,20 +27,30 @@ function AdUnit({ format, desktopSlot, mobileSlot }: { format: Format; desktopSl
     <ins
       ref={element}
       className="adsbygoogle"
-      style={{ display: 'inline-block', width: desktop ? 728 : 320, height: desktop ? 90 : 100 }}
+      style={format === 'feed'
+        ? { display: 'block', width: '100%' }
+        : { display: 'inline-block', width: desktop ? 728 : 320, height: desktop ? 90 : 100 }}
+      data-ad-format={format === 'feed' ? 'fluid' : undefined}
+      data-ad-layout-key={format === 'feed' ? '-f9+5v+4m-d8+7b' : undefined}
       data-ad-client={CLIENT}
-      data-ad-slot={desktop ? desktopSlot : mobileSlot}
+      data-ad-slot={format === 'feed' ? '7822958076' : desktop ? desktopSlot : mobileSlot}
     />
   )
 }
 
 type DisplayAdProps = {
   placement: string
+} & ({
+  feed: true
+  desktopSlot?: never
+  mobileSlot?: never
+} | {
+  feed?: false
   desktopSlot: string
   mobileSlot: string
-}
+})
 
-export function DisplayAd({ placement, desktopSlot, mobileSlot }: DisplayAdProps) {
+export function DisplayAd({ placement, feed = false, desktopSlot = '', mobileSlot = '' }: DisplayAdProps) {
   const container = useRef<HTMLDivElement>(null)
   const [format, setFormat] = useState<Format | null>(null)
   const [adsBlocked, setAdsBlocked] = useState(false)
@@ -73,11 +83,11 @@ export function DisplayAd({ placement, desktopSlot, mobileSlot }: DisplayAdProps
     // Measure the feed itself: the desktop sidebar reduces available width.
     const observer = new ResizeObserver(([entry]) => {
       const width = entry.contentRect.width
-      setFormat(width >= 728 ? 'desktop' : width >= 320 ? 'mobile' : null)
+      setFormat(feed ? (width > 0 ? 'feed' : null) : width >= 728 ? 'desktop' : width >= 320 ? 'mobile' : null)
     })
     observer.observe(container.current)
     return () => observer.disconnect()
-  }, [])
+  }, [feed])
 
   return (
     <div ref={container} className="home-ad-reservation" data-ad-placement={placement}>
@@ -120,6 +130,6 @@ export function DisplayAd({ placement, desktopSlot, mobileSlot }: DisplayAdProps
   )
 }
 
-export function HomeFeedAd() {
-  return <DisplayAd placement="home-feed" desktopSlot="5585148873" mobileSlot="6111888795" />
+export function HomeFeedAd({ placement = 'home-feed' }: { placement?: string }) {
+  return <DisplayAd placement={placement} feed />
 }
