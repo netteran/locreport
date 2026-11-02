@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Fragment } from 'react'
-import { DisplayAd, HomeFeedAd } from '@/components/HomeFeedAd'
+import { HomeFeedAd } from '@/components/HomeFeedAd'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { createPublicClient } from '@/lib/supabase/server'
@@ -252,7 +252,7 @@ export default async function HomePage() {
             </section>
           )}
 
-          <DisplayAd placement="home-briefing" desktopSlot="5585148873" mobileSlot="6111888795" />
+          <HomeFeedAd placement="home-briefing" />
 
           {[...byDay.entries()].map(([, allDayArticles], dayIndex) => {
             const dayArticles = allDayArticles.filter(a => a.id !== lead?.id)
