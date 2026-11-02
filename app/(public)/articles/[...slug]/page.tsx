@@ -238,8 +238,6 @@ export default async function ArticlePage({ params }: Props) {
             <DisplayAd
               key={a.id}
               placement="article-inline"
-              desktopSlot="2718690269"
-              mobileSlot="1478382906"
             />
             <div dangerouslySetInnerHTML={{ __html: articleParts.after }} />
           </div>

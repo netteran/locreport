@@ -5,12 +5,11 @@ import { useEffect, useRef, useState } from 'react'
 
 const CLIENT = 'ca-pub-4411470587763033'
 
-type Format = 'desktop' | 'mobile' | 'feed'
+type Format = 'feed' | 'article'
 
-function AdUnit({ format, desktopSlot, mobileSlot }: { format: Format; desktopSlot: string; mobileSlot: string }) {
+function AdUnit({ format }: { format: Format }) {
   const element = useRef<HTMLModElement>(null)
   const requested = useRef(false)
-  const desktop = format === 'desktop'
 
   useEffect(() => {
     if (!element.current || requested.current) return
@@ -27,30 +26,22 @@ function AdUnit({ format, desktopSlot, mobileSlot }: { format: Format; desktopSl
     <ins
       ref={element}
       className="adsbygoogle"
-      style={format === 'feed'
-        ? { display: 'block', width: '100%' }
-        : { display: 'inline-block', width: desktop ? 728 : 320, height: desktop ? 90 : 100 }}
-      data-ad-format={format === 'feed' ? 'fluid' : undefined}
+      style={{ display: 'block', width: '100%', textAlign: format === 'article' ? 'center' : undefined }}
+      data-ad-format="fluid"
+      data-ad-layout={format === 'article' ? 'in-article' : undefined}
       data-ad-layout-key={format === 'feed' ? '-f9+5v+4m-d8+7b' : undefined}
       data-ad-client={CLIENT}
-      data-ad-slot={format === 'feed' ? '7822958076' : desktop ? desktopSlot : mobileSlot}
+      data-ad-slot={format === 'feed' ? '7822958076' : '1337440775'}
     />
   )
 }
 
 type DisplayAdProps = {
   placement: string
-} & ({
-  feed: true
-  desktopSlot?: never
-  mobileSlot?: never
-} | {
-  feed?: false
-  desktopSlot: string
-  mobileSlot: string
-})
+  feed?: boolean
+}
 
-export function DisplayAd({ placement, feed = false, desktopSlot = '', mobileSlot = '' }: DisplayAdProps) {
+export function DisplayAd({ placement, feed = false }: DisplayAdProps) {
   const container = useRef<HTMLDivElement>(null)
   const [format, setFormat] = useState<Format | null>(null)
   const [adsBlocked, setAdsBlocked] = useState(false)
@@ -80,10 +71,10 @@ export function DisplayAd({ placement, feed = false, desktopSlot = '', mobileSlo
 
   useEffect(() => {
     if (!container.current) return
-    // Measure the feed itself: the desktop sidebar reduces available width.
+    // Wait for a visible container before requesting a fluid ad.
     const observer = new ResizeObserver(([entry]) => {
       const width = entry.contentRect.width
-      setFormat(feed ? (width > 0 ? 'feed' : null) : width >= 728 ? 'desktop' : width >= 320 ? 'mobile' : null)
+      setFormat(width > 0 ? (feed ? 'feed' : 'article') : null)
     })
     observer.observe(container.current)
     return () => observer.disconnect()
@@ -123,7 +114,7 @@ export function DisplayAd({ placement, feed = false, desktopSlot = '', mobileSlo
             </button>
           </div>
         ) : format ? (
-          <AdUnit key={format} format={format} desktopSlot={desktopSlot} mobileSlot={mobileSlot} />
+          <AdUnit key={format} format={format} />
         ) : null}
       </div>
     </div>
