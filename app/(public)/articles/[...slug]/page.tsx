@@ -15,6 +15,11 @@ import type { Metadata } from 'next'
 
 export const revalidate = 86400
 
+// Generate article pages on first access, then reuse them through ISR.
+export async function generateStaticParams() {
+  return []
+}
+
 type Props = { params: Promise<{ slug: string[] }> }
 
 const IMPACT_LABEL: Record<number, string> = { 1: 'Routine', 2: 'Notable', 3: 'Significant', 4: 'Major', 5: 'Disruptive' }
