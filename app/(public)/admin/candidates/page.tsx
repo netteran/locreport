@@ -78,7 +78,7 @@ export default function CandidatesPage() {
     <div className="max-w-[1000px] space-y-5">
       <h1 className="text-2xl font-bold">Source candidates</h1>
       <p className="text-sm" style={{ color: 'var(--muted)' }}>
-        Collected evidence for your next article. Choose 2–8 sources, add your direction, then
+        Collected evidence for your next article. Choose 1–8 sources, add your direction, then
         generate a draft when you are ready.
       </p>
       <div className="flex gap-2 flex-wrap">
@@ -126,10 +126,10 @@ export default function CandidatesPage() {
             <div className="flex gap-3 items-center">
               <span>{selected.length} selected</span>
               <Button
-                disabled={busy || selected.length < 2 || selected.length > 8}
+                disabled={busy || selected.length < 1 || selected.length > 8}
                 onClick={() => run(() => combine(selected))}
               >
-                Combine selected
+                {selected.length === 1 ? 'Create article' : 'Combine selected'}
               </Button>
               <Button variant="ghost" onClick={() => setSelected([])}>
                 Clear
