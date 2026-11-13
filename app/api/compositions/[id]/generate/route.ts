@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, unauthorized } from '@/lib/adminAuth'
+import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked } from '@/lib/research'
 import { DEFAULT_SYNTHESIS_PROMPT, synthesisInput } from '@/lib/synthesis'
@@ -14,6 +14,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!(await requireAdmin())) return unauthorized() // CRON_SECRET deliberately confers no generation permission.
   const { id } = await params
   const service = createServiceClient()
+  const schemaResponse = await requireResearchSchema(service)
+  if (schemaResponse) return schemaResponse
   const body = await req.json().catch(() => ({}))
   const requestId = typeof body.request_id === 'string' ? body.request_id : randomUUID()
   let claimed = false

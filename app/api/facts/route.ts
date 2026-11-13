@@ -1,10 +1,10 @@
-import { requireAdmin, unauthorized } from '@/lib/adminAuth'
+import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidateFactSurfaces } from '@/lib/revalidate'
 
 export async function POST(req: NextRequest) {
-  if (!await requireAdmin()) return unauthorized()
+  if (!(await requireAdmin())) return unauthorized()
 
   const body = await req.json()
   const content = typeof body.content === 'string' ? body.content.trim() : ''
@@ -17,19 +17,18 @@ export async function POST(req: NextRequest) {
 
   if (slug) {
     const svc = createServiceClient()
-    const { data: article } = await svc
-      .from('articles')
-      .select('id')
-      .eq('slug', slug)
-      .single()
-    if (!article) return NextResponse.json({ error: 'Article not found for that slug' }, { status: 404 })
+    const { data: article } = await svc.from('articles').select('id').eq('slug', slug).single()
+    if (!article)
+      return NextResponse.json({ error: 'Article not found for that slug' }, { status: 404 })
     article_id = article.id
   }
 
   const svc = createServiceClient()
+  const schemaResponse = await requireResearchSchema(svc)
+  if (schemaResponse) return schemaResponse
   const { data, error } = await svc
     .from('facts')
-    .insert({ content, source_url, article_id, category: 'news', status:'pending' })
+    .insert({ content, source_url, article_id, category: 'news', status: 'pending' })
     .select('*')
     .single()
 

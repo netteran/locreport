@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, unauthorized } from '@/lib/adminAuth'
+import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked, descriptorForReview } from '@/lib/research'
 import { eventIdentity } from '@/lib/eventMatching'
@@ -9,6 +9,8 @@ export async function GET() {
   if (!(await requireAdmin())) return unauthorized()
   try {
     const service = createServiceClient()
+    const schemaResponse = await requireResearchSchema(service)
+    if (schemaResponse) return schemaResponse
     const [candidates, groups, events, compositions] = await Promise.all([
       service
         .from('source_candidates')
@@ -51,6 +53,8 @@ export async function PATCH(req: NextRequest) {
   try {
     const b = await req.json()
     const service = createServiceClient()
+    const schemaResponse = await requireResearchSchema(service)
+    if (schemaResponse) return schemaResponse
     if (b.group_id) {
       checked(await service.from('story_groups').update({ dismissed: true }).eq('id', b.group_id))
     } else if (b.merge_from && b.merge_into) {

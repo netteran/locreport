@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, unauthorized } from '@/lib/adminAuth'
+import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked } from '@/lib/research'
 type Params = { params: Promise<{ id: string }> }
@@ -8,12 +8,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!(await requireAdmin())) return unauthorized()
   try {
     const { id } = await params
+    const client = createServiceClient()
+    const schemaResponse = await requireResearchSchema(client)
+    if (schemaResponse) return schemaResponse
     const row = checked(
-      await createServiceClient()
-        .from('compositions')
-        .select('*,composition_sources(*)')
-        .eq('id', id)
-        .single()
+      await client.from('compositions').select('*,composition_sources(*)').eq('id', id).single()
     )
     row.composition_sources.sort(
       (a: { position: number }, b: { position: number }) => a.position - b.position
@@ -29,6 +28,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params
     const b = await req.json()
     const service = createServiceClient()
+    const schemaResponse = await requireResearchSchema(service)
+    if (schemaResponse) return schemaResponse
     if (b.status === 'abandoned') {
       checked(await service.rpc('abandon_composition', { p_id: id }))
       return NextResponse.json({ ok: true })

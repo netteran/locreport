@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, isCronRequest, unauthorized } from '@/lib/adminAuth'
+import { requireAdmin, isCronRequest, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked, processPendingCandidates, refreshStoryGroups } from '@/lib/research'
 
@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
   if (!isCronRequest(req) && !(await requireAdmin())) return unauthorized()
   try {
     const service = createServiceClient()
+    const schemaResponse = await requireResearchSchema(service)
+    if (schemaResponse) return schemaResponse
     const body = await req.json().catch(() => ({}))
     if (body.stage === 'groups') {
       await refreshStoryGroups(service)

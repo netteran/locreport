@@ -8,6 +8,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        schema: [research, legacy]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,7 +20,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
-      - name: Build against an isolated Supabase fixture
+      - name: Build against an isolated Supabase fixture (${{ matrix.schema }})
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54329
           NEXT_PUBLIC_SUPABASE_ANON_KEY: fixture-anon
@@ -25,6 +28,7 @@ jobs:
           ADMIN_EMAIL: editor@example.test
           CRON_SECRET: fixture-cron
           NEXT_TELEMETRY_DISABLED: 1
+          FIXTURE_SCHEMA: ${{ matrix.schema }}
         run: |
           node tests/fixtures/supabase.cjs &
           FIXTURE_PID=$!

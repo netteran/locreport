@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin, unauthorized } from '@/lib/adminAuth'
+import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked } from '@/lib/research'
 
@@ -14,6 +14,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Select 2–8 source candidates' }, { status: 400 })
     const id = randomUUID()
     const service = createServiceClient()
+    const schemaResponse = await requireResearchSchema(service)
+    if (schemaResponse) return schemaResponse
     checked(
       await service.rpc('reserve_composition', { p_id: id, p_candidates: ids, p_user: user.id })
     )

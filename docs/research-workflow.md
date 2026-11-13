@@ -26,7 +26,7 @@ Suggestions use the last 30 days of available candidates (at most 60 in one refr
 ## Deploying this PR
 
 1. Back up the production database. Pause the Ingest workflow while applying this schema/application change together; the old application interprets `Auto` as full-article publication.
-2. Apply `supabase/migrations/20261113_research_publications.sql` with the normal Supabase migration process **before deploying this application version**. It assumes the existing repository migrations and production base tables are present. Do not run it twice as raw SQL; use migration tracking.
+2. Apply `supabase/migrations/20261113_research_publications.sql` with the normal Supabase migration process **before enabling the new research and publishing workflow**. Preview builds can run before migration: public Fact Flow, its RSS feed and the homepage read the old article-linked facts schema. Research processing, generation and publication return a migration-required 503 until the new schema is present. It assumes the existing repository migrations and production base tables are present. Do not run it twice as raw SQL; use migration tracking.
 3. The migration preserves published facts and their original dates. Existing unpublished drafts with saved fact sheets become source candidates; the old prose stays in the database as research-only and cannot be accidentally published. These imported candidates explicitly cannot auto-publish old backlog facts. Old parked facts for imported drafts are rejected in favor of event-based review. Drafts without saved evidence remain in Drafts.
 4. Deploy the application, check **Source candidates**, **Fact Flow**, source **Auto facts**, and podcast **Collect** choices. Use a manual Ingest workflow dispatch to verify collection, held events, trusted facts and article suggestions. No historical event extraction or new article generation happens during the migration itself.
 5. Re-enable the unchanged weekday schedule. Observe per-run errors and held matches. Compose an article manually and verify its source links, pending state and final Fact Flow analysis links.
@@ -35,7 +35,7 @@ Rollback is to stop scheduled ingestion and keep the schema/data in place while 
 
 ## Validation
 
-`npm test` runs unit tests and the real SQL migration/functions in isolated PostgreSQL WASM (PGlite + pgvector), including public/private reads, RPC permissions, duplicate events, conflicts, reservations, generation claims, publication retries and merges. `npm run typecheck` checks TypeScript.
+`npm test` runs unit tests and the real SQL migration/functions in isolated PostgreSQL WASM (PGlite + pgvector), including public/private reads, RPC permissions, duplicate events, conflicts, reservations, generation claims, publication retries and merges. `npm run typecheck` checks TypeScript. HTTP-backed reader tests also cover the pre-migration schema, pending-fact privacy and genuine database failures. CI builds against both schema versions.
 
 For an isolated production build, run the HTTP fixture in one terminal:
 
@@ -56,3 +56,6 @@ npm run start
 ```
 
 With Playwright available, `node tests/research.browser.cjs` exercises manual source selection, saved editorial direction/experience, explicit generation, the publication boundary and public Fact Flow links. Set `PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium` if using a system browser. This browser test uses a local auth fixture and intercepted composition responses; database correctness is exercised independently by the SQL suite. Neither fixture calls a live Supabase project or a paid generation service. Live model output and production data should be checked in the rollout above.
+
+
+To reproduce a preview build against the unmigrated schema, start a fresh fixture with `FIXTURE_SCHEMA=legacy node tests/fixtures/supabase.cjs` and use the same isolated build settings above. With that build running, `TEST_SCHEMA=legacy node tests/research.browser.cjs` checks public Fact Flow, RSS and the homepage, plus migration-required responses from authenticated research/publishing endpoints. The legacy fallback only handles missing new publication columns; database outages and permission errors still fail visibly.

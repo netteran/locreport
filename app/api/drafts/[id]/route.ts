@@ -1,4 +1,4 @@
-import { requireAdmin, unauthorized } from '@/lib/adminAuth'
+import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { findDraftFact, saveDraftFact } from '@/lib/factFlow'
@@ -8,9 +8,11 @@ import { approveDraft } from '@/lib/publish'
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
-  if (!await requireAdmin()) return unauthorized()
+  if (!(await requireAdmin())) return unauthorized()
   const { id } = await params
   const supabase = createServiceClient()
+  const schemaResponse = await requireResearchSchema(supabase)
+  if (schemaResponse) return schemaResponse
   const { data, error } = await supabase.from('drafts').select('*').eq('id', id).single()
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
   // The draft's Fact Flow fact, reviewed and edited alongside the article body —
@@ -20,10 +22,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
-  if (!await requireAdmin()) return unauthorized()
+  if (!(await requireAdmin())) return unauthorized()
   const { id } = await params
   const body = await req.json()
   const supabase = createServiceClient()
+  const schemaResponse = await requireResearchSchema(supabase)
+  if (schemaResponse) return schemaResponse
 
   // Save the reviewer's edit to the draft's Fact Flow fact before anything else.
   // This must run before the approve branch below, which promotes whatever is
@@ -31,11 +35,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // approval has to land first for approval to publish the edited sentence
   // rather than the original distillation.
   let draftFactResult: Awaited<ReturnType<typeof saveDraftFact>> | null = null
-  const { data: draftMeta } = await supabase.from('drafts').select('composition_id').eq('id',id).single()
+  const { data: draftMeta } = await supabase
+    .from('drafts')
+    .select('composition_id')
+    .eq('id', id)
+    .single()
   if (body.fact !== undefined && !draftMeta?.composition_id) {
     draftFactResult = await saveDraftFact(supabase, { draftId: id, content: body.fact })
     if (draftFactResult.status === 'refused' || draftFactResult.status === 'failed') {
-      return NextResponse.json({ error: draftFactResult.reason ?? 'Could not save fact' }, { status: 400 })
+      return NextResponse.json(
+        { error: draftFactResult.reason ?? 'Could not save fact' },
+        { status: 400 }
+      )
     }
   }
 
@@ -48,9 +59,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       publisher: body.publisher,
       source_url: body.source_url,
       image_url: body.image_url,
-      image_alt: body.image_alt,
+      image_alt: body.image_alt
     })
-    if (result.status === 'error') return NextResponse.json({ error: result.message }, { status: 400 })
+    if (result.status === 'error')
+      return NextResponse.json({ error: result.message }, { status: 400 })
   }
 
   // A fact edit on an already-published article (post-approval correction) writes
@@ -68,12 +80,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (body.image_url !== undefined) patch.image_url = body.image_url || null
   if (body.image_alt !== undefined) patch.image_alt = body.image_alt || null
 
-  const { data, error } = await supabase
-    .from('drafts')
-    .update(patch)
-    .eq('id', id)
-    .select()
-    .single()
+  const { data, error } = await supabase.from('drafts').update(patch).eq('id', id).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   // Echo back the fact state too, so the client can sync without a second round

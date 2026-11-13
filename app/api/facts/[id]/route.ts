@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/adminAuth'
+import { requireAdmin, requireResearchSchema } from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidateFactSurfaces } from '@/lib/revalidate'
@@ -23,21 +23,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (hasArticleId) patch.article_id = article_id
 
   const svc = createServiceClient()
+  const schemaResponse = await requireResearchSchema(svc)
+  if (schemaResponse) return schemaResponse
   if ('status' in body) {
-    if (!['pending','published','rejected','withdrawn'].includes(body.status)) return NextResponse.json({error:'Invalid status'},{status:400})
-    const {data:current,error:readError}=await svc.from('facts').select('source_url,article_id,published_at').eq('id',id).single()
-    if(readError)return NextResponse.json({error:readError.message},{status:404})
-    if(body.status==='published'&&!current.source_url&&!current.article_id)return NextResponse.json({error:'Add an original source before publishing'},{status:400})
-    patch.status=body.status
-    if(body.status==='published'){patch.published_at=current.published_at||new Date().toISOString();patch.review_reason=null}
+    if (!['pending', 'published', 'rejected', 'withdrawn'].includes(body.status))
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    const { data: current, error: readError } = await svc
+      .from('facts')
+      .select('source_url,article_id,published_at')
+      .eq('id', id)
+      .single()
+    if (readError) return NextResponse.json({ error: readError.message }, { status: 404 })
+    if (body.status === 'published' && !current.source_url && !current.article_id)
+      return NextResponse.json(
+        { error: 'Add an original source before publishing' },
+        { status: 400 }
+      )
+    patch.status = body.status
+    if (body.status === 'published') {
+      patch.published_at = current.published_at || new Date().toISOString()
+      patch.review_reason = null
+    }
   }
   const { error } = await svc.from('facts').update(patch).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   if (hasArticleId && article_id) {
-    await svc.from('fact_article_links').upsert({fact_id:id,article_id},{onConflict:'fact_id,article_id'})
+    await svc
+      .from('fact_article_links')
+      .upsert({ fact_id: id, article_id }, { onConflict: 'fact_id,article_id' })
   } else if (hasArticleId) {
-    await svc.from('fact_article_links').delete().eq('fact_id',id)
+    await svc.from('fact_article_links').delete().eq('fact_id', id)
   }
   // A patch can link, relink or unlink the fact, so either the old or the new
   // state may have been public. Not worth a read to find out — this is a rare
@@ -53,8 +69,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params
   const svc = createServiceClient()
-  const {data:current}=await svc.from('facts').select('event_id').eq('id',id).single()
-  if(current?.event_id)return NextResponse.json({error:'Keep event history: reject or withdraw this fact instead of deleting it'},{status:400})
+  const schemaResponse = await requireResearchSchema(svc)
+  if (schemaResponse) return schemaResponse
+  const { data: current } = await svc.from('facts').select('event_id').eq('id', id).single()
+  if (current?.event_id)
+    return NextResponse.json(
+      { error: 'Keep event history: reject or withdraw this fact instead of deleting it' },
+      { status: 400 }
+    )
   const { error } = await svc.from('facts').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

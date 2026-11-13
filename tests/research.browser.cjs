@@ -80,6 +80,47 @@ const candidates = ids.map((id, i) => ({
         url: base
       }
     ])
+    if (process.env.TEST_SCHEMA === 'legacy') {
+      for (const [path, method] of [
+        ['/api/candidates', 'GET'],
+        [`/api/compositions/${compId}/generate`, 'POST'],
+        [`/api/drafts/${draftId}`, 'PATCH']
+      ]) {
+        const response = await context.request.fetch(base + path, {
+          method,
+          data: method === 'GET' ? undefined : { status: 'approved' }
+        })
+        assert.equal(response.status(), 503)
+        assert.match((await response.json()).error, /20261113_research_publications.sql/)
+      }
+      const processing = await context.request.post(base + '/api/research/process', {
+        headers: { Authorization: 'Bearer fixture-cron' },
+        data: {}
+      })
+      assert.equal(processing.status(), 503)
+      await page.goto(base + '/fact-flow')
+      await page
+        .getByRole('link', { name: 'A sourced industry announcement.', exact: true })
+        .waitFor()
+      assert.equal(await page.getByText('Private pending fact', { exact: true }).count(), 0)
+      await page
+        .getByRole('link', { name: 'LocReport analysis: Combined analysis →', exact: true })
+        .waitFor()
+      const rss = await context.request.get(base + '/fact-flow/feed.xml')
+      assert.equal(rss.status(), 200)
+      const xml = await rss.text()
+      assert.match(xml, /A sourced industry announcement/)
+      assert.doesNotMatch(xml, /Private pending fact/)
+      await page.goto(base + '/')
+      await page
+        .getByRole('link', { name: 'A sourced industry announcement.', exact: true })
+        .waitFor()
+      assert.equal(errors.length, 0, errors.join('\n'))
+      console.log(
+        'Legacy schema browser checks passed: public news/homepage/RSS remain readable; research and publishing return migration-required 503.'
+      )
+      return
+    }
     let generationCalls = 0,
       savedBrief = null
     const composition = {

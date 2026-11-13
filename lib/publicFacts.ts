@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { missingPublicationColumns } from '@/lib/researchSchema'
 
 export interface PublishedFact {
   id: string
@@ -38,7 +39,10 @@ export async function loadPublishedFacts(
     .eq('status', 'published')
     .order('published_at', { ascending: false })
     .limit(limit)
-  if (result.error) throw new Error(`Fact Flow: ${result.error.message}`)
+  if (result.error) {
+    if (missingPublicationColumns(result.error)) return loadLegacyPublishedFacts(client, limit)
+    throw new Error(`Fact Flow: ${result.error.message}`)
+  }
   if (!result.data?.length) return []
   const ids = result.data.map((f) => f.id)
   const [sources, links] = await Promise.all([
@@ -55,5 +59,39 @@ export async function loadPublishedFacts(
     analyses: (links.data || [])
       .filter((l) => l.fact_id === f.id)
       .flatMap((l) => l.articles as unknown as { id: string; slug: string; title: string }[])
+  }))
+}
+
+/** The old schema publishes facts only when article_id is set. Never expose parked facts. */
+async function loadLegacyPublishedFacts(
+  client: SupabaseClient,
+  limit: number
+): Promise<PublishedFact[]> {
+  const { data, error } = await client
+    .from('facts')
+    .select('id,content,category,source_url,source_name,article_id,created_at')
+    .not('article_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(`Fact Flow (legacy): ${error.message}`)
+  if (!data?.length) return []
+  const articleIds = [...new Set(data.map((f) => f.article_id).filter(Boolean))] as string[]
+  const articles = await client.from('articles').select('id,slug,title').in('id', articleIds)
+  if (articles.error) throw new Error(`Fact Flow article links: ${articles.error.message}`)
+  const articleMap = new Map((articles.data || []).map((a) => [a.id, a]))
+  return data.map((f) => ({
+    ...f,
+    event_id: null,
+    published_at: f.created_at,
+    sources: f.source_url
+      ? [
+          {
+            source_url: f.source_url,
+            source_name: f.source_name,
+            title: f.source_name || 'Original reporting'
+          }
+        ]
+      : [],
+    analyses: articleMap.has(f.article_id) ? [articleMap.get(f.article_id)!] : []
   }))
 }
