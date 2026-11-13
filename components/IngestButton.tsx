@@ -2,9 +2,11 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { ResearchRunStatus } from '@/components/ResearchProcessButton'
+import { postResearchJson, runResearchPipeline, type ResearchRunResult } from '@/lib/manualResearch'
 
 type IngestState = 'idle' | 'confirm' | 'running' | 'done' | 'error'
-export type IngestResult = { processed: number; skipped: number; errors: string[] }
+export type IngestResult = { processed: number; skipped: number; errors: string[]; research: ResearchRunResult }
 
 interface Props {
   label: string
@@ -20,19 +22,29 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
   const text = compact ? 'text-xs' : 'text-sm'
   const [state, setState] = useState<IngestState>('idle')
   const [result, setResult] = useState<IngestResult | null>(null)
+  const [progress, setProgress] = useState('')
+  const [error, setError] = useState('')
 
   async function run() {
     setState('running')
     setResult(null)
+    setError('')
+    setProgress('Collecting source evidence…')
     try {
       const params = sourceIds?.length ? `?sources=${sourceIds.join(',')}` : ''
-      const res = await fetch(`/api/ingest${params}`, { method: 'POST' })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data: IngestResult = await res.json()
-      setResult(data)
+      const data = await postResearchJson(`/api/ingest${params}`)
+      const research = await runResearchPipeline({ sourceIds, onProgress: setProgress })
+      const result: IngestResult = {
+        processed: data.processed ?? 0,
+        skipped: data.skipped ?? 0,
+        errors: data.errors ?? [],
+        research
+      }
+      setResult(result)
       setState('done')
-      onDone?.(data)
-    } catch {
+      onDone?.(result)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Collection failed')
       setState('error')
     }
   }
@@ -46,7 +58,7 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
     return (
       <div className="flex flex-wrap items-center gap-2">
         <span className={text} style={{ color: 'var(--muted)' }}>
-          {confirmMessage ?? 'Fetch all active sources and create pending drafts?'}
+          {confirmMessage ?? 'Collect source evidence, process Fact Flow and refresh article suggestions? Eligible facts from Auto sources will publish.'}
         </span>
         <Button size={size} onClick={run}>Confirm</Button>
         <Button size={size} variant="ghost" onClick={reset}>Cancel</Button>
@@ -57,7 +69,7 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
   if (state === 'running') {
     return (
       <Button size={size} variant="secondary" disabled>
-        <span className="animate-pulse">Running…</span>
+        <span className="animate-pulse">{progress}</span>
       </Button>
     )
   }
@@ -68,20 +80,19 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
         <div className="flex items-center gap-3 flex-wrap">
           <span className={`${text} font-medium`} style={{ color: result.processed > 0 ? 'var(--accent)' : 'var(--muted)' }}>
             {result.processed > 0
-              ? `+${result.processed} draft${result.processed !== 1 ? 's' : ''} created`
+              ? `+${result.processed} source candidate${result.processed !== 1 ? 's' : ''} collected`
               : '0 fresh items'}
           </span>
-          {result.processed > 0 && (
-            <Link
-              href="/admin/drafts"
-              className={`${text} underline underline-offset-2`}
-              style={{ color: 'var(--accent)' }}
-            >
-              Review drafts →
-            </Link>
-          )}
+          <Link
+            href="/admin/candidates"
+            className={`${text} underline underline-offset-2`}
+            style={{ color: 'var(--accent)' }}
+          >
+            Review source candidates →
+          </Link>
           <Button size={size} variant="ghost" onClick={reset}>↺</Button>
         </div>
+        <ResearchRunStatus result={result.research} />
         {result.errors.length > 0 && (
           <details className="text-xs" style={{ color: 'var(--destructive, #e53e3e)' }}>
             <summary style={{ cursor: 'pointer' }}>{result.errors.length} error{result.errors.length !== 1 ? 's' : ''}</summary>
@@ -97,7 +108,7 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
   if (state === 'error') {
     return (
       <div className="flex items-center gap-2">
-        <span className={text} style={{ color: 'var(--destructive, #e53e3e)' }}>Failed</span>
+        <span className={text} role="alert" style={{ color: 'var(--destructive, #e53e3e)' }}>{error}</span>
         <Button size={size} variant="ghost" onClick={reset}>↺</Button>
       </div>
     )

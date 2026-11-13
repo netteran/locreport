@@ -23,6 +23,14 @@ Candidate matching failures back off three hours and remain visible in the candi
 
 Suggestions use the last 30 days of available candidates (at most 60 in one refresh), semantic neighbors and an editorial grouping pass. A shared broad tag is insufficient: a suggestion must support one useful question. Suggestions are not full drafts. Scheduled jobs have no permission to call the combined-article generator or publish main articles. The legacy monthly-report endpoint also requires an editor session.
 
+## Manual ingestion
+
+Dashboard **Run ingest**, RSS source/batch **Ingest**, and podcast source **Ingest** now finish collection by processing pending evidence, matching events, creating facts and publishing eligible facts only for sources with **Auto** enabled, then refreshing article suggestions. Individual-source and batch runs process pending evidence from those sources; suggestion grouping can draw on all ready sources. Main articles still require explicit generation and approval.
+
+Keep the admin page open until the stages finish. Each matching batch and the suggestion refresh use separate requests so they retain their own function time budgets. Even a run with zero fresh sources finishes previously saved work. **Source candidates → Process facts and suggestions** resumes existing candidates without fetching sources or repeating evidence extraction. **Suggested articles → Refresh suggestions** also processes pending evidence before grouping it.
+
+Manual processing stops after 20 batches (up to 120 candidates) or when another run holds the event lock. Remaining work is reported explicitly and can be resumed with **Process facts and suggestions**. Candidate failures retain the existing three-hour retry delay. Collection, matching and suggestion errors are shown separately; a collected candidate does not imply that a fact was published or an article suggestion could be formed. Uncertain matches, incomplete evidence, non-news items and non-Auto sources retain the existing review rules. No schema migration is added by this manual-ingest fix.
+
 ## Deploying this PR
 
 1. Back up the production database. Pause the Ingest workflow while applying this schema/application change together; the old application interprets `Auto` as full-article publication.
@@ -56,6 +64,8 @@ npm run start
 ```
 
 With Playwright available, `node tests/research.browser.cjs` exercises manual source selection, saved editorial direction/experience, explicit generation, the publication boundary and public Fact Flow links. Set `PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium` if using a system browser. This browser test uses a local auth fixture and intercepted composition responses; database correctness is exercised independently by the SQL suite. Neither fixture calls a live Supabase project or a paid generation service. Live model output and production data should be checked in the rollout above.
+
+Against the research-schema fixture, `node tests/manual-ingest.browser.cjs` checks dashboard, individual RSS source, batch and podcast ingestion, including zero-fresh-item runs, saved-candidate processing, suggestion refresh, migration errors and the manual article boundary. It also calls the real research route with an empty queue to check authentication, source-scope validation and the processing response. Collection/model responses are intercepted; the SQL suite separately verifies automatic publication, held untrusted facts and event deduplication.
 
 
 To reproduce a preview build against the unmigrated schema, start a fresh fixture with `FIXTURE_SCHEMA=legacy node tests/fixtures/supabase.cjs` and use the same isolated build settings above. With that build running, `TEST_SCHEMA=legacy node tests/research.browser.cjs` checks public Fact Flow, RSS and the homepage, plus migration-required responses from authenticated research/publishing endpoints. The legacy fallback only handles missing new publication columns; database outages and permission errors still fail visibly.

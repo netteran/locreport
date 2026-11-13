@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { SourceCandidate, StoryGroup, Composition } from '@/lib/researchTypes'
+import { ResearchProcessButton } from '@/components/ResearchProcessButton'
 
 type Event = { id: string; headline: string; stage: string; review_required: boolean }
 export default function CandidatesPage() {
@@ -103,6 +104,7 @@ export default function CandidatesPage() {
       )}
       {tab === 'candidates' && (
         <>
+          <ResearchProcessButton disabled={busy} onDone={load} />
           <div className="flex gap-3 flex-wrap">
             <Input
               aria-label="Search candidates"
@@ -263,23 +265,7 @@ export default function CandidatesPage() {
       )}
       {tab === 'groups' && (
         <>
-          <Button
-            disabled={busy}
-            variant="secondary"
-            onClick={() =>
-              run(async () => {
-                const r = await fetch('/api/research/process', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ stage: 'groups' })
-                })
-                if (!r.ok) throw new Error((await r.json()).error)
-                await load()
-              })
-            }
-          >
-            Refresh suggestions
-          </Button>
+          <ResearchProcessButton label="Refresh suggestions" disabled={busy} onDone={load} />
           {data.groups.map((g) => {
             const candidates = g.candidate_ids
               .map((id) => data.candidates.find((c) => c.id === id))

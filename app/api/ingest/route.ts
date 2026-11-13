@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   // Podcasts have their own evidence collector and episode baseline.
   const sources = (allSources ?? []).filter((s) => s.kind !== 'podcast')
 
-  if (!sources.length) return NextResponse.json({ processed: 0 })
+  if (!sources.length) return NextResponse.json({ processed: 0, skipped: 0, errors: [] })
 
   let seen: Set<string>
   try {
