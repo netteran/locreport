@@ -1,16 +1,20 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { FactFlowAdmin } from './FactFlowAdmin'
+import { loadAdminFacts } from '@/lib/adminFacts'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminFactFlowPage() {
-  const supabase = createServiceClient()
-
-  const { data: facts } = await supabase
-    .from('facts')
-    .select('id, content, category, source_name, source_url, article_id, event_id, status, published_at, review_reason, created_at, articles(slug)')
-    .order('created_at', { ascending: false })
-    .limit(200)
-
-  return <FactFlowAdmin initialFacts={facts ?? []} />
+  try {
+    const facts = await loadAdminFacts(createServiceClient())
+    return <FactFlowAdmin initialFacts={facts} />
+  } catch (error) {
+    return <div>
+      <h1 className="text-2xl font-bold mb-4">Fact Flow</h1>
+      <p role="alert" className="text-red-600">
+        {error instanceof Error ? error.message : 'Could not load Fact Flow.'}
+      </p>
+      <p className="mt-3 text-sm">Reload this page after resolving the error. Facts have not been changed.</p>
+    </div>
+  }
 }

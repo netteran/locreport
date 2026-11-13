@@ -1,21 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-
-type Fact = {
-  id: string
-  content: string
-  category: string
-  source_name: string | null
-  source_url: string | null
-  status: 'pending'|'published'|'rejected'|'withdrawn'
-  published_at: string | null
-  review_reason: string | null
-  event_id: string | null
-  article_id: string | null
-  created_at: string
-  articles: { slug: string }[] | null
-}
+import type { AdminFact as Fact } from '@/lib/adminFacts'
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -390,7 +376,7 @@ function AddFactForm({ onAdded }: { onAdded: (fact: Fact) => void }) {
 
 export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
   const [facts, setFacts] = useState(initialFacts)
-  const [statusFilter, setStatusFilter] = useState('pending')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [publicationError, setPublicationError] = useState('')
   const [publishing, setPublishing] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -472,6 +458,7 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
         {['pending', 'published', 'rejected', 'withdrawn', 'all'].map((s) => (
           <button
             className="border rounded px-3 py-1 text-sm"
+            style={statusFilter === s ? { background: 'var(--accent)', color: '#fff' } : undefined}
             key={s}
             onClick={() => setStatusFilter(s)}
             aria-pressed={statusFilter === s}
@@ -506,6 +493,8 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
       )}
       {facts.length === 0 ? (
         <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>No facts yet.</p>
+      ) : !facts.some(f => statusFilter === 'all' || f.status === statusFilter) ? (
+        <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>No {statusFilter} facts in this list.</p>
       ) : (
         <div style={{ maxWidth: 760 }}>
           {facts
