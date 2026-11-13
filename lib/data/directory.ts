@@ -56,6 +56,19 @@ export const DIRECTORY_RENAMES: { from: string; to: string; note: string }[] = [
 
 export const DIRECTORY: DirectoryEntry[] = [
   {
+    name: `General Translation`,
+    slug: `general-translation`,
+    category: `tms`,
+    website: `https://generaltranslation.com`,
+    description: `Developer-focused localization platform combining open-source i18n libraries, AI translation, and automated workflows for apps, docs, and websites.`,
+    long_description: `General Translation connects application code, content sources, translation infrastructure, and review workflows in one localization platform. Its free, MIT-licensed internationalization libraries include gt-react for React and gt-next for Next.js, alongside Node.js, Python, and core JavaScript libraries; the libraries can load translations independently of the hosted platform. Teams can review and edit translations together and share product context, glossaries, and custom prompts to maintain terminology and style across languages. The Locadex agent automates code internationalization and continuous content translation through pull requests. APIs, CLI tooling, and MCP support integrate localization into development workflows, while translations can be served from local files or a CDN. The platform also supports locale-aware routing and formatting for numbers, currencies, dates, and plurals. Starter has no platform fee and uses usage-based billing; enterprise plans offer custom workflows and governance features.`,
+    founded: 0,
+    hq: `San Francisco, USA`,
+    address: ``,
+    type: `SaaS / Developer Tools`,
+    tags: ['tms', 'ai', 'api', 'developer-tools', 'open-source'],
+  },
+  {
     name: `Phrase`,
     slug: `phrase`,
     category: `tms`,
