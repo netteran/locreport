@@ -1217,3 +1217,7 @@ Pro upgrade.
 ### Optional article citations
 
 Article body citations are optional in both source-based generation and publication. `validateSourceCitations` checks any supplied external links against the selected evidence without enforcing a minimum citation count. Selected source URLs remain attached through `finish_composition_generation` and `publish_editorial_draft` even when body links are omitted, preserving evidence provenance and Fact Flow links. Default industry and synthesis prompts allow articles without citations; factual grounding and accurate attribution of claims and quotes still apply.
+
+### Editorial titles and independent Fact Flow processing
+
+Source-based generation preserves a nonempty composition title in the draft title, H1 and slug. The AI title is used only when the brief title is blank. Scheduled ingest, podcast collection, event processing and suggestion refresh use explicit non-cancellation conditions so a failed feed refresh or ingest does not skip processing already saved evidence. Earlier failures remain visible in the workflow result.

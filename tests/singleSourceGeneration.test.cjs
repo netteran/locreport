@@ -23,10 +23,10 @@ const request = body => new NextRequest(`http://localhost/api/compositions/${com
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
 })
 
-function generation({ cite = true, authorized = true, sourceCount = 1 } = {}) {
+function generation({ cite = true, authorized = true, sourceCount = 1, title = 'Editor title' } = {}) {
   const calls = [], updates = [], modelCalls = []
   const composition = {
-    id: compId, status: 'editing', title: 'Focused analysis', angle: 'Explain buyer implications',
+    id: compId, status: 'editing', title, angle: 'Explain buyer implications',
     personal_experience: 'In my projects, integration took two weeks.', target_words: 900,
     composition_sources: [{ candidate_id: candidateId, position: 0, snapshot: {
       title: 'Source announcement', source_name: 'Publisher', source_url: url,
@@ -63,7 +63,7 @@ function generation({ cite = true, authorized = true, sourceCount = 1 } = {}) {
     '@/lib/research': { checked: result => { if (result.error) throw new Error(result.error.message); return result.data } },
     '@/lib/synthesis': synthesis,
     '@/lib/eventMatching': citations,
-    '@/lib/slugify': { slugify: () => 'focused-analysis', uniqueSlug: async slug => slug },
+    '@/lib/slugify': { slugify: title => title.toLowerCase().replaceAll(' ', '-'), uniqueSlug: async slug => slug },
     '@/lib/openai': { getOpenAI: () => ({ chat: { completions: { create: async input => {
       modelCalls.push(input)
       return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
@@ -100,6 +100,18 @@ for (const sourceCount of [1, 2]) {
     assert.deepEqual(calls.map(c => c.name), ['claim_composition_generation', 'finish_composition_generation'])
     assert.deepEqual(calls[1].params.p_urls, sourceCount === 1 ? [url] : [url, 'https://second.example/news'])
     assert.equal(updates.length, 0)
+  })
+}
+
+for (const title of ['Editor title', '', '   ']) {
+  test(`generation preserves the editor title or falls back when blank: ${JSON.stringify(title)}`, async () => {
+    const { route, calls } = generation({ title, sourceCount: 2 })
+    const response = await route.POST(request({}), { params: Promise.resolve({ id: compId }) })
+    assert.equal(response.status, 200)
+    const expected = title.trim() || 'Focused analysis'
+    assert.equal(calls[1].params.p_title, expected)
+    assert.equal(calls[1].params.p_content.split('\n')[0], `# ${expected}`)
+    assert.equal(calls[1].params.p_slug, expected.toLowerCase().replaceAll(' ', '-'))
   })
 }
 

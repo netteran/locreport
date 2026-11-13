@@ -77,19 +77,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       output.content.length < 500
     )
       throw new Error('Generation did not return a complete article')
+    // The editor's title is authoritative; the model supplies one only for an empty brief.
+    const title = composition.title.trim() || output.title.trim()
+    const content = /^#\s+.+$/m.test(output.content)
+      ? output.content.replace(/^#\s+.+$/m, () => `# ${title}`)
+      : `# ${title}\n\n${output.content}`
     validateSourceCitations(
-      output.content,
+      content,
       input.sources.map((s) => s.url)
     )
-    const slug = await uniqueSlug(slugify(output.title), 'drafts', service)
+    const slug = await uniqueSlug(slugify(title), 'drafts', service)
     // Evidence provenance is retained even when the article has no inline links.
     const sourceUrls = input.sources.map((s) => s.url)
     const draftId = checked(
       await service.rpc('finish_composition_generation', {
         p_id: id,
         p_request: requestId,
-        p_title: output.title,
-        p_content: output.content,
+        p_title: title,
+        p_content: content,
         p_slug: slug,
         p_urls: sourceUrls
       })
