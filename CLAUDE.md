@@ -1225,3 +1225,7 @@ Source-based generation preserves a nonempty composition title in the draft titl
 ### Article publication metadata types
 
 Apply `supabase/migrations/20261115_publication_metadata_types.sql` after the research-publications migration. It replaces `publish_editorial_draft` so classification arrays are populated using the deployed `articles` row type, supporting JSONB and legacy PostgreSQL arrays without changing stored data or column types. The database fixture uses JSONB for `business_implications`; regression tests also exercise text-array and JSONB metadata layouts. Existing drafts can be retried without regeneration after applying the repair.
+
+### Fact Flow admin loading
+
+`lib/adminFacts.ts` reads facts and resolves article links with an explicit ID lookup rather than an inferred PostgREST relationship. Query failures are displayed in `/admin/fact-flow` as errors, never converted to an empty list; missing research-publication columns include the required migration filename. The admin initially displays all loaded statuses and highlights the active filter. Source candidates are separate research evidence; they appear here only after processing creates a fact.
