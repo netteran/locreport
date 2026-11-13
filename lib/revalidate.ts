@@ -32,7 +32,7 @@ const ARTICLE_PATHS = [
 ]
 
 /** Cached pages that render published facts — the stream and the homepage rail. */
-const FACT_PATHS = ['/', '/fact-flow']
+const FACT_PATHS = ['/', '/fact-flow', '/fact-flow/feed.xml']
 
 function revalidateAll(paths: Iterable<string>) {
   for (const path of paths) {

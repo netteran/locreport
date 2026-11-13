@@ -73,9 +73,9 @@ export default async function HomePage() {
       .limit(60),
     supabase
       .from('facts')
-      .select('id, content, created_at, article_id')
-      .not('article_id', 'is', null)
-      .order('created_at', { ascending: false })
+      .select('id, content, created_at, published_at, article_id, source_url, source_name')
+      .eq('status', 'published')
+      .order('published_at', { ascending: false })
       .limit(4),
     supabase
       .from('articles')
@@ -331,17 +331,18 @@ export default async function HomePage() {
                   Fact Flow — Live
                 </h3>
               </div>
-              <p className="sidebar-factflow__desc">Verified facts as they break!</p>
+              <p className="sidebar-factflow__desc">Industry news, with original sources.</p>
               {latestFacts.map(fact => {
                 const slug = fact.article_id ? factSlugMap.get(fact.article_id) : undefined
                 return (
                   <div key={fact.id} className="sidebar-factflow__item">
-                    <span className="sidebar-factflow__time">{timeAgo(fact.created_at)}</span>
-                    {slug ? (
+                    <span className="sidebar-factflow__time">{timeAgo(fact.published_at||fact.created_at)}</span>
+                    {fact.source_url ? <a href={fact.source_url} target="_blank" rel="noopener noreferrer" className="sidebar-factflow__content">{fact.content}</a> : slug ? (
                       <Link href={articleHref(slug)} className="sidebar-factflow__content">{fact.content}</Link>
                     ) : (
                       <span className="sidebar-factflow__content">{fact.content}</span>
                     )}
+                    {slug&&fact.source_url&&<Link className="text-xs underline" href={articleHref(slug)}>LocReport analysis →</Link>}
                   </div>
                 )
               })}

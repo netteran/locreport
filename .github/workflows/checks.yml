@@ -1,0 +1,32 @@
+name: Checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - name: Build against an isolated Supabase fixture
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54329
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: fixture-anon
+          SUPABASE_SERVICE_ROLE_KEY: fixture-service
+          ADMIN_EMAIL: editor@example.test
+          CRON_SECRET: fixture-cron
+          NEXT_TELEMETRY_DISABLED: 1
+        run: |
+          node tests/fixtures/supabase.cjs &
+          FIXTURE_PID=$!
+          trap 'kill "$FIXTURE_PID"' EXIT
+          npm run build

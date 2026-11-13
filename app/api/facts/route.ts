@@ -1,11 +1,10 @@
+import { requireAdmin, unauthorized } from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { revalidateFactSurfaces } from '@/lib/revalidate'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await requireAdmin()) return unauthorized()
 
   const body = await req.json()
   const content = typeof body.content === 'string' ? body.content.trim() : ''
@@ -30,14 +29,14 @@ export async function POST(req: NextRequest) {
   const svc = createServiceClient()
   const { data, error } = await svc
     .from('facts')
-    .insert({ content, source_url, article_id, category: 'news' })
-    .select('id, content, category, source_url, source_name, article_id, created_at')
+    .insert({ content, source_url, article_id, category: 'news', status:'pending' })
+    .select('*')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Only a fact with an article_id is public, so an unlinked one changes nothing.
-  if (article_id) revalidateFactSurfaces()
+  // New manual facts await an explicit Publish action, independently of article links.
+  revalidateFactSurfaces()
 
   return NextResponse.json(data, { status: 201 })
 }

@@ -16,7 +16,7 @@ export async function deleteArticle(id: string) {
   await deleteArticles([id])
 }
 
-/** Deletes the articles and their Fact Flow facts. */
+/** Deletes articles and analysis links; independent Fact Flow facts remain. */
 export async function deleteArticles(ids: string[]) {
   await assertAdmin()
   const result = await deleteArticlesWithFacts(createServiceClient(), ids)

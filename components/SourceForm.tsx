@@ -98,7 +98,7 @@ export function SourceForm({ onAdded, onCancel }: { onAdded: () => void; onCance
           <Textarea aria-label="Podcast config" value={configText} onChange={e => setConfigText(e.target.value)} rows={10} className={`${FIELD} font-mono`} />
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
             People and platform links the article may use (any other link is stripped). <code>ignore_before</code> marks everything
-            up to that moment as already seen. With Auto ticked, newer full episodes are generated and published on the scheduled runs.
+            up to that moment as already seen. With Auto ticked, eligible facts from newer episodes publish on the scheduled runs. Full articles remain manual.
           </p>
         </>
       )}

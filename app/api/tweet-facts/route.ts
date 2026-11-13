@@ -1,3 +1,4 @@
+import { isCronRequest } from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 
@@ -46,8 +47,8 @@ async function postTweet(text: string): Promise<string> {
   return data.data.id as string
 }
 
-function buildTweetText(factContent: string, articleSlug: string): string {
-  const url = `${BASE_URL}/articles/${articleSlug}`
+function buildTweetText(factContent: string, factId: string): string {
+  const url = `${BASE_URL}/fact-flow#${factId}`
   // X limit is 280 chars; URL counts as 23 chars (t.co wrapping)
   const maxContent = 280 - 24 - 1 // 24 for URL + space
   const content = factContent.length > maxContent
@@ -57,8 +58,7 @@ function buildTweetText(factContent: string, articleSlug: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get('Authorization')
-  const isCron = auth === `Bearer ${process.env.CRON_SECRET}`
+  const isCron = isCronRequest(req)
 
   if (!isCron) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -76,9 +76,9 @@ export async function POST(req: NextRequest) {
   const { data: facts, error } = await supabase
     .from('facts')
     .select('id, content, article_id')
-    .not('article_id', 'is', null)
+    .eq('status', 'published')
     .is('tweeted_at', null)
-    .order('created_at', { ascending: true })
+    .order('published_at', { ascending: true })
     .limit(TWEET_LIMIT)
 
   if (error) {
@@ -89,25 +89,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ tweeted: 0, message: 'No eligible facts to tweet' })
   }
 
-  // Resolve article slugs
-  const articleIds = Array.from(new Set(facts.map(f => f.article_id as string)))
-  const { data: articles } = await supabase
-    .from('articles')
-    .select('id, slug')
-    .in('id', articleIds)
-  const slugMap = new Map((articles ?? []).map(a => [a.id, a.slug]))
-
   const results: { id: string; tweet_id?: string; error?: string }[] = []
 
   for (const fact of facts) {
-    const slug = slugMap.get(fact.article_id as string)
-    if (!slug) {
-      results.push({ id: fact.id, error: 'Article slug not found' })
-      continue
-    }
-
     try {
-      const tweetText = buildTweetText(fact.content, slug)
+      const tweetText = buildTweetText(fact.content, fact.id)
       const tweetId = await postTweet(tweetText)
 
       await supabase

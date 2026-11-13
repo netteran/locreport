@@ -8,7 +8,7 @@ import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
+  if (!user || user.email !== process.env.ADMIN_EMAIL) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

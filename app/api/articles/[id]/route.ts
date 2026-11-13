@@ -1,3 +1,4 @@
+import {requireAdmin,unauthorized} from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { embedAndStoreArticle } from '@/lib/embeddings'
@@ -15,6 +16,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
+  if(!await requireAdmin())return unauthorized()
   const { id } = await params
   const body = await req.json()
   const supabase = createServiceClient()
@@ -35,6 +37,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  if(!await requireAdmin())return unauthorized()
   const { id } = await params
   const supabase = createServiceClient()
   try {

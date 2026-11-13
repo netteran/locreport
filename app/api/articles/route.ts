@@ -1,3 +1,4 @@
+import { requireAdmin, unauthorized } from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { slugify, uniqueSlug } from '@/lib/slugify'
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!await requireAdmin()) return unauthorized()
   const { content } = await req.json()
   const titleMatch = content.match(/^#\s+(.+)$/m)
   const title = titleMatch ? titleMatch[1].trim() : 'Untitled'

@@ -171,6 +171,10 @@ export function DigestPopup() {
 
   // Arm the auto-open: a timer and a scroll-depth watcher, first one wins.
   useEffect(() => {
+    if (NO_LAUNCHER.test(pathname)) {
+      setOpen(false)
+      return
+    }
     if (suppressed()) return
 
     let views = 0

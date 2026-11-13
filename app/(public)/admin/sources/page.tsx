@@ -141,15 +141,21 @@ export default function SourcesPage() {
       if (!cfg) return alert('This podcast has no config yet — Edit it first.')
       const baseline = cfg.ignore_before
       const msg = baseline
-        ? `Auto for "${r.name}": on each scheduled ingest run, new full episodes published after ${baseline.slice(0, 16).replace('T', ' ')} are generated with Gemini and published automatically. Continue?`
-        : `Auto for "${r.name}": everything published up to now will be marked as seen, and each new full episode after this moment will be generated with Gemini and published automatically on the scheduled ingest runs. Continue?`
+        ? `Auto for "${r.name}": on each scheduled ingest run, new full episodes published after ${baseline.slice(0, 16).replace('T', ' ')} are collected as source evidence with Gemini; eligible Fact Flow items are published automatically. Continue?`
+        : `Auto for "${r.name}": everything published up to now will be marked as seen, and each new full episode after this moment will be collected as source evidence with Gemini; eligible Fact Flow items are published automatically on the scheduled ingest runs. Continue?`
       if (!confirm(msg)) return
       // Baseline "now" if none is set, so enabling Auto can never sweep the back catalogue.
       return patch(r.id, baseline
-        ? { auto_publish: true }
-        : { auto_publish: true, podcast_config: { ...cfg, ignore_before: new Date().toISOString().slice(0, 19) + 'Z' } })
+        ? { auto_publish: true, auto_collect: true }
+        : { auto_publish: true, auto_collect: true, podcast_config: { ...cfg, ignore_before: new Date().toISOString().slice(0, 19) + 'Z' } })
     }
     return patch(r.id, { auto_publish: !r.auto_publish })
+  }
+
+  async function toggleCollection(r:Row) {
+    if(!r.podcast_config)return alert('Configure this podcast first.')
+    const cfg=r.podcast_config
+    return patch(r.id,{auto_collect:!r.auto_collect,...(!r.auto_collect&&!cfg.ignore_before?{podcast_config:{...cfg,ignore_before:new Date().toISOString()}}:{})})
   }
 
   async function remove(r: Row) {
@@ -201,7 +207,7 @@ export default function SourcesPage() {
           <option value="disabled">Disabled</option>
           <option value="all">Any status</option>
         </select>
-        <select aria-label="Auto" className={`${FIELD} border`} style={selectStyle} value={auto} onChange={e => setAuto(e.target.value as typeof auto)}>
+        <select aria-label="Auto facts" className={`${FIELD} border`} style={selectStyle} value={auto} onChange={e => setAuto(e.target.value as typeof auto)}>
           <option value="all">Auto: any</option>
           <option value="on">Auto: on</option>
           <option value="off">Auto: off</option>
@@ -230,8 +236,8 @@ export default function SourcesPage() {
               <SortTh k="type" label="Type" className="w-16" />
               <SortTh k="fetch" label="Fetch" className="w-14" title="Last ingest fetch: error (red), empty (amber), or the age of the newest item (amber past 90 days)" />
               <SortTh k="keywords" label="Keywords" className="hidden md:table-cell" />
-              <SortTh k="drafts" label="30d" className="w-10 text-right" title="Drafts in the last 30 days" />
-              <SortTh k="auto" label="Auto" className="w-10 text-center" title="Feeds: drafts are approved automatically. Podcasts: new full episodes after the baseline are generated and published on the scheduled runs." />
+              <SortTh k="drafts" label="30d" className="w-10 text-right" title="Source candidates in the last 30 days" />
+              <SortTh k="auto" label="Auto facts" className="w-10 text-center" title="Trust this source for automatic Fact Flow publication only. Full articles remain manual." />
               <th className="px-2 py-0.5 font-medium text-right">Actions</th>
             </tr>
           </thead>
@@ -261,7 +267,7 @@ export default function SourcesPage() {
                     </td>
                     <td className="px-2 py-0.5 text-right">
                       {r.recent_drafts > 0
-                        ? <Link href="/admin/drafts" style={{ color: 'var(--accent)' }}>{r.recent_drafts}</Link>
+                        ? <Link href="/admin/candidates" style={{ color: 'var(--accent)' }}>{r.recent_drafts}</Link>
                         : <span style={{ color: 'var(--muted)' }}>0</span>}
                     </td>
                     <td className="px-2 py-0.5 text-center">
@@ -274,13 +280,14 @@ export default function SourcesPage() {
                         style={{ accentColor: 'var(--accent)' }}
                         aria-label={`Auto for ${r.name}`}
                         title={isPodcast
-                          ? 'New full episodes after the baseline are generated and published automatically on the scheduled ingest runs'
-                          : 'Drafts from this source are approved automatically, without human review'}
+                          ? 'New full episodes after the baseline are collected as source evidence; eligible Fact Flow items publish during scheduled runs'
+                          : 'Automatically publish eligible, deduplicated Fact Flow items. Full articles remain manual.'}
                       />
                     </td>
                     <td className="px-2 py-0.5 whitespace-nowrap">
                       <div className="flex gap-1 justify-end items-center">
                         {r.active && !isPodcast && <IngestButton compact label="Ingest" sourceIds={[r.id]} onDone={load} />}
+                        {isPodcast && <label className="text-xs"><input type="checkbox" checked={!!r.auto_collect} aria-label={`Collect episodes for ${r.name}`} onChange={()=>toggleCollection(r)} /> Collect</label>}
                         {r.active && isPodcast && <PodcastRunButton id={r.id} autoPublish={!!r.auto_publish} onDone={load} />}
                         {r.active && isPodcast && (
                           <Button size="xs" variant={open === 'episodes' ? 'primary' : 'secondary'} onClick={() => setPanel(open === 'episodes' ? null : { id: r.id, kind: 'episodes' })}>
@@ -373,8 +380,8 @@ function EditRow({ row, onSaved, onCancel }: { row: Row; onSaved: () => void; on
 }
 
 // A podcast row's "Ingest": runs the same one-step-at-a-time automatic runner
-// the schedule uses, for this source only, until it reports idle. Publishes
-// only when the source has Auto ticked; otherwise the results wait in drafts.
+// the schedule uses, for this source only, until it reports idle.
+// Event processing and trusted Fact Flow publication happen in the research step.
 function PodcastRunButton({ id, autoPublish, onDone }: { id: string; autoPublish: boolean; onDone: () => void }) {
   const [state, setState] = useState<'idle' | 'confirm' | 'running'>('idle')
   const [note, setNote] = useState('')
@@ -382,19 +389,15 @@ function PodcastRunButton({ id, autoPublish, onDone }: { id: string; autoPublish
   async function run() {
     setState('running')
     let made = 0
-    let published = 0
     try {
       for (let i = 0; i < 8; i++) {
         setNote(i === 0 ? 'checking…' : `step ${i + 1}…`)
         const res = await postJson(`/api/podcasts/auto?id=${id}`, {})
         if (res.action === 'idle') break
         if (res.action === 'error') throw new Error(String(res.error))
-        if (res.action === 'written') {
-          made++
-          if (res.published) published++
-        }
+        if (res.action === 'notes') made++
       }
-      setNote(made === 0 ? 'no new episodes' : `${made} written${published ? `, ${published} published` : ' → drafts'}`)
+      setNote(made === 0 ? 'no new episodes' : `${made} source candidates collected`)
       onDone()
     } catch (err) {
       setNote(err instanceof Error ? err.message : 'failed')
@@ -406,7 +409,7 @@ function PodcastRunButton({ id, autoPublish, onDone }: { id: string; autoPublish
   if (state === 'confirm') {
     return (
       <span className="flex items-center gap-1">
-        <span style={{ color: 'var(--muted)' }}>{autoPublish ? 'Generate + publish new?' : 'Generate new → drafts?'}</span>
+        <span style={{ color: 'var(--muted)' }}>{autoPublish ? 'Collect evidence for trusted facts?' : 'Collect source evidence?'}</span>
         <Button size="xs" onClick={run}>Yes</Button>
         <Button size="xs" variant="ghost" onClick={() => setState('idle')}>No</Button>
       </span>

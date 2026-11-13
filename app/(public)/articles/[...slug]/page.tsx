@@ -181,7 +181,7 @@ export default async function ArticlePage({ params }: Props) {
     url: articleUrl,
     datePublished: a.published_at,
     dateModified: a.updated_at ?? a.published_at,
-    author: a.author ? { '@type': 'Person', name: a.author } : { '@type': 'Organization', name: 'LocReport' },
+    author: a.author ? { '@type': a.author.includes('Desk') ? 'Organization' : 'Person', name: a.author } : { '@type': 'Organization', name: 'LocReport' },
     publisher: { '@id': ORG_ID },
     isPartOf: { '@id': WEBSITE_ID },
     image: heroImage ? new URL(heroImage, SITE_URL).toString() : 'https://locreport.com/og-image.jpg',

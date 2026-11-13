@@ -327,6 +327,10 @@ export default function DraftReviewPage() {
           Reviewed and edited here so it goes out approved, not merely inherited
           from ingest's distillation; Save draft / Approve & publish send it in the
           same request as the article body (see saveDraft/action below). */}
+      {draft.composition_id ? <div className="mb-6 rounded-lg p-4 text-sm" style={{border:'1px solid var(--border)'}}>
+        Fact Flow news is published independently. This article will be linked to existing published facts supported by its final source citations.
+        {' '}<a href="/admin/fact-flow" className="underline">Review Fact Flow</a>
+      </div> : (
       <div className="mb-6 rounded-lg p-4" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
         <div className="flex items-center justify-between gap-2 mb-1">
           <Label htmlFor="edit-fact" className="mb-0">Fact Flow fact</Label>
@@ -359,7 +363,9 @@ export default function DraftReviewPage() {
           </p>
         )}
       </div>
+      )}
 
+      {draft.composition_id && <p className="mb-4 text-sm"><a href={`/admin/candidates/compositions/${draft.composition_id}`} style={{ color:'var(--accent)' }}>Sources, personal experience and regeneration →</a></p>}
       {/* Confabulation guard — flag every number for source cross-check */}
       {suspectNumbers.length > 0 && (
         <div className="mb-4 rounded-lg p-4 text-sm"
@@ -469,7 +475,7 @@ export default function DraftReviewPage() {
           <>
             <Button onClick={() => action('approved')} disabled={loading || saving}>Approve & publish</Button>
             <Button variant="danger" onClick={() => action('rejected')} disabled={loading || saving}>Reject</Button>
-            <Button variant="secondary" onClick={() => setConfirmRerun(true)} disabled={loading || saving || confirmRerun}>Re-run</Button>
+            <Button variant="secondary" onClick={() => draft.composition_id ? router.push(`/admin/candidates/compositions/${draft.composition_id}`) : setConfirmRerun(true)} disabled={loading || saving || confirmRerun}>Re-run</Button>
           </>
         )}
         <Button variant="secondary" onClick={saveDraft} disabled={saving || loading || rerunning}>

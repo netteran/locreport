@@ -2,7 +2,8 @@ import type { createServiceClient } from '@/lib/supabase/server'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import { extractTeaser } from '@/lib/utils'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
-import { approveDraft } from '@/lib/publish'
+import { storeCandidate, checked } from '@/lib/research'
+import { canonicalSourceUrl } from '@/lib/eventMatching'
 import {
   extractPodcastNotes,
   isBeforeBaseline,
@@ -129,53 +130,16 @@ export class StepError extends Error {
 
 export type AutoStepResult =
   | { action: 'idle' }
-  | { action: 'notes'; source: string; draft_id: string; episode: string }
-  | { action: 'written'; source: string; draft_id: string; title: string; published: string | null }
+  | { action: 'notes'; source: string; candidate_id: string; episode: string }
   | { action: 'error'; source: string; error: string; episode?: string; draft_id?: string }
 
-/**
- * One unit of automatic work for a podcast source — at most ONE Gemini call,
- * so it always fits a single function. Callers loop until it reports `idle`.
- *   1. finish a step-1 draft still carrying the placeholder (write it up, and
- *      publish it if the source auto-publishes);
- *   2. otherwise take the oldest new full episode after the baseline that has
- *      no draft/article yet, and run step 1 on it.
- * Episodes at or before `ignore_before` are never touched.
- */
+/** One automatic unit collects evidence for one new episode. It never writes or publishes a full article. */
 export async function autoStep(supabase: Service, source: SourceRow): Promise<AutoStepResult> {
   let config: PodcastConfig
   try {
     config = loadConfig(source)
   } catch (err) {
     return { action: 'error', source: source.name, error: err instanceof Error ? err.message : String(err) }
-  }
-
-  const { data: unfinished } = await supabase
-    .from('drafts')
-    .select('id, title, source_url, source_feed_id, extracted_facts, content')
-    .eq('source_feed_id', source.id)
-    .eq('status', 'pending')
-    .eq('content', WRITING_PLACEHOLDER)
-    .order('created_at', { ascending: true })
-    .limit(1)
-  const draft = unfinished?.[0] as DraftRow | undefined
-  if (draft) {
-    try {
-      const { title } = await writeNotesDraft(supabase, config, draft)
-      let published: string | null = null
-      if (source.auto_publish) {
-        const result = await approveDraft(supabase, draft.id)
-        if (result.status === 'ok') {
-          await supabase.from('drafts').update({ status: 'approved' }).eq('id', draft.id)
-          published = result.slug
-        } else {
-          console.error(`[podcast] auto-publish failed for draft ${draft.id}: ${result.message}`)
-        }
-      }
-      return { action: 'written', source: source.name, draft_id: draft.id, title, published }
-    } catch (err) {
-      return { action: 'error', source: source.name, draft_id: draft.id, error: err instanceof Error ? err.message : String(err) }
-    }
   }
 
   let episodes: PodcastEpisode[]
@@ -194,21 +158,23 @@ export async function autoStep(supabase: Service, source: SourceRow): Promise<Au
     const existing = await existingForEpisode(supabase, ep)
     if (existing.draftId || existing.slug) continue
     try {
-      const { draftId } = await createNotesDraft(supabase, source, config, ep)
-      return { action: 'notes', source: source.name, draft_id: draftId, episode: ep.title }
+      const sourceUrl = canonicalSourceUrl(episodeSourceUrl(ep))
+      const known = checked(await supabase.from('source_candidates').select('id').eq('source_url', sourceUrl).maybeSingle())
+      if (known) continue
+      const media: EpisodeMedia | null = ep.youtubeUrl ? { kind: 'youtube', url: ep.youtubeUrl }
+        : ep.audioUrl ? { kind: 'audio', url: ep.audioUrl, mimeType: ep.audioType } : null
+      if (!media) continue
+      const notes = await extractPodcastNotes(supabase, config, ep, media)
+      if (!notes) throw new Error('Episode has no usable source evidence')
+      const candidateId = await storeCandidate(supabase, {
+        title: ep.title, source_url: sourceUrl, source_name: source.name, source_feed_id: source.id,
+        source_published_at: ep.pubDate ? new Date(ep.pubDate).toISOString() : null,
+        extracted_facts: notes, quality: 'notes',
+      })
+      return { action: 'notes', source: source.name, candidate_id: candidateId, episode: ep.title }
+
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      // File the failure as a rejected draft so the schedule doesn't pay for the
-      // same failing episode three times a day; "Generate again" still retries it.
-      await supabase.from('drafts').insert({
-        title: ep.title,
-        slug: await uniqueSlug(slugify(ep.title), 'drafts', supabase),
-        content: `_Automatic generation failed: ${message}_\n\nRetry from /admin/sources → Episodes → Generate again.`,
-        source_url: episodeSourceUrl(ep),
-        source_feed_id: source.id,
-        source_published_at: ep.pubDate ? new Date(ep.pubDate).toISOString() : null,
-        status: 'rejected',
-      })
       return { action: 'error', source: source.name, episode: ep.title, error: message }
     }
   }

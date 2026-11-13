@@ -302,7 +302,7 @@ export default function AdminDashboard() {
 
         <ActionRow
           title="Run ingest"
-          description="Fetches every active RSS source, drops anything already seen, then runs each new item through the extractor and classifier prompts to build a draft with its title, excerpt, signals, impact score and business implications. Nothing is published — new items land in Drafts as pending and wait for review. Also runs automatically via GitHub Actions daily at 10:30 UTC."
+          description="Collects new RSS source candidates and their Stage 1 evidence. The scheduled workflow then matches events, publishes eligible facts from trusted sources and refreshes article suggestions. Runs at 10am, 1pm and 5pm Warsaw time on weekdays. Full article generation and publication are manual from Source candidates."
           controls={
             <Button
               size="sm"

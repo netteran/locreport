@@ -8,6 +8,7 @@ import { ensureArticleFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import { revalidateArticleSurfaces } from '@/lib/revalidate'
 import { draftSourceName } from '@/lib/sourceName'
+import { canonicalSourceUrl, validateSourceCitations } from '@/lib/eventMatching'
 
 type Service = ReturnType<typeof createServiceClient>
 
@@ -30,8 +31,7 @@ export type ApproveDraftResult =
  * Turn a draft into a published article — classify, link directory mentions,
  * insert the article row, promote/distil its Fact Flow fact, embed it, and
  * turn over the caches. This is the one place that logic lives, so a human
- * approval (/api/drafts/[id]) and an automatic one (ingest, for sources with
- * rss_sources.auto_publish) can never drift apart. Never throws — a bad draft
+ * approval (/api/drafts/[id]) uses a single transactional publication boundary. Never throws — a bad draft
  * should fail this one item, not the caller's loop.
  */
 export async function approveDraft(
@@ -47,7 +47,18 @@ export async function approveDraft(
       .single()
     if (draftError || !draft) return { status: 'error', message: draftError?.message ?? 'Draft not found' }
 
+    if (draft.research_only) return { status: 'error', message: 'Combine this source from Source candidates' }
+    const { data: already } = await supabase.from('articles').select('id,slug').eq('draft_id',draftId).limit(1).maybeSingle()
+    if (already) return { status: 'ok', articleId: already.id, slug: already.slug }
     const content = overrides.content ?? draft.content
+    let coveredUrls:string[]=[]
+    if(draft.composition_id){
+      const {data:sources,error}=await supabase.from('composition_sources').select('snapshot').eq('composition_id',draft.composition_id)
+      if(error)throw new Error(error.message)
+      const urls=(sources||[]).map(s=>s.snapshot.source_url as string)
+      const used=validateSourceCitations(content,urls)
+      coveredUrls=urls.filter(url=>used.has(canonicalSourceUrl(url)))
+    }
     const titleMatch = content.match(/^#\s+(.+)$/m)
     const title = overrides.title?.trim() || titleMatch?.[1]?.trim() || draft.title || 'Untitled'
     const baseSlug = overrides.slug?.trim() || slugify(title)
@@ -67,7 +78,7 @@ export async function approveDraft(
     const directoryEntries = await getDirectoryEntries(supabase)
     const linkedContent = linkifyCompanyMentions(content, directoryEntries)
 
-    const { error: articleError } = await supabase.from('articles').insert({
+    const { data: publishedId, error: articleError } = await supabase.rpc('publish_editorial_draft', { p_draft: draftId, p_article: {
       title,
       slug,
       content: linkedContent,
@@ -84,19 +95,15 @@ export async function approveDraft(
       signal_ids: classification.signal_ids,
       business_implications: classification.business_implications,
       affected_segments: classification.affected_segments,
-    })
+      covered_urls:coveredUrls,
+    } })
     if (articleError) return { status: 'error', message: articleError.message }
-
-    const { data: articleRow } = await supabase
-      .from('articles')
-      .select('id')
-      .eq('draft_id', draft.id)
-      .single()
+    const articleRow = { id: publishedId as string }
 
     if (articleRow?.id) {
       const sourceName = await draftSourceName(supabase, draft)
 
-      const factResult = await ensureArticleFact(supabase, {
+      const factResult = draft.composition_id ? null : await ensureArticleFact(supabase, {
         articleId: articleRow.id,
         title,
         content: linkedContent,
@@ -105,7 +112,7 @@ export async function approveDraft(
         draftId: draft.id,
         factSheet: draft.extracted_facts,
       })
-      if (factResult.status === 'skipped') {
+      if (factResult?.status === 'skipped') {
         console.warn(`[publish] no Fact Flow fact for article ${articleRow.id}: ${factResult.reason}`)
       }
 

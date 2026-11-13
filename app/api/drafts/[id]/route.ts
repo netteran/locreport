@@ -1,3 +1,4 @@
+import { requireAdmin, unauthorized } from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { findDraftFact, saveDraftFact } from '@/lib/factFlow'
@@ -7,6 +8,7 @@ import { approveDraft } from '@/lib/publish'
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
+  if (!await requireAdmin()) return unauthorized()
   const { id } = await params
   const supabase = createServiceClient()
   const { data, error } = await supabase.from('drafts').select('*').eq('id', id).single()
@@ -18,6 +20,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
+  if (!await requireAdmin()) return unauthorized()
   const { id } = await params
   const body = await req.json()
   const supabase = createServiceClient()
@@ -28,7 +31,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // approval has to land first for approval to publish the edited sentence
   // rather than the original distillation.
   let draftFactResult: Awaited<ReturnType<typeof saveDraftFact>> | null = null
-  if (body.fact !== undefined) {
+  const { data: draftMeta } = await supabase.from('drafts').select('composition_id').eq('id',id).single()
+  if (body.fact !== undefined && !draftMeta?.composition_id) {
     draftFactResult = await saveDraftFact(supabase, { draftId: id, content: body.fact })
     if (draftFactResult.status === 'refused' || draftFactResult.status === 'failed') {
       return NextResponse.json({ error: draftFactResult.reason ?? 'Could not save fact' }, { status: 400 })

@@ -8,6 +8,10 @@ type Fact = {
   category: string
   source_name: string | null
   source_url: string | null
+  status: 'pending'|'published'|'rejected'|'withdrawn'
+  published_at: string | null
+  review_reason: string | null
+  event_id: string | null
   article_id: string | null
   created_at: string
   articles: { slug: string }[] | null
@@ -142,7 +146,7 @@ function FactRow({ fact, onDeleted, onSaved, onLinked }: {
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: '0.9rem', color: 'var(--text)', lineHeight: 1.55, margin: 0 }}>{fact.content}</p>
             <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '4px' }}>
-              {timeAgo(fact.created_at)}
+              {timeAgo(fact.published_at||fact.created_at)}
               {fact.source_name && ` · ${fact.source_name}`}
               {fact.source_url && (
                 <> · <a href={fact.source_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>source</a></>
@@ -386,27 +390,77 @@ function AddFactForm({ onAdded }: { onAdded: (fact: Fact) => void }) {
 
 export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
   const [facts, setFacts] = useState(initialFacts)
+  const [statusFilter, setStatusFilter] = useState('pending')
+  const [publicationError, setPublicationError] = useState('')
+  const [publishing, setPublishing] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  async function changeStatus(ids: string[], status: Fact['status']) {
+    setPublishing(true)
+    setPublicationError('')
+    try {
+      for (const id of ids) {
+        const r = await fetch(`/api/facts/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        })
+        if (!r.ok) throw new Error((await r.json()).error)
+        setFacts((fs) =>
+          fs.map((f) =>
+            f.id === id
+              ? { ...f, status, review_reason: status === 'published' ? null : f.review_reason }
+              : f
+          )
+        )
+        setSelected((s) => new Set([...s].filter((value) => value !== id)))
+      }
+    } catch (e) {
+      setPublicationError(String(e))
+    } finally {
+      setPublishing(false)
+    }
+  }
 
   function handleAdded(fact: Fact) {
-    setFacts(f => [fact, ...f])
+    setFacts((f) => [fact, ...f])
   }
 
   function handleDeleted(id: string) {
-    setFacts(f => f.filter(x => x.id !== id))
+    setFacts((f) => f.filter((x) => x.id !== id))
   }
 
   function handleSaved(id: string, content: string) {
-    setFacts(f => f.map(x => x.id === id ? { ...x, content } : x))
+    setFacts((f) => f.map((x) => (x.id === id ? { ...x, content } : x)))
   }
 
   function handleLinked(id: string, article_id: string | null, slug: string | null) {
-    setFacts(f => f.map(x => x.id === id ? { ...x, article_id, articles: slug ? [{ slug }] : null } : x))
+    setFacts((f) =>
+      f.map((x) => (x.id === id ? { ...x, article_id, articles: slug ? [{ slug }] : null } : x))
+    )
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, color: 'var(--text)', margin: 0 }}>Fact Flow</h1>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          marginBottom: 'var(--space-4)'
+        }}
+      >
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.4rem',
+            fontWeight: 700,
+            color: 'var(--text)',
+            margin: 0
+          }}
+        >
+          Fact Flow
+        </h1>
         <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{facts.length} facts</span>
       </div>
 
@@ -414,19 +468,104 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
         <AddFactForm onAdded={handleAdded} />
       </div>
 
+      <div className="flex gap-2 mb-4">
+        {['pending', 'published', 'rejected', 'withdrawn', 'all'].map((s) => (
+          <button
+            className="border rounded px-3 py-1 text-sm"
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            aria-pressed={statusFilter === s}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+      {selected.size > 0 && (
+        <div className="flex gap-2 mb-4 text-sm">
+          <span>{selected.size} selected</span>
+          <button
+            className="border rounded px-3 py-1"
+            disabled={publishing}
+            onClick={() => changeStatus([...selected], 'published')}
+          >
+            Publish selected
+          </button>
+          <button
+            className="border rounded px-3 py-1"
+            disabled={publishing}
+            onClick={() => changeStatus([...selected], 'rejected')}
+          >
+            Reject selected
+          </button>
+        </div>
+      )}
+      {publicationError && (
+        <p role="alert" className="text-sm text-red-600">
+          {publicationError}
+        </p>
+      )}
       {facts.length === 0 ? (
         <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>No facts yet.</p>
       ) : (
         <div style={{ maxWidth: 760 }}>
-          {facts.map(fact => (
-            <FactRow
-              key={fact.id}
-              fact={fact}
-              onDeleted={handleDeleted}
-              onSaved={handleSaved}
-              onLinked={handleLinked}
-            />
-          ))}
+          {facts
+            .filter((f) => statusFilter === 'all' || f.status === statusFilter)
+            .map((fact) => (
+              <div key={fact.id}>
+                <div className="flex gap-2 flex-wrap items-center mb-2 text-xs">
+                  {fact.status === 'pending' && (
+                    <input
+                      type="checkbox"
+                      aria-label={`Select fact: ${fact.content}`}
+                      checked={selected.has(fact.id)}
+                      onChange={(e) =>
+                        setSelected((s) => {
+                          const n = new Set(s)
+                          e.target.checked ? n.add(fact.id) : n.delete(fact.id)
+                          return n
+                        })
+                      }
+                    />
+                  )}
+                  <span>{fact.status}</span>
+                  {fact.review_reason && <span className="text-red-600">{fact.review_reason}</span>}
+                  {(fact.status === 'pending' || fact.status === 'withdrawn') && (
+                    <button
+                      disabled={publishing}
+                      className="border rounded px-2 py-1"
+                      onClick={() => changeStatus([fact.id], 'published')}
+                    >
+                      Publish fact
+                    </button>
+                  )}
+                  {fact.status === 'pending' && (
+                    <button
+                      disabled={publishing}
+                      className="border rounded px-2 py-1"
+                      onClick={() => changeStatus([fact.id], 'rejected')}
+                    >
+                      Reject
+                    </button>
+                  )}
+                  {fact.status === 'published' && (
+                    <button
+                      disabled={publishing}
+                      className="border rounded px-2 py-1"
+                      onClick={() => changeStatus([fact.id], 'withdrawn')}
+                    >
+                      Withdraw
+                    </button>
+                  )}
+                </div>
+                <FactRow
+                  key={fact.id}
+                  fact={fact}
+                  onDeleted={handleDeleted}
+                  onSaved={handleSaved}
+                  onLinked={handleLinked}
+                />
+              </div>
+            ))}
         </div>
       )}
     </div>

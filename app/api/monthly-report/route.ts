@@ -27,17 +27,9 @@ function getPeriod(): { period: string; year: number; month: number; monthName: 
 }
 
 export async function POST(req: NextRequest) {
-  // Accept both cron (CRON_SECRET) and admin session auth
-  const auth = req.headers.get('Authorization')
-  const isCron = auth === `Bearer ${process.env.CRON_SECRET}`
-
-  if (!isCron) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user || user.email !== process.env.ADMIN_EMAIL) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-  }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.email !== process.env.ADMIN_EMAIL) return NextResponse.json({ error:'Unauthorized' },{ status:401 })
 
   const service = createServiceClient()
   const { period, year, month, monthName } = getPeriod()

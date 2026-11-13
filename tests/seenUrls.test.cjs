@@ -33,11 +33,12 @@ test('loads seen URLs beyond server row cap and all draft/article pages', async 
     seen_urls: ['a','b','c','d','e'].map(url => ({ url })),
     drafts: ['f','g','h'].map((source_url, id) => ({ id: String(id), source_url })),
     articles: ['i','j','k'].map((source_url, id) => ({ id: String(id), source_url })),
+    source_candidates: ['l','m','n'].map((source_url,id)=>({id:String(id),source_url})),
   }))
-  assert.deepEqual([...seen], ['a','b','c','d','e','f','g','h','i','j','k'])
+  assert.deepEqual([...seen], ['a','b','c','d','e','f','g','h','i','j','k','l','m','n'])
 })
 
-for (const table of ['seen_urls', 'drafts', 'articles']) {
+for (const table of ['seen_urls', 'drafts', 'articles', 'source_candidates']) {
   test(`fails closed when ${table} cannot be read`, async () => {
     await assert.rejects(loadSeenUrls(database({}, table)), new RegExp(table))
   })

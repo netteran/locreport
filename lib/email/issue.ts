@@ -19,10 +19,8 @@ export async function buildIssue(
 ): Promise<{ issue: Issue | null; error?: string }> {
   const { data: articles, error } = await fetchPeriodArticles(service, periodStart)
   if (error) return { issue: null, error: error.message }
-  if (!articles || articles.length === 0) return { issue: null }
 
   const baselineStart = new Date(periodStart.getTime() - SIGNAL_BASELINE_WEEKS * WEEK_MS)
-  const ids = articles.map(a => a.id)
 
   // Everything below is supporting material: a failure drops that block from
   // the issue rather than holding the send.
@@ -33,7 +31,7 @@ export async function buildIssue(
       .eq('article_type', 'industry')
       .gte('published_at', baselineStart.toISOString())
       .lt('published_at', periodStart.toISOString()),
-    service.from('facts').select('content, article_id').in('article_id', ids),
+    service.from('facts').select('id,content,article_id,published_at').eq('status','published').gte('published_at',periodStart.toISOString()).lt('published_at',periodEnd.toISOString()).order('published_at',{ascending:false}).limit(20),
     service.from('market_quotes').select('ticker, data'),
     service
       .from('directory')
@@ -48,11 +46,12 @@ export async function buildIssue(
   // existing company, not a new one.
   const staticSlugs = new Set(DIRECTORY.map(d => d.slug))
   const newCompanies = (directory.data ?? []).filter(d => d.slug && !staticSlugs.has(d.slug))
+  if (!articles?.length && !facts.data?.length) return { issue: null }
 
   const issue = composeIssue({
-    articles: articles as DigestSourceArticle[],
+    articles: (articles ?? []) as DigestSourceArticle[],
     priorArticles: prior.data ?? [],
-    facts: (facts.data ?? []).filter((f): f is { content: string; article_id: string } => !!f.article_id && !!f.content),
+    facts: facts.data ?? [],
     market: quotes.data ? summarizeMarket(quotes.data, periodStart, periodEnd) : null,
     company: pickCompanyOfWeek(allCompanies, periodEnd),
     directory: newCompanies,

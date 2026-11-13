@@ -138,7 +138,7 @@ export async function ensureArticleFact(
       if (candidate) {
         const { error } = await supabase
           .from('facts')
-          .update({ article_id: articleId })
+          .update({ article_id: articleId, status: 'published', published_at: new Date().toISOString() })
           .eq('id', candidate.id)
         if (error) {
           console.error(`[factflow] could not promote draft fact for article ${articleId}:`, error)
@@ -163,6 +163,8 @@ export async function ensureArticleFact(
     const row: Record<string, unknown> = {
       content: headline,
       category: 'news',
+      status: 'published',
+      published_at: createdAt ?? new Date().toISOString(),
       source_url: sourceUrl ?? null,
       source_name: sourceName ?? null,
       article_id: articleId,

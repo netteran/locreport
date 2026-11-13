@@ -3,17 +3,7 @@ import { revalidateArticleSurfaces } from '@/lib/revalidate'
 
 const CHUNK = 100
 
-/**
- * Deletes articles together with their Fact Flow facts — the one place that
- * logic lives, used by the single-article DELETE route and the bulk delete on
- * /admin/articles.
- *
- * `facts.article_id` was created `ON DELETE SET NULL`, so deleting an article
- * used to leave its fact behind as an orphan row (hidden from /fact-flow, but
- * still in the table and still pointing at the draft). The fact belongs to the
- * article, so it goes with it. Migration 20261008_facts_article_cascade.sql
- * makes the FK cascade too, so a delete from the Supabase dashboard is covered.
- */
+/** Remove articles and their analysis links; independently published news facts survive. */
 export async function deleteArticles(
   supabase: SupabaseClient,
   ids: string[],
@@ -38,13 +28,6 @@ export async function deleteArticles(
     .select('id, slug, article_type')
     .in('id', ids)
 
-  const { data: facts, error: factsError } = await supabase
-    .from('facts')
-    .delete()
-    .in('article_id', ids)
-    .select('id')
-  if (factsError) throw new Error(`Could not delete facts: ${factsError.message}`)
-
   const { error } = await supabase.from('articles').delete().in('id', ids)
   if (error) throw new Error(error.message)
 
@@ -52,5 +35,5 @@ export async function deleteArticles(
   revalidateArticleSurfaces({ monthlyReport: rows.some((r) => r.article_type === 'monthly-summary') })
   for (const row of rows) revalidateArticleSurfaces({ slug: row.slug })
 
-  return { deleted: rows.length, factsDeleted: facts?.length ?? 0 }
+  return { deleted: rows.length, factsDeleted: 0 }
 }
