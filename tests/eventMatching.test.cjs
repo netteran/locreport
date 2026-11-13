@@ -46,23 +46,24 @@ test('stale, undated, incomplete and opinion evidence cannot auto-publish', () =
   assert.equal(mayAutoPublish({ ...e, event_date: null }, null, 'full', now), false)
   assert.equal(mayAutoPublish({ ...e, newsworthy: false }, null, 'full', now), false)
 })
-test('generation requires selected citations and rejects invented source URLs', () => {
+test('citations are optional with multiple sources and invented source URLs are rejected', () => {
   const urls = ['https://a.example/news', 'https://b.example/news']
   assert.equal(
     validateSourceCitations('[A](https://a.example/news) [B](https://b.example/news)', urls).size,
     2
   )
-  assert.throws(() => validateSourceCitations('[A](https://a.example/news)', urls), /at least two/)
+  assert.equal(validateSourceCitations('[A](https://a.example/news)', urls).size, 1)
+  assert.equal(validateSourceCitations('Analysis without inline links.', urls).size, 0)
   assert.throws(
     () => validateSourceCitations('[C](https://invented.example/news)', urls),
     /outside/
   )
 })
 
-test('single-source articles must cite their source and cannot invent another one', () => {
+test('single-source articles may omit citations but cannot invent another source', () => {
   const urls = ['https://a.example/news']
   assert.equal(validateSourceCitations('[Source](https://a.example/news)', urls).size, 1)
-  assert.throws(() => validateSourceCitations('No attribution.', urls), /cite its selected source/)
+  assert.equal(validateSourceCitations('No attribution.', urls).size, 0)
   assert.throws(() => validateSourceCitations('[Other](https://b.example/news)', urls), /outside/)
   assert.throws(() => validateSourceCitations('No evidence.', []), /at least one selected source/)
 })

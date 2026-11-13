@@ -120,9 +120,5 @@ export function validateSourceCitations(content: string, urls: string[]) {
       throw new Error('Generated article cites a source outside the selected evidence')
     used.add(url)
   }
-  if (used.size < Math.min(2, allowed.size))
-    throw new Error(allowed.size === 1
-      ? 'Article must cite its selected source'
-      : 'Article must cite at least two selected sources')
   return used
 }

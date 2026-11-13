@@ -328,7 +328,7 @@ export default function DraftReviewPage() {
           from ingest's distillation; Save draft / Approve & publish send it in the
           same request as the article body (see saveDraft/action below). */}
       {draft.composition_id ? <div className="mb-6 rounded-lg p-4 text-sm" style={{border:'1px solid var(--border)'}}>
-        Fact Flow news is published independently. This article will be linked to existing published facts supported by its final source citations.
+        Fact Flow news is published independently. This article will be linked to existing published facts from its selected sources. Body citations are optional.
         {' '}<a href="/admin/fact-flow" className="underline">Review Fact Flow</a>
       </div> : (
       <div className="mb-6 rounded-lg p-4" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>

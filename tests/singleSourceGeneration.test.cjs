@@ -23,7 +23,7 @@ const request = body => new NextRequest(`http://localhost/api/compositions/${com
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
 })
 
-function generation({ cite = true, authorized = true } = {}) {
+function generation({ cite = true, authorized = true, sourceCount = 1 } = {}) {
   const calls = [], updates = [], modelCalls = []
   const composition = {
     id: compId, status: 'editing', title: 'Focused analysis', angle: 'Explain buyer implications',
@@ -33,6 +33,12 @@ function generation({ cite = true, authorized = true } = {}) {
       source_published_at: '2026-11-13', extracted_facts: 'Publisher announced a new product.'
     } }]
   }
+  if (sourceCount > 1) composition.composition_sources.push({
+    candidate_id: compId, position: 1, snapshot: {
+      title: 'Second announcement', source_name: 'Second Publisher', source_url: 'https://second.example/news',
+      source_published_at: '2026-11-13', extracted_facts: 'A second product announcement.'
+    }
+  })
   const service = {
     from(table) {
       let columns = ''
@@ -85,14 +91,17 @@ test('one-source generation sends the saved brief and experience and creates onl
   assert.equal(updates.length, 0)
 })
 
-test('uncited single-source output fails validation and cannot finish a draft', async () => {
-  const { route, calls, updates } = generation({ cite: false })
-  const response = await route.POST(request({}), { params: Promise.resolve({ id: compId }) })
-  assert.equal(response.status, 500)
-  assert.match((await response.json()).error, /cite its selected source/)
-  assert.deepEqual(calls.map(c => c.name), ['claim_composition_generation'])
-  assert.equal(updates[0].value.status, 'failed')
-})
+for (const sourceCount of [1, 2]) {
+  test(`uncited ${sourceCount}-source output creates a draft and retains selected evidence`, async () => {
+    const { route, calls, updates } = generation({ cite: false, sourceCount })
+    const response = await route.POST(request({}), { params: Promise.resolve({ id: compId }) })
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { draft_id: draftId })
+    assert.deepEqual(calls.map(c => c.name), ['claim_composition_generation', 'finish_composition_generation'])
+    assert.deepEqual(calls[1].params.p_urls, sourceCount === 1 ? [url] : [url, 'https://second.example/news'])
+    assert.equal(updates.length, 0)
+  })
+}
 
 test('single-source generation retains the authenticated editor boundary', async () => {
   const { route, calls, modelCalls } = generation({ authorized: false })

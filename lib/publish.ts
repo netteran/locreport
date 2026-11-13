@@ -8,7 +8,7 @@ import { ensureArticleFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import { revalidateArticleSurfaces } from '@/lib/revalidate'
 import { draftSourceName } from '@/lib/sourceName'
-import { canonicalSourceUrl, validateSourceCitations } from '@/lib/eventMatching'
+import { validateSourceCitations } from '@/lib/eventMatching'
 
 type Service = ReturnType<typeof createServiceClient>
 
@@ -56,8 +56,9 @@ export async function approveDraft(
       const {data:sources,error}=await supabase.from('composition_sources').select('snapshot').eq('composition_id',draft.composition_id)
       if(error)throw new Error(error.message)
       const urls=(sources||[]).map(s=>s.snapshot.source_url as string)
-      const used=validateSourceCitations(content,urls)
-      coveredUrls=urls.filter(url=>used.has(canonicalSourceUrl(url)))
+      validateSourceCitations(content,urls)
+      // Selected evidence remains attached independently of optional body citations.
+      coveredUrls=urls
     }
     const titleMatch = content.match(/^#\s+(.+)$/m)
     const title = overrides.title?.trim() || titleMatch?.[1]?.trim() || draft.title || 'Untitled'

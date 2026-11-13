@@ -3,7 +3,7 @@ import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAu
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked } from '@/lib/research'
 import { DEFAULT_SYNTHESIS_PROMPT, synthesisInput } from '@/lib/synthesis'
-import { canonicalSourceUrl, validateSourceCitations } from '@/lib/eventMatching'
+import { validateSourceCitations } from '@/lib/eventMatching'
 import { getOpenAI } from '@/lib/openai'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import type { Composition } from '@/lib/researchTypes'
@@ -77,14 +77,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       output.content.length < 500
     )
       throw new Error('Generation did not return a complete article')
-    const used = validateSourceCitations(
+    validateSourceCitations(
       output.content,
       input.sources.map((s) => s.url)
     )
     const slug = await uniqueSlug(slugify(output.title), 'drafts', service)
-    const usedUrls = input.sources
-      .filter((s) => used.has(canonicalSourceUrl(s.url)))
-      .map((s) => s.url)
+    // Evidence provenance is retained even when the article has no inline links.
+    const sourceUrls = input.sources.map((s) => s.url)
     const draftId = checked(
       await service.rpc('finish_composition_generation', {
         p_id: id,
@@ -92,7 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         p_title: output.title,
         p_content: output.content,
         p_slug: slug,
-        p_urls: usedUrls
+        p_urls: sourceUrls
       })
     )
     return NextResponse.json({ draft_id: draftId })
