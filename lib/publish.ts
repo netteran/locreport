@@ -47,7 +47,7 @@ export async function approveDraft(
       .single()
     if (draftError || !draft) return { status: 'error', message: draftError?.message ?? 'Draft not found' }
 
-    if (draft.research_only) return { status: 'error', message: 'Combine this source from Source candidates' }
+    if (draft.research_only) return { status: 'error', message: 'Create an article from this source in Source candidates' }
     const { data: already } = await supabase.from('articles').select('id,slug').eq('draft_id',draftId).limit(1).maybeSingle()
     if (already) return { status: 'ok', articleId: already.id, slug: already.slug }
     const content = overrides.content ?? draft.content

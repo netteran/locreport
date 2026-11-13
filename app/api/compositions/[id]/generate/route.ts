@@ -49,8 +49,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!composition.angle.trim())
       throw new Error('Add a central question or editorial direction before generating')
     const input = synthesisInput(composition)
-    if (input.sources.length < 2 || JSON.stringify(input).length > 220000)
-      throw new Error('Select 2–8 sources with a combined evidence size below 220,000 characters')
+    if (input.sources.length < 1 || input.sources.length > 8 || JSON.stringify(input).length > 220000)
+      throw new Error('Select 1–8 sources with a total evidence size below 220,000 characters')
     const custom = checked(
       await service.from('settings').select('value').eq('key', 'prompt_synthesis').maybeSingle()
     )

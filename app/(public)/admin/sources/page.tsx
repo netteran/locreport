@@ -8,6 +8,8 @@ import { PodcastEpisodes, postJson } from '@/components/PodcastEpisodes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { ResearchRunStatus } from '@/components/ResearchProcessButton'
+import { runResearchPipeline, type ResearchRunResult } from '@/lib/manualResearch'
 
 const BATCH_SIZE = 3
 const FIELD = 'px-2 py-0.5 text-xs rounded-md'
@@ -381,14 +383,17 @@ function EditRow({ row, onSaved, onCancel }: { row: Row; onSaved: () => void; on
 
 // A podcast row's "Ingest": runs the same one-step-at-a-time automatic runner
 // the schedule uses, for this source only, until it reports idle.
-// Event processing and trusted Fact Flow publication happen in the research step.
+// Finish event processing and suggestions after collecting episode evidence.
 function PodcastRunButton({ id, autoPublish, onDone }: { id: string; autoPublish: boolean; onDone: () => void }) {
   const [state, setState] = useState<'idle' | 'confirm' | 'running'>('idle')
   const [note, setNote] = useState('')
+  const [research, setResearch] = useState<ResearchRunResult | null>(null)
 
   async function run() {
     setState('running')
+    setResearch(null)
     let made = 0
+    let collectionError = ''
     try {
       for (let i = 0; i < 8; i++) {
         setNote(i === 0 ? 'checking…' : `step ${i + 1}…`)
@@ -397,10 +402,16 @@ function PodcastRunButton({ id, autoPublish, onDone }: { id: string; autoPublish
         if (res.action === 'error') throw new Error(String(res.error))
         if (res.action === 'notes') made++
       }
-      setNote(made === 0 ? 'no new episodes' : `${made} source candidates collected`)
-      onDone()
     } catch (err) {
-      setNote(err instanceof Error ? err.message : 'failed')
+      collectionError = err instanceof Error ? err.message : 'Collection failed'
+    }
+    try {
+      // Also finish candidates saved by earlier runs, or before a collection error.
+      setResearch(await runResearchPipeline({ sourceIds: [id], onProgress: setNote }))
+      setNote(`${made} source candidates collected${collectionError ? `; ${collectionError}` : ''}`)
+      await onDone()
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'Processing failed')
     } finally {
       setState('idle')
     }
@@ -409,16 +420,17 @@ function PodcastRunButton({ id, autoPublish, onDone }: { id: string; autoPublish
   if (state === 'confirm') {
     return (
       <span className="flex items-center gap-1">
-        <span style={{ color: 'var(--muted)' }}>{autoPublish ? 'Collect evidence for trusted facts?' : 'Collect source evidence?'}</span>
+        <span style={{ color: 'var(--muted)' }}>{autoPublish ? 'Collect evidence, publish eligible Auto facts and refresh suggestions?' : 'Collect evidence, prepare facts for review and refresh suggestions?'}</span>
         <Button size="xs" onClick={run}>Yes</Button>
         <Button size="xs" variant="ghost" onClick={() => setState('idle')}>No</Button>
       </span>
     )
   }
   return (
-    <span className="flex items-center gap-1">
+    <div className="flex flex-col items-start gap-1">
       {note && <span className={state === 'running' ? 'animate-pulse' : ''} style={{ color: 'var(--muted)' }}>{note}</span>}
+      {research && <ResearchRunStatus result={research} />}
       <Button size="xs" variant="secondary" disabled={state === 'running'} onClick={() => setState('confirm')}>Ingest</Button>
-    </span>
+    </div>
   )
 }

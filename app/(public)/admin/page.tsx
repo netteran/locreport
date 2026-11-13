@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { IngestButton, type IngestResult } from '@/components/IngestButton'
 import { BackfillEmbeddingsButton } from '@/components/BackfillEmbeddingsButton'
 import { RunFeedButton, type RunFeedResult } from '@/components/RunFeedButton'
+import { researchRunSummary } from '@/lib/manualResearch'
 
 type Confirm = 'ingest' | 'monthly' | 'monthly-force' | null
 type DigestPreview = { recipients: number; skipped: number; articles: number }
@@ -302,7 +303,7 @@ export default function AdminDashboard() {
 
         <ActionRow
           title="Run ingest"
-          description="Collects new RSS source candidates and their Stage 1 evidence. The scheduled workflow then matches events, publishes eligible facts from trusted sources and refreshes article suggestions. Runs at 10am, 1pm and 5pm Warsaw time on weekdays. Full article generation and publication are manual from Source candidates."
+          description="Collects RSS source evidence, matches events, creates Fact Flow items, publishes eligible facts from sources with Auto enabled, and refreshes article suggestions. Keep this page open until processing finishes. The same stages run at 10am, 1pm and 5pm Warsaw time on weekdays. Full article generation and publication are manual from Source candidates."
           controls={
             <Button
               size="sm"
@@ -316,7 +317,7 @@ export default function AdminDashboard() {
         >
           {confirm === 'ingest' && (
             <ActionPanel
-              text="Fetch all active RSS sources and create new pending drafts?"
+              text="Collect source evidence, process Fact Flow and refresh article suggestions? Eligible facts from sources with Auto enabled will publish."
               actions={
                 <>
                   <IngestButton
@@ -324,7 +325,8 @@ export default function AdminDashboard() {
                     onDone={(result: IngestResult) => {
                       setConfirm(null)
                       refreshStats()
-                      flash('ingest', `+${result.processed} draft${result.processed !== 1 ? 's' : ''} created, ${result.skipped} skipped.`)
+                      const issues = [...result.errors, ...result.research.errors]
+                      flash('ingest', `+${result.processed} source candidate${result.processed !== 1 ? 's' : ''} collected, ${result.skipped} skipped. ${researchRunSummary(result.research)} ${issues.join('; ')}`.trim(), issues.length ? 'error' : 'ok')
                     }}
                   />
                   <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>

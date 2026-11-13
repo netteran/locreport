@@ -112,6 +112,7 @@ export function mayAutoPublish(
 
 export function validateSourceCitations(content: string, urls: string[]) {
   const allowed = new Set(urls.map(canonicalSourceUrl))
+  if (!allowed.size) throw new Error('Article requires at least one selected source')
   const used = new Set<string>()
   for (const match of content.matchAll(/\[[^\]]+\]\((https?:\/\/[^\s)]+)\)/g)) {
     const url = canonicalSourceUrl(match[1])
@@ -120,6 +121,8 @@ export function validateSourceCitations(content: string, urls: string[]) {
     used.add(url)
   }
   if (used.size < Math.min(2, allowed.size))
-    throw new Error('Article must cite at least two selected sources')
+    throw new Error(allowed.size === 1
+      ? 'Article must cite its selected source'
+      : 'Article must cite at least two selected sources')
   return used
 }

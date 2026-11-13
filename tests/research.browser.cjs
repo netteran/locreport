@@ -157,9 +157,13 @@ const candidates = ids.map((id, i) => ({
         }
       })
     )
-    await page.route('**/api/compositions', (route) =>
-      route.fulfill({ status: 201, json: { id: compId } })
-    )
+    await page.route('**/api/compositions', (route) => {
+      const selected = route.request().postDataJSON().candidate_ids
+      composition.composition_sources = candidates.filter(c => selected.includes(c.id)).map((snapshot, i) => ({
+        candidate_id: snapshot.id, snapshot, covered: false, position: i
+      }))
+      return route.fulfill({ status: 201, json: { id: compId } })
+    })
     await page.route(`**/api/compositions/${compId}`, async (route) => {
       if (route.request().method() === 'PATCH') savedBrief = route.request().postDataJSON()
       await route.fulfill({ json: composition })
@@ -183,12 +187,39 @@ const candidates = ids.map((id, i) => ({
         }
       })
     )
+    // A single selection uses the same saved direction/experience and manual generation flow.
+    await page.goto(base + '/admin/candidates')
+    await page.getByRole('checkbox', { name: 'Select Evidence source 1' }).check()
+    await page.getByRole('button', { name: 'Create article', exact: true }).click()
+    await page.getByRole('heading', { name: 'Create article', exact: true }).waitFor()
+    await page.getByRole('heading', { name: 'Selected sources (1/8)', exact: true }).waitFor()
+    assert.equal(generationCalls, 0)
+    assert.equal(await page.getByRole('button', { name: 'Save brief', exact: true }).isEnabled(), true)
+    assert.equal(await page.getByRole('button', { name: 'Generate draft', exact: true }).isEnabled(), false)
+    await page.getByRole('button', { name: 'Remove', exact: true }).click()
+    assert.equal(await page.getByRole('button', { name: 'Save brief', exact: true }).isEnabled(), false)
+    assert.equal(await page.getByRole('button', { name: 'Generate draft', exact: true }).isEnabled(), false)
+    await page.getByRole('combobox', { name: 'Add another source' }).selectOption(ids[0])
+    await page.getByLabel('Central question and editorial direction').fill('Explain what this one announcement means for buyers.')
+    await page.getByLabel('Your personal experience').fill('In my projects, integration needed more time than setup.')
+    await page.getByRole('button', { name: 'Save brief', exact: true }).click()
+    await page.getByText('Brief saved', { exact: true }).waitFor()
+    assert.deepEqual(savedBrief.candidate_ids, [ids[0]])
+    assert.match(savedBrief.personal_experience, /my projects/)
+    assert.equal(generationCalls, 0)
+    await page.getByRole('button', { name: 'Generate draft', exact: true }).click()
+    await page.waitForURL(`**/admin/drafts/${draftId}`)
+    assert.equal(generationCalls, 1)
+    await page.getByRole('button', { name: 'Approve & publish', exact: true }).waitFor()
+
+    generationCalls = 0
+    savedBrief = null
     await page.goto(base + '/admin/candidates')
     await page.getByRole('heading', { name: 'Source candidates', exact: true }).waitFor()
     await page.getByRole('checkbox', { name: 'Select Evidence source 1' }).check()
     await page.getByRole('checkbox', { name: 'Select Evidence source 2' }).check()
     await page.getByRole('button', { name: 'Combine selected' }).click()
-    await page.getByRole('heading', { name: 'Combine sources', exact: true }).waitFor()
+    await page.getByRole('heading', { name: 'Create article', exact: true }).waitFor()
     assert.equal(generationCalls, 0)
     await page
       .getByLabel('Central question and editorial direction')
@@ -226,7 +257,7 @@ const candidates = ids.map((id, i) => ({
       .waitFor()
     assert.equal(errors.length, 0, errors.join('\n'))
     console.log(
-      'Browser checks passed: manual selection, brief, explicit generation, manual publication boundary, sourced Fact Flow.'
+      'Browser checks passed: single/multiple source selection, saved direction and experience, explicit generation, manual publication boundary, sourced Fact Flow.'
     )
     await context.close()
   } finally {

@@ -59,6 +59,14 @@ test('generation requires selected citations and rejects invented source URLs', 
   )
 })
 
+test('single-source articles must cite their source and cannot invent another one', () => {
+  const urls = ['https://a.example/news']
+  assert.equal(validateSourceCitations('[Source](https://a.example/news)', urls).size, 1)
+  assert.throws(() => validateSourceCitations('No attribution.', urls), /cite its selected source/)
+  assert.throws(() => validateSourceCitations('[Other](https://b.example/news)', urls), /outside/)
+  assert.throws(() => validateSourceCitations('No evidence.', []), /at least one selected source/)
+})
+
 test('malformed event dates and transaction stages are held for review', () => {
   const { parseDescriptor } = moduleExports.exports
   const event = {

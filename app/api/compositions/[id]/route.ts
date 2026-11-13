@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked } from '@/lib/research'
+import { singleSourceMigrationProblem } from '@/lib/researchSchema'
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -37,12 +38,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if ('candidate_ids' in b) {
       if (!Array.isArray(b.candidate_ids)) throw new Error('candidate_ids must be an array')
-      checked(
-        await service.rpc('replace_composition_sources', {
-          p_id: id,
-          p_candidates: b.candidate_ids
-        })
-      )
+      if (b.candidate_ids.length < 1 || b.candidate_ids.length > 8)
+        throw new Error('Select 1–8 source candidates')
+      const replacement = await service.rpc('replace_composition_sources', {
+        p_id: id,
+        p_candidates: b.candidate_ids
+      })
+      const migrationProblem = singleSourceMigrationProblem(replacement.error, b.candidate_ids.length)
+      if (migrationProblem) return NextResponse.json({ error: migrationProblem }, { status: 503 })
+      checked(replacement)
     }
     for (const key of ['title', 'angle', 'personal_experience']) {
       if (key in b) {

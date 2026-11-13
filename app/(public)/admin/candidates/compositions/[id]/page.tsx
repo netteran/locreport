@@ -66,7 +66,7 @@ export default function CompositionPage() {
       <Link href="/admin/candidates" className="text-sm underline">
         ← Source candidates
       </Link>
-      <h1 className="text-2xl font-bold">Combine sources</h1>
+      <h1 className="text-2xl font-bold">Create article</h1>
       {error && (
         <p role="alert" className="text-red-600">
           {error}
@@ -75,8 +75,8 @@ export default function CompositionPage() {
       {composition && (
         <>
           <p className="text-sm" style={{ color: 'var(--muted)' }}>
-            Select the evidence and shape the argument. Generation saves a pending draft for your
-            review.
+            Shape the article using one source or combine several. Add your direction and optional
+            personal experience. Generation saves a pending draft for your review.
           </p>
           <label className="block">
             Working title
@@ -122,8 +122,8 @@ export default function CompositionPage() {
             />
           </label>
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
-            Recommended: 1,200–1,600 words. This is a soft target; the evidence determines the
-            useful length.
+            This is a soft target; the evidence determines the useful length. A focused article
+            from one source can be shorter than a broader analysis.
           </p>
           <h2 className="font-semibold">Selected sources ({ids.length}/8)</h2>
           {ids.map((sourceId, index) => {
@@ -211,13 +211,13 @@ export default function CompositionPage() {
           <div className="flex gap-3 flex-wrap items-center">
             <Button
               variant="secondary"
-              disabled={locked || ids.length < 2}
+              disabled={locked || ids.length < 1 || ids.length > 8}
               onClick={() => action(save)}
             >
               Save brief
             </Button>
             <Button
-              disabled={locked || ids.length < 2 || !composition.angle.trim()}
+              disabled={locked || ids.length < 1 || ids.length > 8 || !composition.angle.trim()}
               onClick={() =>
                 action(async () => {
                   await save()

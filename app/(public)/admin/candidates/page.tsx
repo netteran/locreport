@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { SourceCandidate, StoryGroup, Composition } from '@/lib/researchTypes'
+import { ResearchProcessButton } from '@/components/ResearchProcessButton'
 
 type Event = { id: string; headline: string; stage: string; review_required: boolean }
 export default function CandidatesPage() {
@@ -77,7 +78,7 @@ export default function CandidatesPage() {
     <div className="max-w-[1000px] space-y-5">
       <h1 className="text-2xl font-bold">Source candidates</h1>
       <p className="text-sm" style={{ color: 'var(--muted)' }}>
-        Collected evidence for your next article. Choose 2–8 sources, add your direction, then
+        Collected evidence for your next article. Choose 1–8 sources, add your direction, then
         generate a draft when you are ready.
       </p>
       <div className="flex gap-2 flex-wrap">
@@ -103,6 +104,7 @@ export default function CandidatesPage() {
       )}
       {tab === 'candidates' && (
         <>
+          <ResearchProcessButton disabled={busy} onDone={load} />
           <div className="flex gap-3 flex-wrap">
             <Input
               aria-label="Search candidates"
@@ -124,10 +126,10 @@ export default function CandidatesPage() {
             <div className="flex gap-3 items-center">
               <span>{selected.length} selected</span>
               <Button
-                disabled={busy || selected.length < 2 || selected.length > 8}
+                disabled={busy || selected.length < 1 || selected.length > 8}
                 onClick={() => run(() => combine(selected))}
               >
-                Combine selected
+                {selected.length === 1 ? 'Create article' : 'Combine selected'}
               </Button>
               <Button variant="ghost" onClick={() => setSelected([])}>
                 Clear
@@ -263,23 +265,7 @@ export default function CandidatesPage() {
       )}
       {tab === 'groups' && (
         <>
-          <Button
-            disabled={busy}
-            variant="secondary"
-            onClick={() =>
-              run(async () => {
-                const r = await fetch('/api/research/process', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ stage: 'groups' })
-                })
-                if (!r.ok) throw new Error((await r.json()).error)
-                await load()
-              })
-            }
-          >
-            Refresh suggestions
-          </Button>
+          <ResearchProcessButton label="Refresh suggestions" disabled={busy} onDone={load} />
           {data.groups.map((g) => {
             const candidates = g.candidate_ids
               .map((id) => data.candidates.find((c) => c.id === id))

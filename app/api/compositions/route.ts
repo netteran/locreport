@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked } from '@/lib/research'
+import { singleSourceMigrationProblem } from '@/lib/researchSchema'
 
 export async function POST(req: NextRequest) {
   const user = await requireAdmin()
@@ -10,15 +11,16 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const ids = [...new Set<string>(Array.isArray(body.candidate_ids) ? body.candidate_ids : [])]
-    if (ids.length < 2 || ids.length > 8)
-      return NextResponse.json({ error: 'Select 2–8 source candidates' }, { status: 400 })
+    if (ids.length < 1 || ids.length > 8)
+      return NextResponse.json({ error: 'Select 1–8 source candidates' }, { status: 400 })
     const id = randomUUID()
     const service = createServiceClient()
     const schemaResponse = await requireResearchSchema(service)
     if (schemaResponse) return schemaResponse
-    checked(
-      await service.rpc('reserve_composition', { p_id: id, p_candidates: ids, p_user: user.id })
-    )
+    const reservation = await service.rpc('reserve_composition', { p_id: id, p_candidates: ids, p_user: user.id })
+    const migrationProblem = singleSourceMigrationProblem(reservation.error, ids.length)
+    if (migrationProblem) return NextResponse.json({ error: migrationProblem }, { status: 503 })
+    checked(reservation)
     if (typeof body.title === 'string' || typeof body.angle === 'string') {
       checked(
         await service

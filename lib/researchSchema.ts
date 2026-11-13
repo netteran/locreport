@@ -1,8 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const RESEARCH_MIGRATION = '20261113_research_publications.sql'
+export const SINGLE_SOURCE_MIGRATION = '20261114_single_source_articles.sql'
 
 type DatabaseError = { code?: string; message?: string } | null
+
+/** Older installations can keep composing multi-source articles during rollout. */
+export function singleSourceMigrationProblem(error: DatabaseError, sourceCount: number) {
+  if (sourceCount !== 1 || !/^Select 2[–-]8 source candidates$/i.test(error?.message || '')) return null
+  return `Apply Supabase migration ${SINGLE_SOURCE_MIGRATION} to create articles from a single source.`
+}
 
 /** Only absent new publication columns justify the read-only legacy fallback. */
 export function missingPublicationColumns(error: DatabaseError): boolean {
