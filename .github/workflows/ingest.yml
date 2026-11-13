@@ -89,8 +89,10 @@ jobs:
               echo "::warning::Generated feeds returned 0 items (empty feed, no error): $EMPTY"
             fi
           fi
+      # Feed refresh can fail or be rate-limited; ingest can still use existing feeds.
+      # Explicit status conditions also let saved candidates process after ingest fails.
       - name: Run ingest
-        if: steps.dst.outputs.proceed == 'true'
+        if: ${{ !cancelled() && steps.dst.outputs.proceed == 'true' }}
         run: |
           curl -f --max-time 300 -X POST https://locreport.com/api/ingest \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
@@ -101,7 +103,7 @@ jobs:
       # Only episodes after each source's ignore_before baseline are touched.
       # Never fails the job — a podcast problem must not mark ingest red.
       - name: Podcasts (auto)
-        if: steps.dst.outputs.proceed == 'true'
+        if: ${{ !cancelled() && steps.dst.outputs.proceed == 'true' }}
         continue-on-error: true
         run: |
           for i in 1 2 3 4 5 6; do
@@ -116,7 +118,7 @@ jobs:
           done
 
       - name: Match events and publish trusted Fact Flow items
-        if: steps.dst.outputs.proceed == 'true'
+        if: ${{ !cancelled() && steps.dst.outputs.proceed == 'true' }}
         run: |
           for i in 1 2 3 4 5; do
             RESPONSE="$(curl -f --max-time 300 -X POST https://locreport.com/api/research/process \
@@ -130,7 +132,7 @@ jobs:
             case "$RESPONSE" in *'"action":"idle"'*) break ;; esac
           done
       - name: Refresh suggested articles (never generate or publish articles)
-        if: steps.dst.outputs.proceed == 'true'
+        if: ${{ !cancelled() && steps.dst.outputs.proceed == 'true' }}
         run: |
           curl -f --max-time 300 -X POST https://locreport.com/api/research/process \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \

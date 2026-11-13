@@ -79,7 +79,7 @@ export default function CompositionPage() {
             personal experience. Generation saves a pending draft for your review.
           </p>
           <label className="block">
-            Working title
+            Article title (used for the draft; leave empty for an AI suggestion)
             <Input
               value={composition.title}
               maxLength={250}

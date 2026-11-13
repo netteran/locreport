@@ -8,7 +8,7 @@ import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, DEFAULT_MONTHLY_PROM
 type PromptKey = 'prompt_synthesis' | 'prompt_extractor' | 'prompt_industry' | 'prompt_monthly' | 'prompt_factflow' | 'prompt_podcast_extractor' | 'prompt_podcast'
 
 const PROMPTS: { key: PromptKey; label: string; hint?: string; default: string }[] = [
-  {key:'prompt_synthesis',label:'Source-based article — additional house style',hint:'Used for one-source and combined articles, alongside the fixed evidence and citation rules. Generation is manual from Source candidates.',default:''},
+  {key:'prompt_synthesis',label:'Source-based article — additional house style',hint:'Used for one-source and combined articles, alongside the fixed evidence rules. Body citations are optional. Generation is manual from Source candidates.',default:''},
   { key: 'prompt_extractor', label: 'Stage 1 — Extractor (fact extraction)', hint: 'Today’s real date is injected automatically ahead of the article content at call time — no need to add it here.', default: DEFAULT_EXTRACTOR_PROMPT },
   { key: 'prompt_industry', label: 'Stage 2 — Industry editorial (LocReport voice)', default: DEFAULT_INDUSTRY_PROMPT },
   { key: 'prompt_factflow', label: 'Fact Flow — news signal distillation', hint: 'Legacy single-article fact distillation. Source-candidate facts use event extraction and deduplication. Today’s real date is injected automatically ahead of the fact sheet at call time — no need to add it here.', default: DEFAULT_FACTFLOW_PROMPT },

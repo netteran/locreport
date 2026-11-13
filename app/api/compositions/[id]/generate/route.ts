@@ -3,7 +3,7 @@ import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAu
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked } from '@/lib/research'
 import { DEFAULT_SYNTHESIS_PROMPT, synthesisInput } from '@/lib/synthesis'
-import { canonicalSourceUrl, validateSourceCitations } from '@/lib/eventMatching'
+import { validateSourceCitations } from '@/lib/eventMatching'
 import { getOpenAI } from '@/lib/openai'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import type { Composition } from '@/lib/researchTypes'
@@ -77,22 +77,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       output.content.length < 500
     )
       throw new Error('Generation did not return a complete article')
-    const used = validateSourceCitations(
-      output.content,
+    // The editor's title is authoritative; the model supplies one only for an empty brief.
+    const title = composition.title.trim() || output.title.trim()
+    const content = /^#\s+.+$/m.test(output.content)
+      ? output.content.replace(/^#\s+.+$/m, () => `# ${title}`)
+      : `# ${title}\n\n${output.content}`
+    validateSourceCitations(
+      content,
       input.sources.map((s) => s.url)
     )
-    const slug = await uniqueSlug(slugify(output.title), 'drafts', service)
-    const usedUrls = input.sources
-      .filter((s) => used.has(canonicalSourceUrl(s.url)))
-      .map((s) => s.url)
+    const slug = await uniqueSlug(slugify(title), 'drafts', service)
+    // Evidence provenance is retained even when the article has no inline links.
+    const sourceUrls = input.sources.map((s) => s.url)
     const draftId = checked(
       await service.rpc('finish_composition_generation', {
         p_id: id,
         p_request: requestId,
-        p_title: output.title,
-        p_content: output.content,
+        p_title: title,
+        p_content: content,
         p_slug: slug,
-        p_urls: usedUrls
+        p_urls: sourceUrls
       })
     )
     return NextResponse.json({ draft_id: draftId })

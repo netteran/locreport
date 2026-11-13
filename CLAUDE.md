@@ -393,8 +393,8 @@ on `drafts.source_name` (migration `20261006_drafts_source_name.sql`), and every
 — Stage 2, re-run, `approveDraft`'s fact, the facts backfill, hand-written draft facts — resolves the name
 through `lib/sourceName.ts` → `draftSourceName()`. It returns the pinned outlet, else the feed name for an
 ordinary feed, else **null** for an aggregator — never the Google News label. When null, `sourceNameLine()`
-tells Stage 2 in the user message to credit the outlet named in the facts. Drafts ingested before the
-column carry no outlet, so their re-runs fall into that null case. The in-body link still points at the
+tells Stage 2 to use the outlet named in the facts if an optional citation is included. Drafts ingested before the
+column carry no outlet, so their re-runs fall into that null case. An optional in-body link still points at the
 `news.google.com/rss/articles/…` redirect, since that URL is also ingest's dedupe key.
 
 ### `scraped_sources`
@@ -1213,3 +1213,11 @@ Pro upgrade.
 - Do not hardcode the OpenAI model string — check `lib/openai.ts` for the current model reference
 - Do not add cron jobs to `vercel.json` — all scheduling belongs in `.github/workflows/` (see Scheduled Jobs)
 - Do not create a `/language-science` page — that route is permanently redirected to `/articles`
+
+### Optional article citations
+
+Article body citations are optional in both source-based generation and publication. `validateSourceCitations` checks any supplied external links against the selected evidence without enforcing a minimum citation count. Selected source URLs remain attached through `finish_composition_generation` and `publish_editorial_draft` even when body links are omitted, preserving evidence provenance and Fact Flow links. Default industry and synthesis prompts allow articles without citations; factual grounding and accurate attribution of claims and quotes still apply.
+
+### Editorial titles and independent Fact Flow processing
+
+Source-based generation preserves a nonempty composition title in the draft title, H1 and slug. The AI title is used only when the brief title is blank. Scheduled ingest, podcast collection, event processing and suggestion refresh use explicit non-cancellation conditions so a failed feed refresh or ingest does not skip processing already saved evidence. Earlier failures remain visible in the workflow result.

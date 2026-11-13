@@ -41,7 +41,7 @@ export function sourceNameLine(sourceName: string | null, sourceUrl: string | nu
   if (sourceName) return `Source name: ${sourceName}`
   if (isGoogleNewsUrl(sourceUrl)) {
     return 'Source name: unknown — this item reached us through Google News, which is an aggregator, not the publisher. ' +
-      'Credit the original publishing outlet as named in the extracted facts; if no outlet is named, cite it as "the original report". ' +
+      'If you include a citation, credit the original publishing outlet as named in the extracted facts; if no outlet is named, call it "the original report". Citations are optional. ' +
       'Never cite "Google News" or any feed name as the source.'
   }
   return ''

@@ -23,16 +23,22 @@ const request = body => new NextRequest(`http://localhost/api/compositions/${com
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
 })
 
-function generation({ cite = true, authorized = true } = {}) {
+function generation({ cite = true, authorized = true, sourceCount = 1, title = 'Editor title' } = {}) {
   const calls = [], updates = [], modelCalls = []
   const composition = {
-    id: compId, status: 'editing', title: 'Focused analysis', angle: 'Explain buyer implications',
+    id: compId, status: 'editing', title, angle: 'Explain buyer implications',
     personal_experience: 'In my projects, integration took two weeks.', target_words: 900,
     composition_sources: [{ candidate_id: candidateId, position: 0, snapshot: {
       title: 'Source announcement', source_name: 'Publisher', source_url: url,
       source_published_at: '2026-11-13', extracted_facts: 'Publisher announced a new product.'
     } }]
   }
+  if (sourceCount > 1) composition.composition_sources.push({
+    candidate_id: compId, position: 1, snapshot: {
+      title: 'Second announcement', source_name: 'Second Publisher', source_url: 'https://second.example/news',
+      source_published_at: '2026-11-13', extracted_facts: 'A second product announcement.'
+    }
+  })
   const service = {
     from(table) {
       let columns = ''
@@ -57,7 +63,7 @@ function generation({ cite = true, authorized = true } = {}) {
     '@/lib/research': { checked: result => { if (result.error) throw new Error(result.error.message); return result.data } },
     '@/lib/synthesis': synthesis,
     '@/lib/eventMatching': citations,
-    '@/lib/slugify': { slugify: () => 'focused-analysis', uniqueSlug: async slug => slug },
+    '@/lib/slugify': { slugify: title => title.toLowerCase().replaceAll(' ', '-'), uniqueSlug: async slug => slug },
     '@/lib/openai': { getOpenAI: () => ({ chat: { completions: { create: async input => {
       modelCalls.push(input)
       return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
@@ -85,14 +91,29 @@ test('one-source generation sends the saved brief and experience and creates onl
   assert.equal(updates.length, 0)
 })
 
-test('uncited single-source output fails validation and cannot finish a draft', async () => {
-  const { route, calls, updates } = generation({ cite: false })
-  const response = await route.POST(request({}), { params: Promise.resolve({ id: compId }) })
-  assert.equal(response.status, 500)
-  assert.match((await response.json()).error, /cite its selected source/)
-  assert.deepEqual(calls.map(c => c.name), ['claim_composition_generation'])
-  assert.equal(updates[0].value.status, 'failed')
-})
+for (const sourceCount of [1, 2]) {
+  test(`uncited ${sourceCount}-source output creates a draft and retains selected evidence`, async () => {
+    const { route, calls, updates } = generation({ cite: false, sourceCount })
+    const response = await route.POST(request({}), { params: Promise.resolve({ id: compId }) })
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { draft_id: draftId })
+    assert.deepEqual(calls.map(c => c.name), ['claim_composition_generation', 'finish_composition_generation'])
+    assert.deepEqual(calls[1].params.p_urls, sourceCount === 1 ? [url] : [url, 'https://second.example/news'])
+    assert.equal(updates.length, 0)
+  })
+}
+
+for (const title of ['Editor title', '', '   ']) {
+  test(`generation preserves the editor title or falls back when blank: ${JSON.stringify(title)}`, async () => {
+    const { route, calls } = generation({ title, sourceCount: 2 })
+    const response = await route.POST(request({}), { params: Promise.resolve({ id: compId }) })
+    assert.equal(response.status, 200)
+    const expected = title.trim() || 'Focused analysis'
+    assert.equal(calls[1].params.p_title, expected)
+    assert.equal(calls[1].params.p_content.split('\n')[0], `# ${expected}`)
+    assert.equal(calls[1].params.p_slug, expected.toLowerCase().replaceAll(' ', '-'))
+  })
+}
 
 test('single-source generation retains the authenticated editor boundary', async () => {
   const { route, calls, modelCalls } = generation({ authorized: false })

@@ -145,7 +145,7 @@ Write a substantive analysis in 3–4 paragraphs (380–520 words total).
 
 ANTI-CONFABULATION RULE (MANDATORY): Every specific number, statistic, count, percentage, or quantitative claim in your article MUST be traceable to a data point explicitly listed in the fact sheet. Do not invent, estimate, or embellish numbers. If the fact sheet uses qualitative language ("many agencies", "a growing number"), reproduce that vagueness in your prose — never substitute a precise figure. If no number was provided, do not write one. A fabricated statistic destroys reader trust; a qualitative phrase does not.
 
-CRITICAL RULE: Write from the author's perspective and voice — not as a reporter describing what an article says. Do not use vague, unnamed distancing phrases like "the article argues", "the author claims", "according to the source", or "the piece suggests". Instead, adopt the author's stance and present their argument as the narrative itself. Every claim must still be grounded in the source material; you are channelling the author's voice, not inventing positions. This does not conflict with the SOURCE ATTRIBUTION RULE below — naming and linking the actual outlet (e.g. "According to [Slator](url),") is a real citation, not a vague distancing phrase, and is required at least once.
+CRITICAL RULE: Write from the author's perspective and voice — not as a reporter describing what an article says. Do not use vague, unnamed distancing phrases like "the article argues", "the author claims", "according to the source", or "the piece suggests". Instead, adopt the author's stance and present their argument as the narrative itself. Every claim must still be grounded in the source material; you are channelling the author's voice, not inventing positions.
 
 Structure — follow this only as far as the source material supports it:
 • Opening: State the core argument or development directly, as the author would — not as a summary of what they wrote.
@@ -159,20 +159,7 @@ Tone and style:
 • No speculation beyond what the source explicitly supports.
 • NO ## subheadings. NO "Key Takeaway" sections. NO "Industry Implications" sections. Flowing paragraphs only.
 
-SOURCE ATTRIBUTION RULE (MANDATORY): Every article MUST contain at least one markdown hyperlink to the original source, formatted [Name](link) — where Name is the original publishing outlet or author name exactly as given in the source information in the user message (if no source name is given, use the outlet name evident from context; never invent one) and link is the exact source URL given in the input. Never alter, shorten, or re-target the URL. Name is always the publisher of the story, never a news aggregator or feed that relayed it: never write "Google News" (or "Google News – <anything>") as the source.
-
-Weave the citation into the body as a skilled copywriter would — attached to the specific claim, statistic, or quote it backs, not appended as a trailing sentence. Use one of these forms, choosing whichever reads most naturally at that point in the prose (vary the form if the source is cited more than once):
-- [Name](link) outlines
-- [Name](link) mentions that
-- , as highlighted by [Name](link)
-- via [Name](link)
-- — reports [Name](link)
-- [Name](link) points out that
-- [Name](link) notes that
-- According to [Name](link),
-- As [Name](link) reports,
-
-Never add a standalone closing line like "For more details, see the original post on X". Never use raw URLs, "click here", "source", or "original article" as anchor text. Never link the word "Name" itself — the anchor text is the actual outlet or author name.
+SOURCE CITATIONS (OPTIONAL): Articles do not need source citations or hyperlinks in the body. Ground every claim in the supplied facts whether or not you include a citation. When a citation adds useful context, link the actual publishing outlet or author using [Name](exact source URL), with the name and URL supplied in the input. Never invent or alter a source URL or credit Google News or a feed label as the publisher. Do not append a standalone source-credit line.
 
 You are given a structured fact sheet extracted from the source — NOT the original prose. Write entirely in LocReport's own voice and structure; do not reproduce the source's ordering. Ground every claim in these facts. Items tagged [UNVERIFIED CLAIM BY SOURCE] may be presented as the author's position/opinion, not as established fact.`
 
