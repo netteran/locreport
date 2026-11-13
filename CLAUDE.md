@@ -290,7 +290,7 @@ signal_confidence text
 impact_score int (1–5)
 time_horizon 'now' | '6months' | 'long-term'
 affected_segments text[]
-business_implications text[]
+business_implications jsonb (JSON string array; some older installations use text[])
 tags text[]
 published_at timestamptz
 updated_at timestamptz
@@ -1221,3 +1221,7 @@ Article body citations are optional in both source-based generation and publicat
 ### Editorial titles and independent Fact Flow processing
 
 Source-based generation preserves a nonempty composition title in the draft title, H1 and slug. The AI title is used only when the brief title is blank. Scheduled ingest, podcast collection, event processing and suggestion refresh use explicit non-cancellation conditions so a failed feed refresh or ingest does not skip processing already saved evidence. Earlier failures remain visible in the workflow result.
+
+### Article publication metadata types
+
+Apply `supabase/migrations/20261115_publication_metadata_types.sql` after the research-publications migration. It replaces `publish_editorial_draft` so classification arrays are populated using the deployed `articles` row type, supporting JSONB and legacy PostgreSQL arrays without changing stored data or column types. The database fixture uses JSONB for `business_implications`; regression tests also exercise text-array and JSONB metadata layouts. Existing drafts can be retried without regeneration after applying the repair.

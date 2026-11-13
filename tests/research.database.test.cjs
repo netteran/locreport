@@ -5,7 +5,7 @@ const fs = require('node:fs')
 const { PGlite } = require('@electric-sql/pglite')
 const { vector } = require('@electric-sql/pglite-pgvector')
 
-let db, upgradeFixture
+let db, upgradeFixture, publicationUpgradeDraft
 const uid = () => randomUUID()
 const scalar = async (sql, args = []) => (await db.query(sql, args)).rows[0]
 const event = (stage = 'announced') => ({
@@ -72,7 +72,7 @@ before(async () => {
       source_feed_id uuid references rss_sources(id),source_published_at timestamptz,extracted_facts text,status text default 'pending',created_at timestamptz default now(),updated_at timestamptz default now());
     create table articles(id uuid primary key default gen_random_uuid(),title text,slug text unique,content text,excerpt text,source_url text,publisher text,
       image_url text,image_alt text,draft_id uuid references drafts(id),article_type text,author text,impact_score integer,time_horizon text,
-      signal_ids text[],business_implications text[],affected_segments text[],published_at timestamptz default now());`)
+      signal_ids text[],business_implications jsonb,affected_segments text[],published_at timestamptz default now());`)
   await db.exec(fs.readFileSync('supabase/migrations/20260624_create_facts.sql', 'utf8'))
   await db.exec(`insert into articles(id,title) values('00000000-0000-4000-8000-000000000001','Legacy article');
     insert into facts(content,article_id) values('Already public','00000000-0000-4000-8000-000000000001');
@@ -85,6 +85,13 @@ before(async () => {
   await db.query('select reserve_composition($1,$2,$3)', [comp, [retained, other], uid()])
   upgradeFixture = { retained, other, comp }
   await db.exec(fs.readFileSync('supabase/migrations/20261114_single_source_articles.sql', 'utf8'))
+  publicationUpgradeDraft = uid()
+  await db.query('insert into drafts(id,title,content) values($1,$2,$3)', [publicationUpgradeDraft, 'Blocked draft', 'Article'])
+  await assert.rejects(db.query('select publish_editorial_draft($1,$2)', [publicationUpgradeDraft,
+    JSON.stringify({ title: 'Blocked draft', slug: 'blocked-draft', content: 'Article', business_implications: ['Buyer impact'] })
+  ]), /business_implications.*jsonb.*text\[\]/)
+  await db.exec(fs.readFileSync('supabase/migrations/20261115_publication_metadata_types.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261115_publication_metadata_types.sql', 'utf8'))
   await db.exec(
     'grant usage on schema public to anon,authenticated,service_role;grant select on all tables in schema public to anon,authenticated;grant all on all tables in schema public to service_role;'
   )
@@ -524,4 +531,38 @@ test('fresh coverage adopts an existing legacy fact without republishing or rese
   )
   assert.equal((await scalar('select count(*)::int n from facts where event_id=$1', [eid])).n, 1)
   assert.equal((await scalar('select event_id from facts where id=$1', [legacyId])).event_id, eid)
+})
+
+for (const type of ['jsonb', 'text[]']) {
+  test(`publication retains classification arrays with ${type} metadata columns`, async () => {
+    await db.exec('begin')
+    try {
+      for (const column of ['business_implications', 'affected_segments']) {
+        await db.exec(`alter table articles alter column ${column} type ${type} using ${type === 'jsonb' ? `to_jsonb(${column})` : "'{}'::text[]"}`)
+      }
+      for (const values of [
+        { signal_ids: ['ai-mt'], business_implications: ['Buyer costs fall', 'Editor\'s workflow improves'], affected_segments: ['LSPs'] },
+        {},
+        { signal_ids: null, business_implications: null, affected_segments: null }
+      ]) {
+        const draft = uid()
+        await db.query('insert into drafts(id,title,content) values($1,$2,$3)', [draft, 'Publish test', 'Article'])
+        const body = { ...values, title: 'Publish test', slug: 'types-' + draft, content: 'Article' }
+        const { id } = await scalar('select publish_editorial_draft($1,$2) as id', [draft, JSON.stringify(body)])
+        const stored = await scalar('select signal_ids,business_implications,affected_segments from articles where id=$1', [id])
+        assert.deepEqual(stored, Object.fromEntries(['signal_ids', 'business_implications', 'affected_segments'].map(key => [key, values[key] || []])))
+        assert.equal((await scalar('select status from drafts where id=$1', [draft])).status, 'approved')
+      }
+    } finally {
+      await db.exec('rollback')
+    }
+  })
+}
+
+test('metadata repair lets the previously blocked draft publish without regeneration', async () => {
+  assert.equal((await scalar('select status from drafts where id=$1', [publicationUpgradeDraft])).status, 'pending')
+  const body = JSON.stringify({ title: 'Blocked draft', slug: 'blocked-draft', content: 'Article', business_implications: ['Buyer impact'] })
+  const { id } = await scalar('select publish_editorial_draft($1,$2) as id', [publicationUpgradeDraft, body])
+  assert.deepEqual((await scalar('select business_implications from articles where id=$1', [id])).business_implications, ['Buyer impact'])
+  assert.equal((await scalar('select publish_editorial_draft($1,$2) as id', [publicationUpgradeDraft, body])).id, id)
 })
