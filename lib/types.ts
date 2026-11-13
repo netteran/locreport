@@ -4,9 +4,10 @@ export interface RssSource {
   name: string
   active: boolean
   keywords: string[]
-  // When true, /api/ingest auto-approves every draft from this source via
-  // lib/publish.ts approveDraft() instead of leaving it for /admin/drafts.
+  // Trusted source: publish eligible deduplicated Fact Flow items automatically.
+  // Full article generation and publication always require the editor.
   auto_publish: boolean
+  auto_collect?: boolean
   // 'podcast' rows are manual-only: skipped by /api/ingest, drafted one episode
   // at a time from /admin/sources. See lib/podcast.ts.
   kind?: 'feed' | 'podcast'
@@ -70,6 +71,8 @@ export interface Draft {
   image_url: string | null
   image_alt: string | null
   status: 'pending' | 'approved' | 'rejected' | 'rerunning' | 'rerun'
+  composition_id?: string | null
+  research_only?: boolean
   // Raw Stage 1 fact sheet the draft was written from. Re-runs reuse it verbatim so only
   // the Stage 2 prose is regenerated. Null on pre-existing or hand-made drafts.
   extracted_facts: string | null

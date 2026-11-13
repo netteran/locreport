@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { fetchFeedResult, fetchArticleText } from '@/lib/rss'
+import { fetchFeedResult, fetchArticleSource } from '@/lib/rss'
 import { getOpenAI } from '@/lib/openai'
-import { slugify, uniqueSlug } from '@/lib/slugify'
-import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, todayLine } from '@/lib/prompts'
-import { classifyArticle } from '@/lib/classify'
-import { extractTeaser } from '@/lib/utils'
-import { distillHeadlineFact } from '@/lib/factFlow'
-import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
-import { approveDraft } from '@/lib/publish'
+import { DEFAULT_EXTRACTOR_PROMPT, todayLine } from '@/lib/prompts'
 import { isGoogleNewsUrl } from '@/lib/rss'
-import { sourceNameLine } from '@/lib/sourceName'
 import { loadSeenUrls, rememberSeenUrl } from '@/lib/seenUrls'
+import { storeCandidate } from '@/lib/research'
+import { canonicalSourceUrl } from '@/lib/eventMatching'
+import { isCronRequest, requireResearchSchema } from '@/lib/adminAuth'
 
-async function getPrompt(supabase: ReturnType<typeof createServiceClient>, key: string, fallback: string): Promise<string> {
+async function getPrompt(
+  supabase: ReturnType<typeof createServiceClient>,
+  key: string,
+  fallback: string
+): Promise<string> {
   try {
     const { data } = await supabase.from('settings').select('value').eq('key', key).single()
     return data?.value || fallback
@@ -29,44 +29,58 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get('Authorization')
-  const isCron = auth === `Bearer ${process.env.CRON_SECRET}`
+  const isCron = isCronRequest(req)
 
   if (!isCron) {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user }
+    } = await supabase.auth.getUser()
     if (!user || user.email !== process.env.ADMIN_EMAIL) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
   }
 
   const supabase = createServiceClient()
+  const schemaResponse = await requireResearchSchema(supabase)
+  if (schemaResponse) return schemaResponse
   const { searchParams } = new URL(req.url)
-  const sourceFilter = searchParams.get('sources')?.split(',').map(s => s.trim()).filter(Boolean) ?? []
+  const sourceFilter =
+    searchParams
+      .get('sources')
+      ?.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean) ?? []
 
   let sourcesQuery = supabase.from('rss_sources').select('*').eq('active', true)
   if (sourceFilter.length > 0) sourcesQuery = sourcesQuery.in('id', sourceFilter)
   const { data: allSources } = await sourcesQuery
-  // Podcast sources are manual-only (/api/podcasts/[id]/ingest): transcribing an
-  // episode costs real tokens, so neither the schedule nor a batch button may
-  // touch them. Filtered here rather than in SQL so this still works before the
-  // `kind` column exists.
-  const sources = (allSources ?? []).filter(s => s.kind !== 'podcast')
+  // Podcasts have their own evidence collector and episode baseline.
+  const sources = (allSources ?? []).filter((s) => s.kind !== 'podcast')
 
   if (!sources.length) return NextResponse.json({ processed: 0 })
 
   let seen: Set<string>
   try {
-    seen = await loadSeenUrls(supabase)
+    seen = new Set(
+      [...(await loadSeenUrls(supabase))].map((url) => {
+        try {
+          return canonicalSourceUrl(url)
+        } catch {
+          return url
+        }
+      })
+    )
   } catch (error) {
     // Never spend tokens or create drafts against incomplete history.
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    )
   }
 
   const openai = getOpenAI()
   const extractorPrompt = await getPrompt(supabase, 'prompt_extractor', DEFAULT_EXTRACTOR_PROMPT)
-  const industryPrompt = await getPrompt(supabase, 'prompt_industry', DEFAULT_INDUSTRY_PROMPT)
-  const directoryEntries = await getDirectoryEntries(supabase)
   let processed = 0
   const errors: string[] = []
   const skipped: string[] = []
@@ -82,35 +96,50 @@ export async function POST(req: NextRequest) {
       const t = i.pubDate ? new Date(i.pubDate).getTime() : NaN
       return isNaN(t) ? max : Math.max(max ?? t, t)
     }, null)
-    const { error: healthError } = await supabase.from('rss_sources').update({
-      last_fetch_at: new Date().toISOString(),
-      last_fetch_error: fetchError,
-      last_fetch_items: items.length,
-      last_fetch_newest_at: newest === null ? null : new Date(newest).toISOString(),
-    }).eq('id', source.id)
-    if (healthError) console.warn(`[ingest] could not record fetch health for ${source.url}: ${healthError.message}`)
-    const recent = items.filter(i => {
+    const { error: healthError } = await supabase
+      .from('rss_sources')
+      .update({
+        last_fetch_at: new Date().toISOString(),
+        last_fetch_error: fetchError,
+        last_fetch_items: items.length,
+        last_fetch_newest_at: newest === null ? null : new Date(newest).toISOString()
+      })
+      .eq('id', source.id)
+    if (healthError)
+      console.warn(
+        `[ingest] could not record fetch health for ${source.url}: ${healthError.message}`
+      )
+    const recent = items.filter((i) => {
       if (!i.pubDate) return true // no date → don't filter out
       const pub = new Date(i.pubDate)
       return !isNaN(pub.getTime()) && pub >= cutoff
     })
-    console.log(`[ingest] ${source.url}: ${items.length} items, ${recent.filter(i => i.link && !seen.has(i.link)).length} fresh within ${maxAgeDays}d`)
+    console.log(
+      `[ingest] ${source.url}: ${items.length} items, ${recent.filter((i) => i.link && !seen.has(canonicalSourceUrl(i.link))).length} fresh within ${maxAgeDays}d`
+    )
     const keywords: string[] = (source.keywords ?? []).map((k: string) => k.toLowerCase())
     const matchesKeywords = (text: string) => {
       if (keywords.length === 0) return true
-      return keywords.some(k => text.includes(k))
+      return keywords.some((k) => text.includes(k))
     }
-    const fresh = recent.filter(i => i.link && !seen.has(i.link)).slice(0, 15)
+    const fresh = recent.filter((i) => i.link && !seen.has(canonicalSourceUrl(i.link))).slice(0, 15)
     // The outlet to credit: the feed itself, unless it is an aggregator, in
     // which case only the item's own <source> counts (see lib/sourceName.ts).
     const aggregator = isGoogleNewsUrl(source.url)
 
     for (const item of fresh) {
       // `fresh` was computed before this loop; a feed may repeat a URL.
-      if (seen.has(item.link)) continue
+      if (seen.has(canonicalSourceUrl(item.link))) continue
       try {
         // Prefer full article text over RSS snippet — RSS feeds only carry teasers
-        const fetchedText = item.link ? await fetchArticleText(item.link) : null
+        const fetchedSource = item.link ? await fetchArticleSource(item.link) : null
+        const fetchedText = fetchedSource?.text ?? null
+        const originalUrl = fetchedSource?.url || item.link
+        if (seen.has(canonicalSourceUrl(originalUrl))) {
+          await rememberSeenUrl(supabase, item.link)
+          seen.add(canonicalSourceUrl(item.link))
+          continue
+        }
         const articleText = fetchedText ?? item.contentSnippet ?? item.content ?? ''
 
         // Keyword filter runs on full text (title + fetched body) so body-only mentions aren't missed
@@ -119,162 +148,68 @@ export async function POST(req: NextRequest) {
           console.log(`[ingest] skipping ${item.link}: no keyword match`)
           continue
         }
-        console.log(`[ingest] article text length for ${item.link}: ${articleText.length} chars${fetchedText ? ' (fetched)' : ' (rss snippet)'}`)
+        console.log(
+          `[ingest] article text length for ${item.link}: ${articleText.length} chars${fetchedText ? ' (fetched)' : ' (rss snippet)'}`
+        )
 
         if (articleText.length < 50) {
-          console.log(`[ingest] skipping ${item.link}: text too short (${articleText.length} chars)`)
+          console.log(
+            `[ingest] skipping ${item.link}: text too short (${articleText.length} chars)`
+          )
           skipped.push(item.link)
-          seen.add(item.link)
+          seen.add(canonicalSourceUrl(item.link))
           continue
         }
 
-        const outlet = aggregator || isGoogleNewsUrl(item.link)
-          ? (item.sourceName ?? null)
-          : (source.name ?? null)
+        const outlet =
+          aggregator || isGoogleNewsUrl(item.link)
+            ? (item.sourceName ?? null)
+            : (source.name ?? null)
 
         const extractInput = [
           todayLine(),
-          item.link ? `Source URL: ${item.link}` : '',
+          originalUrl ? `Source URL: ${originalUrl}` : '',
           outlet ? `Published by: ${outlet}` : '',
           `Title: ${item.title}`,
-          `Article content:\n${articleText}`,
-        ].filter(Boolean).join('\n\n')
+          `Article content:\n${articleText}`
+        ]
+          .filter(Boolean)
+          .join('\n\n')
 
         // Stage 1: extract facts
         const extractRes = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [
             { role: 'system', content: extractorPrompt },
-            { role: 'user', content: extractInput },
-          ],
+            { role: 'user', content: extractInput }
+          ]
         })
         const facts = extractRes.choices[0].message.content ?? ''
 
-        if (facts.trim() === 'UNUSABLE_CONTENT') {
+        if (!facts.trim() || facts.trim() === 'UNUSABLE_CONTENT') {
           console.log(`[ingest] UNUSABLE_CONTENT: ${item.link}`)
           skipped.push(item.link)
           await rememberSeenUrl(supabase, item.link)
-          seen.add(item.link)
+          seen.add(canonicalSourceUrl(item.link))
           continue
         }
 
-        // Stage 2: generate article
-        const generateInput = [
-          item.link ? `Source URL: ${item.link}` : '',
-          sourceNameLine(outlet, item.link),
-          `Suggested title: ${item.title}`,
-          `Extracted facts:\n${facts}`,
-        ].filter(Boolean).join('\n\n')
-
-        const generateRes = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: industryPrompt },
-            { role: 'user', content: generateInput },
-          ],
-        })
-        const rawContent = generateRes.choices[0].message.content ?? ''
-        const titleMatch = rawContent.match(/^#\s+(.+)$/m)
-        const title = titleMatch ? titleMatch[1].trim() : item.title
-        // Strip the H1 from the body — title is stored separately
-        const strippedContent = rawContent.replace(/^#\s+.+\n?/, '').trimStart()
-        const excerpt = extractTeaser(strippedContent) || null
-        const slug = await uniqueSlug(slugify(title), 'drafts', supabase)
-
-        const classification = await classifyArticle(openai, strippedContent)
-        // Auto-link mentions of directory companies to their /compass/directory page
-        const content = linkifyCompanyMentions(strippedContent, directoryEntries)
-
-        const { error: insertError } = await supabase.from('drafts').insert({
-          title,
-          slug,
-          content,
-          excerpt,
-          source_url: item.link,
+        await storeCandidate(supabase, {
+          title: item.title,
+          source_url: originalUrl,
+          source_name: outlet,
           source_feed_id: source.id,
-          source_published_at: item.pubDate ? new Date(item.pubDate).toISOString() : null,
-          status: 'pending',
-          ai_impact_score: classification.impact_score,
-          ai_time_horizon: classification.time_horizon,
-          ai_signal_ids: classification.signal_ids,
+          source_published_at:
+            item.pubDate && !isNaN(Date.parse(item.pubDate))
+              ? new Date(item.pubDate).toISOString()
+              : null,
+          extracted_facts: facts,
+          quality: fetchedText ? 'full' : 'snippet'
         })
-
-        if (insertError) {
-          console.error(`[ingest] DB insert failed for ${item.link}:`, insertError)
-          errors.push(`${item.link}: ${insertError.message}`)
-        } else {
-          // Retain history even if enrichment fails or this draft is deleted.
-          seen.add(item.link)
-          processed++
-          await rememberSeenUrl(supabase, item.link)
-          // Save extracted facts linked to the draft
-          const { data: draftRow } = await supabase
-            .from('drafts')
-            .select('id')
-            .eq('source_url', item.link)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single()
-
-          if (draftRow?.id) {
-            // Pin the Stage 1 fact sheet to the draft so a re-run can re-profile the prose
-            // against the original facts instead of re-extracting from its own output.
-            const { error: factsError } = await supabase
-              .from('drafts')
-              .update({ extracted_facts: facts })
-              .eq('id', draftRow.id)
-            if (factsError) {
-              console.error(`[ingest] could not store extracted facts for ${item.link}:`, factsError)
-            }
-
-            // Pin an aggregator item's outlet too, so a re-run and the published
-            // fact credit the same publisher (ordinary feeds fall back to the
-            // feed name). Separate update so a missing column (before the
-            // 20261006 migration) costs only this, never the draft.
-            if (outlet && outlet !== source.name) {
-              const { error: outletError } = await supabase
-                .from('drafts')
-                .update({ source_name: outlet })
-                .eq('id', draftRow.id)
-              if (outletError) {
-                console.error(`[ingest] could not store source name for ${item.link}:`, outletError)
-              }
-            }
-
-            // Fact Flow carries one fact per article — the most important one.
-            // It is distilled here, off the pristine Stage 1 sheet, and stays
-            // parked on the draft until approval promotes it onto the article.
-            // If this comes back empty the approval step distils again rather
-            // than publishing the article with nothing on Fact Flow.
-            const headline = await distillHeadlineFact(supabase, facts)
-            if (headline) {
-              const { error: factError } = await supabase.from('facts').insert({
-                content: headline,
-                category: 'news',
-                source_url: item.link,
-                source_name: outlet,
-                draft_id: draftRow.id,
-              })
-              if (factError) {
-                console.error(`[ingest] fact insert failed for ${item.link}:`, factError)
-              }
-            } else {
-              console.warn(`[ingest] no publishable fact distilled for ${item.link}`)
-            }
-
-            // Trusted sources skip /admin/drafts entirely: approve immediately
-            // through the exact same path a human click would take (lib/publish.ts),
-            // rather than leaving the draft pending.
-            if (source.auto_publish) {
-              const result = await approveDraft(supabase, draftRow.id)
-              if (result.status === 'ok') {
-                await supabase.from('drafts').update({ status: 'approved' }).eq('id', draftRow.id)
-              } else {
-                console.error(`[ingest] auto-publish failed for draft ${draftRow.id}: ${result.message}`)
-              }
-            }
-          }
-        }
+        seen.add(canonicalSourceUrl(item.link))
+        seen.add(canonicalSourceUrl(originalUrl))
+        await rememberSeenUrl(supabase, item.link)
+        processed++
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         console.error(`[ingest] Error processing ${item.link}:`, err)

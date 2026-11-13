@@ -1,4 +1,7 @@
 name: Ingest
+concurrency:
+  group: research-ingest
+  cancel-in-progress: false
 on:
   schedule:
     # Three runs on workdays — 10am, 1pm and 5pm Warsaw time (Europe/Warsaw, CET/CEST).
@@ -18,8 +21,8 @@ jobs:
   ingest:
     runs-on: ubuntu-latest
     # 10 min covers feeds + ingest; the rest is headroom for the podcast step, whose
-    # calls can each take up to 5 min on the rare run that finds a new episode.
-    timeout-minutes: 45
+    # calls can each take up to 5 min; research processing has its own steps.
+    timeout-minutes: 75
     steps:
       - name: Check DST offset
         id: dst
@@ -92,7 +95,7 @@ jobs:
           curl -f --max-time 300 -X POST https://locreport.com/api/ingest \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json"
-      # Podcast sources with Auto publishing ticked. Each call does ONE unit of
+      # Podcast sources with automatic collection enabled. Each call does ONE unit of
       # work (one Gemini call: episode notes, or the write-up + publish), so it
       # fits a single 300 s function; repeat until the route reports "idle".
       # Only episodes after each source's ignore_before baseline are touched.
@@ -111,3 +114,24 @@ jobs:
               *'"action":"error"'*) echo "::warning::Podcast auto run: $RESPONSE"; break ;;
             esac
           done
+
+      - name: Match events and publish trusted Fact Flow items
+        if: steps.dst.outputs.proceed == 'true'
+        run: |
+          for i in 1 2 3 4 5; do
+            RESPONSE="$(curl -f --max-time 300 -X POST https://locreport.com/api/research/process \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              -H "Content-Type: application/json")"
+            echo "$RESPONSE"
+            if command -v jq >/dev/null 2>&1; then
+              COUNT="$(printf '%s' "$RESPONSE" | jq '.errors | length')"
+              if [ "$COUNT" -gt 0 ]; then echo "::warning::$COUNT candidates require retry or review"; fi
+            fi
+            case "$RESPONSE" in *'"action":"idle"'*) break ;; esac
+          done
+      - name: Refresh suggested articles (never generate or publish articles)
+        if: steps.dst.outputs.proceed == 'true'
+        run: |
+          curl -f --max-time 300 -X POST https://locreport.com/api/research/process \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" -d '{"stage":"groups"}'

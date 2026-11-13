@@ -7,6 +7,7 @@ export interface AdminLink {
 
 export const ADMIN_LINKS: AdminLink[] = [
   { href: '/admin', label: 'Dashboard' },
+  { href: '/admin/candidates', label: 'Source candidates' },
   { href: '/admin/drafts', label: 'Drafts' },
   { href: '/admin/articles', label: 'Articles' },
   { href: '/admin/reports', label: 'Reports' },

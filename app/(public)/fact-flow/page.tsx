@@ -1,5 +1,6 @@
 import { createPublicClient } from '@/lib/supabase/server'
-import { required } from '@/lib/supabase/required'
+import { loadPublishedFacts, httpUrl, type PublishedFact } from '@/lib/publicFacts'
+import { articleHref } from '@/lib/utils'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { ShareButton } from '@/components/ShareButton'
@@ -9,7 +10,7 @@ export const revalidate = 3600
 export function generateMetadata(): Metadata {
   return {
     title: 'Fact Flow',
-    description: 'A real-time stream of verified facts, data points, and key developments from the localization and language technology industry — distilled from primary sources as they are published.',
+    description: 'A real-time stream of sourced facts, data points, and key developments from the localization and language technology industry — drawn from industry sources and reviewed or published from selected trusted sources.',
     openGraph: {
       title: { absolute: 'Fact Flow by LocReport' },
       description: "What's happening in localization and language tech right now — bare facts, no editorial delay. Updated daily from primary industry sources.",
@@ -46,20 +47,12 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-type FactRow = {
-  id: string
-  content: string
-  category: string
-  source_url: string | null
-  source_name: string | null
-  article_id: string | null
-  created_at: string
-}
+type FactRow = PublishedFact
 
 function groupByDay(facts: FactRow[]) {
   const map = new Map<string, FactRow[]>()
   for (const f of facts) {
-    const key = new Date(f.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    const key = new Date(f.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     if (!map.has(key)) map.set(key, [])
     map.get(key)!.push(f)
   }
@@ -69,25 +62,7 @@ function groupByDay(facts: FactRow[]) {
 export default async function FactFlowPage() {
   const supabase = createPublicClient()
 
-  const factsResult = await supabase
-    .from('facts')
-    .select('id, content, category, source_url, source_name, article_id, created_at')
-    .not('article_id', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(120)
-
-  const facts = required(factsResult, 'fact flow')
-
-  // Resolve article slugs for all facts that have an article_id
-  const articleIds = [...new Set((facts ?? []).map(f => f.article_id).filter(Boolean))]
-  const slugMap = new Map<string, string>()
-  if (articleIds.length > 0) {
-    const { data: articles } = await supabase
-      .from('articles')
-      .select('id, slug')
-      .in('id', articleIds as string[])
-    for (const a of articles ?? []) slugMap.set(a.id, a.slug)
-  }
+  const facts = await loadPublishedFacts(supabase)
 
   const grouped = groupByDay(facts ?? [])
 
@@ -141,7 +116,7 @@ export default async function FactFlowPage() {
             <h1>Fact Flow</h1>
             <span className="ff-live-badge">Live</span>
             <span className="ff-hero-sep" aria-hidden="true" />
-            <p className="ff-hero-desc">Verified facts the moment they're confirmed!</p>
+            <p className="ff-hero-desc">Industry developments, with the sources behind them.</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
             <a href="/fact-flow/feed.xml" className="ff-rss-link">
@@ -159,7 +134,7 @@ export default async function FactFlowPage() {
         {grouped.length === 0 ? (
           <div className="ff-empty">
             <h2>No facts yet</h2>
-            <p>Facts will appear here as articles are ingested.</p>
+            <p>Published industry news will appear here.</p>
           </div>
         ) : (
           grouped.map(({ label, count, items }) => (
@@ -171,20 +146,23 @@ export default async function FactFlowPage() {
               </div>
               <div className="ff-stream">
                 {items.map(fact => {
-                  const slug = fact.article_id ? slugMap.get(fact.article_id) : undefined
+                  const sourceUrl = httpUrl(fact.source_url)
                   return (
-                    <div key={fact.id} className="ff-bubble">
+                    <div key={fact.id} id={fact.id} className="ff-bubble" style={{scrollMarginTop:100}}>
                       <div className="ff-bubble-body">
                         <span className="ff-bullet" aria-hidden="true" />
                         <div style={{ flex: 1 }}>
-                          <time className="ff-time" dateTime={fact.created_at} title={formatDate(fact.created_at)}>
-                            {timeAgo(fact.created_at)}
+                          <time className="ff-time" dateTime={fact.published_at} title={formatDate(fact.published_at)}>
+                            {timeAgo(fact.published_at)}
                           </time>
-                          {slug ? (
-                            <Link href={`/articles/${slug}`} className="ff-content-link">{fact.content}</Link>
-                          ) : (
-                            <span className="ff-content">{fact.content}</span>
-                          )}
+                          {sourceUrl ? <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="ff-content-link">{fact.content}</a> : <span className="ff-content">{fact.content}</span>}
+                          <div className="flex gap-3 flex-wrap mt-2 text-xs" style={{color:'var(--muted)'}}>
+                            {sourceUrl&&<a href={sourceUrl} target="_blank" rel="noopener noreferrer">Source: {fact.source_name||'Original reporting'} ↗</a>}
+                            <a href={`#${fact.id}`}>Permalink</a>
+                            {fact.analyses.map(a=><Link key={a.id} href={articleHref(a.slug)}>LocReport analysis: {a.title} →</Link>)}
+                          </div>
+                          {fact.sources.length>1&&<details className="mt-2 text-xs"><summary className="cursor-pointer">{fact.sources.length} supporting sources</summary><ul className="mt-2 space-y-1">{fact.sources.map(source=><li key={source.source_url}><a href={httpUrl(source.source_url)||'#'} target="_blank" rel="noopener noreferrer">{source.source_name||source.title} ↗</a></li>)}</ul></details>}
+
                         </div>
                       </div>
                     </div>

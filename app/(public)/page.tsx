@@ -4,6 +4,7 @@ import { HomeFeedAd } from '@/components/HomeFeedAd'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { createPublicClient } from '@/lib/supabase/server'
+import {loadPublishedFacts} from '@/lib/publicFacts'
 import { Article } from '@/lib/types'
 import { articleHref, safeImageUrl } from '@/lib/utils'
 import { SIGNALS, SIGNAL_MAP } from '@/lib/signals'
@@ -65,18 +66,13 @@ export default async function HomePage() {
 
   // Independent queries — run concurrently instead of paying for each
   // round trip in sequence.
-  const [articlesResult, { data: latestFacts }, { data: latestReport }] = await Promise.all([
+  const [articlesResult, latestFacts, { data: latestReport }] = await Promise.all([
     supabase
       .from('articles')
       .select('id, title, slug, excerpt, author, image_url, signal_ids, impact_score, published_at')
       .order('published_at', { ascending: false })
       .limit(60),
-    supabase
-      .from('facts')
-      .select('id, content, created_at, article_id')
-      .not('article_id', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(4),
+    loadPublishedFacts(supabase,4),
     supabase
       .from('articles')
       .select('id, title, slug, excerpt, published_at')
@@ -85,18 +81,6 @@ export default async function HomePage() {
       .limit(1)
       .maybeSingle(),
   ])
-
-  // Depends on latestFacts, so it stays a follow-up query rather than
-  // joining the batch above.
-  const factArticleIds = [...new Set((latestFacts ?? []).map(f => f.article_id).filter(Boolean))]
-  const factSlugMap = new Map<string, string>()
-  if (factArticleIds.length > 0) {
-    const { data: factArticles } = await supabase
-      .from('articles')
-      .select('id, slug')
-      .in('id', factArticleIds as string[])
-    for (const a of factArticles ?? []) factSlugMap.set(a.id, a.slug)
-  }
 
   // Rendering an empty homepage on a failed query is worse than not
   // rendering one: it returns 200, so nothing downstream treats it as a
@@ -331,17 +315,18 @@ export default async function HomePage() {
                   Fact Flow — Live
                 </h3>
               </div>
-              <p className="sidebar-factflow__desc">Verified facts as they break!</p>
+              <p className="sidebar-factflow__desc">Industry news, with original sources.</p>
               {latestFacts.map(fact => {
-                const slug = fact.article_id ? factSlugMap.get(fact.article_id) : undefined
+                const slug = fact.analyses[0]?.slug
                 return (
                   <div key={fact.id} className="sidebar-factflow__item">
-                    <span className="sidebar-factflow__time">{timeAgo(fact.created_at)}</span>
-                    {slug ? (
+                    <span className="sidebar-factflow__time">{timeAgo(fact.published_at||fact.created_at)}</span>
+                    {fact.source_url ? <a href={fact.source_url} target="_blank" rel="noopener noreferrer" className="sidebar-factflow__content">{fact.content}</a> : slug ? (
                       <Link href={articleHref(slug)} className="sidebar-factflow__content">{fact.content}</Link>
                     ) : (
                       <span className="sidebar-factflow__content">{fact.content}</span>
                     )}
+                    {slug&&fact.source_url&&<Link className="text-xs underline" href={articleHref(slug)}>LocReport analysis →</Link>}
                   </div>
                 )
               })}

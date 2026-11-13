@@ -1,3 +1,4 @@
+import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { slugify, uniqueSlug } from '@/lib/slugify'
@@ -11,10 +12,14 @@ export async function GET(req: NextRequest) {
   if (!slug) return NextResponse.json({ error: 'slug param required' }, { status: 400 })
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user }
+  } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const svc = createServiceClient()
+  const schemaResponse = await requireResearchSchema(svc)
+  if (schemaResponse) return schemaResponse
   const { data, error } = await svc
     .from('articles')
     .select('id, slug, title')
@@ -26,16 +31,26 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAdmin())) return unauthorized()
   const { content } = await req.json()
   const titleMatch = content.match(/^#\s+(.+)$/m)
   const title = titleMatch ? titleMatch[1].trim() : 'Untitled'
   const supabase = createServiceClient()
+  const schemaResponse = await requireResearchSchema(supabase)
+  if (schemaResponse) return schemaResponse
   const slug = await uniqueSlug(slugify(title), 'articles', supabase)
   const directoryEntries = await getDirectoryEntries(supabase)
   const linkedContent = linkifyCompanyMentions(content, directoryEntries)
   const { data, error } = await supabase
     .from('articles')
-    .insert({ title, slug, content: linkedContent, article_type: 'industry', author: 'LocReport Editorial Desk', publisher: 'LocReport' })
+    .insert({
+      title,
+      slug,
+      content: linkedContent,
+      article_type: 'industry',
+      author: 'LocReport Editorial Desk',
+      publisher: 'LocReport'
+    })
     .select()
     .single()
 
@@ -45,7 +60,7 @@ export async function POST(req: NextRequest) {
   await ensureArticleFact(supabase, {
     articleId: data.id,
     title,
-    content: linkedContent,
+    content: linkedContent
   })
   await embedAndStoreArticle(supabase, data.id)
   revalidateArticleSurfaces({ slug })

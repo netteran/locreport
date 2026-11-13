@@ -66,6 +66,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
   }
 
+  if (draft.composition_id) return NextResponse.json({ error:'Use the composition workspace to regenerate from all sources and your editorial brief', composition_id:draft.composition_id },{ status:409 })
   if (!draft.content) {
     return NextResponse.json({ error: 'Draft has no content to re-run' }, { status: 400 })
   }

@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 /** Read every page: PostgREST caps each response, even without a limit. */
 export async function loadSeenUrls(supabase: SupabaseClient): Promise<Set<string>> {
   const seen = new Set<string>()
-  for (const table of ['seen_urls', 'drafts', 'articles'] as const) {
+  for (const table of ['seen_urls', 'drafts', 'articles', 'source_candidates'] as const) {
     const key = table === 'seen_urls' ? 'url' : 'id'
     const urlColumn = table === 'seen_urls' ? 'url' : 'source_url'
     let cursor: string | undefined

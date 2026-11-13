@@ -8,7 +8,7 @@ export default async function AdminFactFlowPage() {
 
   const { data: facts } = await supabase
     .from('facts')
-    .select('id, content, category, source_name, source_url, article_id, created_at, articles(slug)')
+    .select('id, content, category, source_name, source_url, article_id, event_id, status, published_at, review_reason, created_at, articles(slug)')
     .order('created_at', { ascending: false })
     .limit(200)
 

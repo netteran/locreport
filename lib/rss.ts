@@ -68,6 +68,11 @@ async function parseFeedXml(xml: string) {
  * won't yield readable article text (e.g. Google News redirect URLs).
  */
 export async function fetchArticleText(url: string): Promise<string | null> {
+  return (await fetchArticleSource(url))?.text ?? null
+}
+
+/** Keep the resolved original URL alongside the evidence for attribution and deduplication. */
+export async function fetchArticleSource(url: string): Promise<{text:string;url:string} | null> {
   // Google News redirect URLs: follow the HTTP redirect to reach the real article
   if (isGoogleNewsUrl(url) && url.includes('/rss/articles/')) {
     const resolved = await resolveGoogleNewsUrl(url)
@@ -90,7 +95,7 @@ export async function fetchArticleText(url: string): Promise<string | null> {
       return null
     }
     const html = await res.text()
-    return htmlToText(html)
+    return {text:htmlToText(html),url:res.url||url}
   } catch (err) {
     console.warn(`[rss] fetchArticleText failed for ${url}:`, err instanceof Error ? err.message : err)
     return null

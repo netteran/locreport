@@ -37,7 +37,7 @@ export function ArticleList({ articles }: { articles: Row[] }) {
     startTransition(async () => {
       try {
         const r = await deleteArticles(ids)
-        setMessage(`Deleted ${r.deleted} article${r.deleted === 1 ? '' : 's'} and ${r.factsDeleted} Fact Flow fact${r.factsDeleted === 1 ? '' : 's'}.`)
+        setMessage(`Deleted ${r.deleted} article${r.deleted === 1 ? '' : 's'}. Published Fact Flow news is preserved.`)
         setSelected(new Set())
       } catch (err) {
         setMessage(`Delete failed: ${(err as Error).message}`)

@@ -212,7 +212,7 @@ export function pickCompanyOfWeek(entries: DirectoryEntry[], periodEnd: Date): D
 export interface IssueInput {
   articles: DigestSourceArticle[]
   priorArticles: Pick<DigestSourceArticle, 'signal_ids'>[]
-  facts: { content: string; article_id: string }[]
+  facts: { id?: string; content: string; article_id: string | null }[]
   market: DigestMarket | null
   company: DigestCompany | null
   directory: { name: string; slug: string; category: string | null; description: string | null }[]
@@ -238,17 +238,9 @@ export function composeIssue({ articles, priorArticles, facts, market, company, 
   const top = ranked[0] ?? null
   const signalMoves = computeSignalMoves(ranked, priorArticles, top?.id ?? null)
 
-  // One fact per article is the Fact Flow guarantee; take the facts belonging
-  // to the week's highest-impact stories.
-  const rank = new Map(ranked.map((a, i) => [a.id, i]))
-  const factArticles = new Map(ranked.map(a => [a.id, a]))
-  const seen = new Set<string>()
-  const digestFacts: DigestFact[] = facts
-    .filter(f => rank.has(f.article_id))
-    .sort((a, b) => rank.get(a.article_id)! - rank.get(b.article_id)!)
-    .filter(f => (seen.has(f.article_id) ? false : (seen.add(f.article_id), true)))
-    .slice(0, FACT_LIMIT)
-    .map(f => ({ content: f.content, url: toDigestArticle(factArticles.get(f.article_id)!).url }))
+  const digestFacts: DigestFact[] = facts.slice(0,FACT_LIMIT).map(f=>({
+    content:f.content,url:f.id?`${SITE_URL}/fact-flow#${f.id}`:`${SITE_URL}/fact-flow`,
+  }))
 
   const rest = ranked.filter(a => a.id !== top?.id)
   const more = rest.slice(0, MORE_LIMIT)

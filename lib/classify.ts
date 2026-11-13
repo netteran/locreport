@@ -58,7 +58,7 @@ export async function classifyArticle(openai: OpenAI, content: string): Promise<
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: CLASSIFIER_SYSTEM_PROMPT },
-        { role: 'user', content: content.slice(0, 4000) },
+        { role: 'user', content: content.slice(0, 24000) },
       ],
       response_format: { type: 'json_object' },
       temperature: 0,

@@ -1,15 +1,17 @@
+import { requireAdmin, unauthorized } from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { parsePodcastConfig } from '@/lib/podcast'
 
 export async function GET() {
+  if (!await requireAdmin()) return unauthorized()
   const supabase = createServiceClient()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
   const [sourcesRes, draftsRes] = await Promise.all([
     supabase.from('rss_sources').select('*').order('created_at', { ascending: true }),
     supabase
-      .from('drafts')
+      .from('source_candidates')
       .select('source_feed_id')
       .not('source_feed_id', 'is', null)
       .gte('created_at', thirtyDaysAgo),
@@ -29,12 +31,13 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!await requireAdmin()) return unauthorized()
   const { url, name, keywords, kind, podcast_config } = await req.json()
   const row: Record<string, unknown> = { url, name, keywords: keywords ?? [] }
   if (kind === 'podcast') {
     const parsed = parsePodcastConfig(podcast_config)
     if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
-    // Podcasts are manual-only and never auto-publish — see lib/podcast.ts.
+    // New podcasts start with manual collection and Fact Flow review.
     Object.assign(row, { kind: 'podcast', podcast_config: parsed.config, keywords: [], auto_publish: false })
   }
   const supabase = createServiceClient()
