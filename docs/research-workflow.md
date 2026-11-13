@@ -13,7 +13,7 @@
 
 ## Event identity and Fact Flow
 
-Source URL deduplication prevents ingesting the same page twice. Event matching separately compares named parties, action, transaction stage, supported dates and semantic evidence. Known corporate suffixes/aliases are normalized. An announcement and a later completion are distinct developments; another article repeating the announcement is evidence for the same event.
+Source URL deduplication prevents ingesting the same page twice. Event matching separately compares named parties, action, transaction stage, supported dates and semantic evidence. Known corporate suffixes/aliases are normalized. Recent legacy published headlines without event IDs are also checked by named parties; a confirmed match adopts the existing fact and preserves its original publication time. An announcement and a later completion are distinct developments; another article repeating the announcement is evidence for the same event.
 
 The model classifies matches as same event, conflicting evidence, different event or uncertain. Ambiguous matches wait for manual resolution in Source candidates. Semantic matching has a short global processing lease; a unique event identity and a unique fact/event relationship protect writes and retries. No automatic classifier can guarantee perfect semantic decisions: review held matches and use **Event review → Merge events** for remaining duplicates. A merge retains supporting sources and analysis links, withdraws the duplicate fact, and leaves its existing RSS identifier untouched.
 

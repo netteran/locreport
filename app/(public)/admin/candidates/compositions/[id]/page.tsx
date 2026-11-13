@@ -227,13 +227,47 @@ export default function CompositionPage() {
                     body: JSON.stringify({ request_id: crypto.randomUUID() })
                   })
                   const d = await r.json()
-                  if (!r.ok) throw new Error(d.error)
+                  if (!r.ok) {
+                    await load()
+                    throw new Error(d.error)
+                  }
                   router.push(`/admin/drafts/${d.draft_id}`)
                 })
               }
             >
               {busy ? 'Working…' : composition.draft_id ? 'Regenerate draft' : 'Generate draft'}
             </Button>
+            {composition.status === 'generating' && (
+              <>
+                <p className="text-sm">
+                  Generation is still running or was interrupted. You can check the saved request;
+                  an interrupted request can retry after ten minutes.
+                </p>
+                <Button
+                  disabled={busy}
+                  variant="secondary"
+                  onClick={() =>
+                    action(async () => {
+                      const r = await fetch(`/api/compositions/${id}/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          request_id: composition.generation_request_id || crypto.randomUUID()
+                        })
+                      })
+                      const d = await r.json()
+                      if (!r.ok) {
+                        await load()
+                        throw new Error(d.error)
+                      }
+                      router.push(`/admin/drafts/${d.draft_id}`)
+                    })
+                  }
+                >
+                  Check or retry saved generation
+                </Button>
+              </>
+            )}
             {composition.draft_id && (
               <Link href={`/admin/drafts/${composition.draft_id}`} className="underline text-sm">
                 Review saved draft

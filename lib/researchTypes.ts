@@ -14,6 +14,7 @@ export interface SourceCandidate {
   review_reason: string | null
   event_id: string | null
   suggested_event_id: string | null
+  suggested_fact_id?: string | null
   reserved_by: string | null
   created_at: string
 }
@@ -48,5 +49,11 @@ export interface Composition {
   status: 'editing' | 'generating' | 'ready' | 'published' | 'abandoned' | 'failed'
   draft_id: string | null
   last_error: string | null
-  composition_sources?: { candidate_id: string; snapshot: SourceCandidate; covered: boolean; position: number }[]
+  generation_request_id?: string | null
+  composition_sources?: {
+    candidate_id: string
+    snapshot: SourceCandidate
+    covered: boolean
+    position: number
+  }[]
 }

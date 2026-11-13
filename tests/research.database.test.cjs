@@ -430,3 +430,30 @@ test('a late-published fact gains existing analysis links without another articl
     await db.exec('reset role')
   }
 })
+
+test('fresh coverage adopts an existing legacy fact without republishing or resetting its time', async () => {
+  const legacyId = uid(),
+    s = await source(true),
+    c = await candidate(s),
+    key = uid()
+  await db.query(
+    "insert into facts(id,content,source_url,status,published_at) values($1,$2,$3,'published','2026-11-12T09:00:00Z')",
+    [legacyId, 'The previously published acquisition fact.', 'https://primary.example/deal']
+  )
+  const before = await scalar('select content,published_at from facts where id=$1', [legacyId])
+  const eid = (
+    await scalar('select record_candidate_event($1,null,$2,$3,$4,true,$5) as id', [
+      c,
+      key,
+      JSON.stringify(event()),
+      'same',
+      legacyId
+    ])
+  ).id
+  assert.deepEqual(
+    await scalar('select content,published_at from facts where id=$1', [legacyId]),
+    before
+  )
+  assert.equal((await scalar('select count(*)::int n from facts where event_id=$1', [eid])).n, 1)
+  assert.equal((await scalar('select event_id from facts where id=$1', [legacyId])).event_id, eid)
+})

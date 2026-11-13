@@ -225,6 +225,17 @@ export default function CandidatesPage() {
                     Confirm same event
                   </Button>
                 )}
+                {c.suggested_fact_id && (
+                  <Button
+                    size="xs"
+                    disabled={busy}
+                    onClick={() =>
+                      run(() => patch({ id: c.id, legacy_fact_id: c.suggested_fact_id }))
+                    }
+                  >
+                    Confirm same published fact
+                  </Button>
+                )}
                 {c.review_reason?.startsWith('Conflicting') && c.event_id && (
                   <Button
                     size="xs"

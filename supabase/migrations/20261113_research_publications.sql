@@ -27,6 +27,7 @@ create table source_candidates (
   next_retry_at timestamptz not null default now(),
   review_reason text, event_id uuid references industry_events(id) on delete set null,
   suggested_event_id uuid references industry_events(id) on delete set null,
+  suggested_fact_id uuid references facts(id) on delete set null,
   reserved_by uuid, legacy_draft_id uuid references drafts(id) on delete set null,
   created_at timestamptz not null default now(), updated_at timestamptz not null default now()
 );
@@ -124,15 +125,16 @@ create function release_research_lock(p_owner uuid) returns void language sql se
 $$;
 
 -- A source can provide evidence without ever publishing a second fact.
-create function record_candidate_event(p_candidate uuid, p_event uuid, p_identity text, p_descriptor jsonb, p_relation text, p_auto_eligible boolean)
+create function record_candidate_event(p_candidate uuid, p_event uuid, p_identity text, p_descriptor jsonb, p_relation text, p_auto_eligible boolean,p_legacy_fact uuid default null)
 returns uuid language plpgsql security definer set search_path = public as $$
-declare c source_candidates; e industry_events; eid uuid; trusted boolean; auto_ok boolean;
+declare c source_candidates; e industry_events; eid uuid; trusted boolean; auto_ok boolean; legacy facts;
 begin
   perform pg_advisory_xact_lock(hashtext('locreport-event-publication'));
   select * into strict c from source_candidates where id = p_candidate for update;
   if p_relation not in ('new','same','conflict','uncertain') then raise exception 'Invalid event relationship'; end if;
   if p_relation = 'uncertain' then
     update source_candidates set review_reason = 'Uncertain event match: review before publishing', suggested_event_id = p_event,
+      suggested_fact_id=p_legacy_fact,
       processing_status = 'ready' where id = c.id;
     return null;
   end if;
@@ -146,10 +148,19 @@ begin
     if eid is null then select id into eid from industry_events where identity_key = p_identity; end if;
   end if;
   select * into strict e from industry_events where id = eid for update;
+  -- Previously published legacy facts have no event_id. Adopt one rather than republishing it.
+  if p_legacy_fact is not null then
+    select * into strict legacy from facts where id=p_legacy_fact and status='published' for update;
+    if legacy.event_id is not null and legacy.event_id<>eid then raise exception 'Legacy fact already belongs to another event'; end if;
+    if exists(select 1 from facts where event_id=eid and id<>legacy.id) then raise exception 'Event already has a fact; merge the events after review'; end if;
+    update facts set event_id=eid where id=legacy.id;
+    update industry_events set headline=legacy.content where id=eid;
+    e.headline:=legacy.content;
+  end if;
   insert into event_sources values (eid, c.id, p_relation <> 'conflict')
     on conflict(event_id, candidate_id) do update set confirmed = excluded.confirmed;
   update source_candidates set event_id = eid, processing_status = 'ready',
-    suggested_event_id = null, review_reason = case when p_relation = 'conflict' then 'Conflicting source: review the published claim' else null end
+    suggested_event_id = null, suggested_fact_id=null, review_reason = case when p_relation = 'conflict' then 'Conflicting source: review the published claim' else null end
     where id = c.id;
   if p_relation = 'conflict' then
     update industry_events set review_required = true where id = eid;

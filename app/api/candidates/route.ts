@@ -13,7 +13,7 @@ export async function GET() {
       service
         .from('source_candidates')
         .select(
-          'id,title,source_url,source_name,source_feed_id,source_published_at,extracted_facts,quality,topics,entities,status,processing_status,review_reason,event_id,suggested_event_id,reserved_by,created_at'
+          'id,title,source_url,source_name,source_feed_id,source_published_at,extracted_facts,quality,topics,entities,status,processing_status,review_reason,event_id,suggested_event_id,suggested_fact_id,reserved_by,created_at'
         )
         .order('created_at', { ascending: false })
         .limit(300),
@@ -58,7 +58,7 @@ export async function PATCH(req: NextRequest) {
         await service.rpc('merge_industry_events', { p_from: b.merge_from, p_into: b.merge_into })
       )
       revalidateFactSurfaces()
-    } else if (b.id && (b.event_id || b.new_event === true)) {
+    } else if (b.id && (b.event_id || b.legacy_fact_id || b.new_event === true)) {
       const candidate = checked(
         await service.from('source_candidates').select('*').eq('id', b.id).single()
       )
@@ -69,7 +69,8 @@ export async function PATCH(req: NextRequest) {
       checked(
         await service.rpc('record_candidate_event', {
           p_candidate: b.id,
-          p_event: b.new_event ? null : b.event_id,
+          p_event: b.new_event ? null : b.event_id || null,
+          p_legacy_fact: b.new_event ? null : b.legacy_fact_id || null,
           p_identity:
             eventIdentity(event, candidate.source_published_at) +
             (b.new_event ? `:reviewed:${candidate.id}` : ''),
