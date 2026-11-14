@@ -132,7 +132,7 @@ export default function ComposePage() {
     return (
       <div className="max-w-[760px]">
         <div className="flex items-center gap-3 mb-6">
-          <h1 className="text-2xl font-bold text-[#15191C]">Compose</h1>
+          <h1 className="text-2xl font-bold text-[var(--text)]">Compose</h1>
           <button onClick={() => setStage('facts')} className="text-sm hover:underline" style={{ color: 'var(--accent)' }}>← Back to facts</button>
         </div>
 
@@ -187,7 +187,7 @@ export default function ComposePage() {
 
   return (
     <div className="max-w-[760px]">
-      <h1 className="text-2xl font-bold text-[#15191C] mb-6">Compose</h1>
+      <h1 className="text-2xl font-bold text-[var(--text)] mb-6">Compose</h1>
 
       {stage === 'form' && (
         <div className="flex flex-col gap-5">
@@ -295,7 +295,7 @@ export default function ComposePage() {
       {stage === 'facts' && (
         <div className="flex flex-col gap-5">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold text-[#15191C]">Extracted facts</h2>
+            <h2 className="text-lg font-semibold text-[var(--text)]">Extracted facts</h2>
             <button onClick={() => setStage('form')} className="text-sm hover:underline" style={{ color: 'var(--accent)' }}>← Edit inputs</button>
           </div>
           <Textarea

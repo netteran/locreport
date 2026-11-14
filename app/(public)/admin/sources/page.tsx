@@ -176,7 +176,7 @@ export default function SourcesPage() {
   return (
     <div className="text-xs">
       <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <h1 className="font-bold" style={{ color: 'var(--text)', fontSize: '1.125rem', lineHeight: 1.2, margin: 0 }}>Sources</h1>
+        <h1 className="font-bold" style={{ color: 'var(--text)', margin: 0 }}>Sources</h1>
         <span style={{ color: 'var(--muted)' }}>
           {counts.feeds} feeds · {batchCount} batch{batchCount !== 1 ? 'es' : ''} · {counts.podcasts} podcast{counts.podcasts !== 1 ? 's' : ''} · {counts.disabled} disabled
           {counts.failing > 0 && (
@@ -197,7 +197,7 @@ export default function SourcesPage() {
       )}
 
       {/* Filters */}
-      <div className="flex items-center gap-1 mb-1 flex-wrap">
+      <div className="admin-toolbar mb-4">
         <Input className={FIELD} style={{ width: '14rem', padding: '2px 8px' }} placeholder="Filter name, URL, keyword…" value={q} onChange={e => setQ(e.target.value)} />
         <select aria-label="Type" className={`${FIELD} border`} style={selectStyle} value={type} onChange={e => setType(e.target.value as typeof type)}>
           <option value="all">All types</option>
@@ -229,7 +229,7 @@ export default function SourcesPage() {
         <span className="ml-auto" style={{ color: 'var(--muted)' }}>{visible.length} shown</span>
       </div>
 
-      <div className="overflow-x-auto rounded-md" style={{ border: '1px solid var(--border)' }}>
+      <div className="admin-table-wrap" style={{ border: '1px solid var(--border)' }}>
         <table className="w-full border-collapse">
           <thead>
             <tr style={{ background: 'var(--bg-secondary)', color: 'var(--muted)' }} className="text-left">

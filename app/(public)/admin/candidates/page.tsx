@@ -105,7 +105,7 @@ export default function CandidatesPage() {
       {tab === 'candidates' && (
         <>
           <ResearchProcessButton disabled={busy} onDone={load} />
-          <div className="flex gap-3 flex-wrap">
+          <div className="admin-toolbar">
             <Input
               aria-label="Search candidates"
               value={query}
@@ -139,7 +139,7 @@ export default function CandidatesPage() {
           {visible.map((c) => (
             <section
               key={c.id}
-              className="border rounded-lg p-4 space-y-2"
+              className="admin-panel space-y-2"
               style={{ borderColor: 'var(--border)' }}
             >
               <div className="flex items-start gap-3">

@@ -439,8 +439,6 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
         <h1
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: '1.4rem',
-            fontWeight: 700,
             color: 'var(--text)',
             margin: 0
           }}
@@ -454,7 +452,7 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
         <AddFactForm onAdded={handleAdded} />
       </div>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         {['pending', 'published', 'rejected', 'withdrawn', 'all'].map((s) => (
           <button
             className="border rounded px-3 py-1 text-sm"

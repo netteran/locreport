@@ -92,7 +92,7 @@ export default function DirectComposePage() {
   return (
     <div className="max-w-[760px]">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#15191C]">Direct Publish</h1>
+        <h1 className="text-2xl font-bold text-[var(--text)]">Direct entry</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
           Paste article content as-is. AI will classify significance and time relevance without touching the text.
         </p>
