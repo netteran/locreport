@@ -219,6 +219,8 @@ export interface IssueInput {
 }
 
 export interface Issue {
+  /** Optional plain-text paragraph for this Friday edition. */
+  editorNote?: string
   /** Articles published in the period. */
   storyCount: number
   topStory: DigestArticle | null

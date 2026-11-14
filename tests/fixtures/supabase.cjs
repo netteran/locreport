@@ -36,6 +36,7 @@ const privateFact = {
 }
 
 function createFixtureServer(schema = 'research', requests = []) {
+  const newsletterNotes = new Map()
   return http.createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1')
     requests.push({
@@ -45,6 +46,21 @@ function createFixtureServer(schema = 'research', requests = []) {
     })
     let rows = []
     if (url.pathname === '/auth/v1/user') return reply(admin)
+    if (url.pathname === '/rest/v1/weekly_newsletter_notes') {
+      if (req.method === 'POST') {
+        let body = ''
+        req.on('data', chunk => { body += chunk })
+        req.on('end', () => {
+          const row = JSON.parse(body)
+          newsletterNotes.set(row.edition_date, row)
+          reply(null)
+        })
+        return
+      }
+      const date = (url.searchParams.get('edition_date') || '').replace(/^eq\./, '')
+      const note = newsletterNotes.get(date)
+      rows = note ? [note] : []
+    }
     if (url.pathname === '/rest/v1/facts') {
       if (schema === 'legacy') {
         const column =
