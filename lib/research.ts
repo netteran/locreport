@@ -3,6 +3,7 @@ import type { createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
 import { embedText } from '@/lib/embeddings'
 import {
+  EVENT_DESCRIPTOR_SCHEMA,
   canonicalSourceUrl,
   eventIdentity,
   mayAutoPublish,
@@ -18,13 +19,15 @@ export function checked<T>(result: { data: T; error: { message: string } | null 
   return result.data
 }
 
-export async function jsonModel(system: string, input: unknown) {
+export async function jsonModel(system: string, input: unknown, schema?: Record<string, unknown>) {
   const result = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
-    response_format: { type: 'json_object' },
+    response_format: schema
+      ? { type: 'json_schema', json_schema: { name: 'event_descriptor', strict: true, schema } }
+      : { type: 'json_object' },
     temperature: 0,
     messages: [
-      { role: 'system', content: system },
+      { role: 'system', content: `${system}\nReturn only a JSON object.` },
       { role: 'user', content: JSON.stringify(input) }
     ]
   })
@@ -95,7 +98,7 @@ export async function processCandidate(service: ResearchService, id: string) {
         title: candidate.title,
         source_published_at: candidate.source_published_at,
         evidence: candidate.extracted_facts
-      })
+      }, EVENT_DESCRIPTOR_SCHEMA)
     )
     const embedding = await embedText(`${candidate.title}\n${candidate.extracted_facts}`)
     checked(
@@ -329,6 +332,6 @@ export async function descriptorForReview(candidate: SourceCandidate): Promise<E
       title: candidate.title,
       evidence: candidate.extracted_facts,
       source_published_at: candidate.source_published_at
-    })
+    }, EVENT_DESCRIPTOR_SCHEMA)
   )
 }

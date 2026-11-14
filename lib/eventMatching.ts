@@ -40,6 +40,29 @@ export function eventIdentity(event: EventDescriptor, sourceDate?: string | null
     .digest('hex')
 }
 
+export const EVENT_ACTIONS = [
+  'acquisition', 'product_launch', 'appointment', 'funding', 'partnership',
+  'financial_results', 'regulation', 'research', 'conference', 'other'
+]
+export const EVENT_STAGES = ['announced', 'completed', 'approved', 'launched', 'reported']
+
+export const EVENT_DESCRIPTOR_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    subject: { type: 'string' },
+    action: { type: 'string', enum: EVENT_ACTIONS },
+    object: { type: 'string' },
+    stage: { type: 'string', enum: EVENT_STAGES },
+    event_date: { type: ['string', 'null'] },
+    headline: { type: ['string', 'null'] },
+    newsworthy: { type: 'boolean' },
+    entities: { type: 'array', items: { type: 'string' } },
+    topics: { type: 'array', items: { type: 'string' } }
+  },
+  required: ['subject', 'action', 'object', 'stage', 'event_date', 'headline', 'newsworthy', 'entities', 'topics']
+}
+
 export function parseDescriptor(value: unknown): EventDescriptor {
   if (!value || typeof value !== 'object') throw new Error('Invalid event extraction')
   const v = value as Record<string, unknown>
@@ -78,19 +101,7 @@ export function parseDescriptor(value: unknown): EventDescriptor {
   }
   if (
     newsworthy &&
-    (![
-      'acquisition',
-      'product_launch',
-      'appointment',
-      'funding',
-      'partnership',
-      'financial_results',
-      'regulation',
-      'research',
-      'conference',
-      'other'
-    ].includes(event.action) ||
-      !['announced', 'completed', 'approved', 'launched', 'reported'].includes(event.stage))
+    (!EVENT_ACTIONS.includes(event.action) || !EVENT_STAGES.includes(event.stage))
   ) {
     throw new Error('Unrecognized event action or stage; review the source')
   }

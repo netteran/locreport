@@ -42,3 +42,57 @@ test('scoped manual matching stops on an occupied event lock without pretending 
   assert.equal(requests[0].searchParams.get('processing_status'), 'in.(pending,error)')
   assert.equal(requests[1].pathname, '/rest/v1/rpc/claim_research_lock')
 })
+
+test('JSON requests always instruct JSON output, including article suggestions', async () => {
+  let request
+  const fixture = { exports: {} }
+  new Function('exports', 'require', 'module', ts.transpileModule(
+    fs.readFileSync('lib/research.ts', 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
+  ).outputText)(fixture.exports, id => id === '@/lib/openai' ? {
+    getOpenAI: () => ({ chat: { completions: { create: async input => {
+      request = input
+      return { choices: [{ finish_reason: 'stop', message: { content: '{"groups":[]}' } }] }
+    } } } })
+  } : dependencies[id] || require(id), fixture)
+  assert.deepEqual(await fixture.exports.jsonModel('Suggest coherent articles.', {}), { groups: [] })
+  assert.equal(request.response_format.type, 'json_object')
+  assert.match(request.messages[0].content, /JSON/)
+})
+
+test('event extraction requests enforce the same action and stage enums as validation', async () => {
+  const events = { exports: {} }
+  new Function('exports', 'require', 'module', ts.transpileModule(
+    fs.readFileSync('lib/eventMatching.ts', 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
+  ).outputText)(events.exports, require, events)
+  const event = {
+    subject: 'Example', action: 'product_launch', object: 'Translator', stage: 'launched',
+    event_date: null, headline: 'Example launches Translator.', newsworthy: true,
+    entities: ['Example'], topics: ['translation']
+  }
+  let request
+  const fixture = { exports: {} }
+  new Function('exports', 'require', 'module', ts.transpileModule(
+    fs.readFileSync('lib/research.ts', 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
+  ).outputText)(fixture.exports, id => id === '@/lib/openai' ? {
+    getOpenAI: () => ({ chat: { completions: { create: async input => {
+      request = input
+      return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(event) } }] }
+    } } } })
+  } : id === '@/lib/eventMatching' ? events.exports : dependencies[id] || require(id), fixture)
+  assert.deepEqual(await fixture.exports.descriptorForReview({
+    title: 'Launch', extracted_facts: 'Source evidence', source_published_at: null
+  }), event)
+  assert.equal(request.response_format.type, 'json_schema')
+  const schema = request.response_format.json_schema
+  assert.equal(schema.strict, true)
+  assert.equal(schema.schema.additionalProperties, false)
+  for (const action of schema.schema.properties.action.enum) {
+    for (const stage of schema.schema.properties.stage.enum) {
+      assert.doesNotThrow(() => events.exports.parseDescriptor({ ...event, action, stage }))
+    }
+  }
+  assert.deepEqual(schema.schema.required.sort(), Object.keys(schema.schema.properties).sort())
+})
