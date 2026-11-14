@@ -33,13 +33,15 @@ export default function AboutPage() {
 
         <h2>Behind LocReport</h2>
 
-        <p>LocReport was initiated and is maintained by a localization professional with over twenty years of active experience in the language services industry.</p>
+        <p>LocReport was founded by Adam Parasion, a localization professional with over twenty years of experience spanning project delivery, program management, and operational leadership in the language services industry.</p>
 
-        <p>Having worked across virtually every facet of the field — from translation project management and localization engineering to vendor relations, quality frameworks, and language technology evaluation — the person behind LocReport brings a deeply practitioner-grounded perspective to industry coverage. LocReport is not a newsroom. It is a personal initiative: a manifest of a lifelong learning path, intellectual curiosity, and genuine passion for an industry that connects the world through language.</p>
+        <p>His career has taken him from hands-on localization project management to leading teams and overseeing complex programs for global enterprise clients. That experience brings a practitioner’s perspective to industry coverage: an understanding of how people, processes, technology, and business priorities come together to deliver multilingual content at scale.</p>
 
-        <p>The project exists at the intersection of professional knowledge, editorial craft, and emerging technology. It is an experiment in what industry intelligence can look like when built by someone who has lived the work from the inside — not summarizing the industry from a distance, but tracking it as an informed participant who still thinks deeply about where it is headed.</p>
+        <p>LocReport grew from that professional journey, a lifelong commitment to learning, and a passion for an industry that connects the world through language. The project exists at the intersection of professional knowledge, editorial craft, and emerging technology, with a particular curiosity about how AI and automation are reshaping the work behind global communication.</p>
 
-        <p>In that spirit, LocReport reflects both a professional journey and a personal commitment: to build something useful, honest, and persistently curious about the future of global communication.</p>
+        <p>It is an experiment in what industry intelligence can look like when grounded in firsthand experience, shaped by thoughtful inquiry, and open to new perspectives. Its ambition is to follow the industry as an informed participant, asking questions about where it is headed and what its evolution means for the people within it.</p>
+
+        <p>In that spirit, LocReport reflects both a professional journey and an ongoing commitment: to build something useful, honest, and persistently curious about the future of global communication.</p>
 
         <h2>Contribute</h2>
 
