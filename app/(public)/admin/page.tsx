@@ -1,10 +1,12 @@
 'use client'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { AdminArrow } from '@/components/AdminArrow'
 import { Button } from '@/components/ui/button'
 import { IngestButton, type IngestResult } from '@/components/IngestButton'
 import { BackfillEmbeddingsButton } from '@/components/BackfillEmbeddingsButton'
 import { RunFeedButton, type RunFeedResult } from '@/components/RunFeedButton'
+import { ADMIN_GROUPS } from '@/lib/adminNav'
 import { researchRunSummary } from '@/lib/manualResearch'
 
 type Confirm = 'ingest' | 'monthly' | 'monthly-force' | null
@@ -12,32 +14,38 @@ type DigestPreview = { recipients: number; skipped: number; articles: number }
 type RowKey = 'ingest' | 'feeds' | 'monthly' | 'digest' | 'facts' | 'quotes' | 'pricing'
 
 // One row of the action list. The title doubles as the toggle for its
-// explanation, so the resting state is just a title and its controls;
+// explanation; a short summary keeps the resting state easy to scan;
 // anything passed as children (confirmation panels, result messages)
 // renders below the head and is never hidden behind the toggle.
-function ActionRow({ title, description, controls, controlsClass, children }: {
+function ActionRow({ title, summary, description, controls, controlsClass, children }: {
   title: string
+  summary: string
   description: string
   controls: ReactNode
   controlsClass?: string
   children?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  const descriptionId = useId()
   return (
     <div className="admin-action">
       <div className="admin-action__head">
-        <button
-          type="button"
-          className="admin-action__title"
-          onClick={() => setOpen(o => !o)}
-          aria-expanded={open}
-        >
-          <span className="admin-action__chevron" aria-hidden="true">›</span>
-          {title}
-        </button>
+        <div className="admin-action__intro">
+          <button
+            type="button"
+            className="admin-action__title"
+            onClick={() => setOpen(o => !o)}
+            aria-expanded={open}
+            aria-controls={descriptionId}
+          >
+            <span className="admin-action__chevron" aria-hidden="true">›</span>
+            {title}
+          </button>
+          <p className="admin-action__summary">{summary}</p>
+        </div>
         <div className={`admin-action__controls${controlsClass ? ` ${controlsClass}` : ''}`}>{controls}</div>
       </div>
-      {open && <p className="admin-action__desc">{description}</p>}
+      <p id={descriptionId} hidden={!open} className="admin-action__desc">{description}</p>
       {children}
     </div>
   )
@@ -58,6 +66,7 @@ function ActionPanel({ tone = 'info', text, actions }: {
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<{ articles: number; drafts: number; sources: number } | null>(null)
+  const [statsError, setStatsError] = useState(false)
   const [monthlyRunning, setMonthlyRunning] = useState(false)
   const [quotesRunning, setQuotesRunning] = useState(false)
   const [pricingRunning, setPricingRunning] = useState(false)
@@ -76,7 +85,7 @@ export default function AdminDashboard() {
   const [messageFor, setMessageFor] = useState<RowKey | null>(null)
 
   useEffect(() => {
-    fetch('/api/stats').then(r => r.json()).then(setStats)
+    refreshStats()
     fetch('/api/digest/recipients')
       .then(r => (r.ok ? r.json() : { subscribers: [] }))
       .then(d => setSubscribers(d.subscribers ?? []))
@@ -102,14 +111,18 @@ export default function AdminDashboard() {
   function status(row: RowKey) {
     if (!message || messageFor !== row) return null
     return (
-      <p className={`admin-action__status${messageType === 'error' ? ' admin-action__status--error' : ''}`}>
+      <p role={messageType === 'error' ? 'alert' : 'status'} className={`admin-action__status${messageType === 'error' ? ' admin-action__status--error' : ''}`}>
         {message}
       </p>
     )
   }
 
   function refreshStats() {
-    fetch('/api/stats').then(r => r.json()).then(setStats)
+    setStatsError(false)
+    fetch('/api/stats')
+      .then(r => { if (!r.ok) throw new Error('Stats unavailable'); return r.json() })
+      .then(setStats)
+      .catch(() => setStatsError(true))
   }
 
   async function runMonthly(force = false) {
@@ -278,273 +291,310 @@ export default function AdminDashboard() {
     .toLocaleString('en-US', { month: 'long', year: 'numeric' })
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6" style={{ color: 'var(--text)' }}>Dashboard</h1>
+    <div className="admin-dashboard">
+      <header className="admin-dashboard__header">
+        <div><p className="admin-eyebrow">Workspace overview</p>
+          <h1>Dashboard</h1>
+          <p className="admin-page__subtitle">Your newsroom, from first source to final story.</p>
+        </div>
+        <Link href="/admin/candidates" className="admin-primary-link">Create an article <AdminArrow /></Link>
+      </header>
 
-      <div className="admin-stats-banner">
+      <div className="admin-stat-grid" aria-label="Content overview">
         {[
-          { label: 'Published', value: stats?.articles, href: '/admin/articles' },
-          { label: 'Drafts', value: stats?.drafts, href: '/admin/drafts', danger: true },
-          { label: 'Sources', value: stats?.sources, href: '/admin/sources' },
-        ].map(({ label, value, href, danger }) => (
-          <span key={label} className="admin-stats-banner__item">
-            <Link
-              href={href}
-              className={`admin-stats-banner__value${danger ? ' admin-stats-banner__value--danger' : ''}`}
-            >
-              {value ?? '—'}
-            </Link>
-            <span className="admin-stats-banner__label">{label}</span>
-          </span>
+          { label: 'Published articles', value: stats?.articles, href: '/admin/articles', detail: 'Manage the archive' },
+          { label: 'Pending drafts', value: stats?.drafts, href: '/admin/drafts', detail: 'Ready for your review' },
+          { label: 'Active sources', value: stats?.sources, href: '/admin/sources', detail: 'Manage collection' },
+        ].map(({ label, value, href, detail }) => (
+          <Link key={href} href={href} className="admin-stat">
+            <span className="admin-stat__label">{label}<AdminArrow /></span>
+            <strong className="admin-stat__value">{statsError ? '—' : value ?? '…'}</strong>
+            <span className="admin-stat__detail">{statsError ? 'Count unavailable' : detail}</span>
+          </Link>
         ))}
       </div>
+      {statsError && <p role="status" className="admin-inline-notice">Counts could not be loaded. <button type="button" onClick={refreshStats}>Try again</button></p>}
 
-      <div className="admin-actions">
-
-        <ActionRow
-          title="Run ingest"
-          description="Collects RSS source evidence, matches events, creates Fact Flow items, publishes eligible facts from sources with Auto enabled, and refreshes article suggestions. Keep this page open until processing finishes. The same stages run at 10am, 1pm and 5pm Warsaw time on weekdays. Full article generation and publication are manual from Source candidates."
-          controls={
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => { setConfirm('ingest'); clearFlash() }}
-              disabled={confirm === 'ingest'}
-            >
-              Run
-            </Button>
-          }
-        >
-          {confirm === 'ingest' && (
-            <ActionPanel
-              text="Collect source evidence, process Fact Flow and refresh article suggestions? Eligible facts from sources with Auto enabled will publish."
-              actions={
-                <>
-                  <IngestButton
-                    label="Confirm"
-                    onDone={(result: IngestResult) => {
-                      setConfirm(null)
-                      refreshStats()
-                      const issues = [...result.errors, ...result.research.errors]
-                      flash('ingest', `+${result.processed} source candidate${result.processed !== 1 ? 's' : ''} collected, ${result.skipped} skipped. ${researchRunSummary(result.research)} ${issues.join('; ')}`.trim(), issues.length ? 'error' : 'ok')
-                    }}
-                  />
-                  <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
-                </>
-              }
-            />
-          )}
-          {status('ingest')}
-        </ActionRow>
-
-        <ActionRow
-          title="Run feed generator"
-          description="Regenerates every active generated feed — HTML listing pages read via CSS selectors, or existing feeds re-filtered by keyword — and republishes each at /api/feeds/<name>. Runs automatically at the start of every scheduled ingest run (10am/1pm/5pm Warsaw, workdays), so ingest always reads freshly generated XML. A feed is only ingested once it has been added to Sources; manage feeds, see per-feed status and add them to Sources at /admin/scraped-feeds."
-          controls={
-            <RunFeedButton
-              label="Run"
-              onDone={(result: RunFeedResult) => flash(
-                'feeds',
-                `${result.succeeded}/${result.processed} source${result.processed !== 1 ? 's' : ''} refreshed${result.failed ? `, ${result.failed} failed` : ''}.`,
-                result.failed ? 'error' : 'ok',
-              )}
-            />
-          }
-        >
-          {status('feeds')}
-        </ActionRow>
-
-        <ActionRow
-          title="Backfill embeddings"
-          description="Generates a semantic-search vector for every published article that doesn’t have one, batching until none are left. Without a vector an article is invisible to /search ranking and to related-reading suggestions. New articles are embedded automatically on publish, so this is only needed after a bulk import or a failed embed."
-          controls={<BackfillEmbeddingsButton />}
-        />
-
-        <ActionRow
-          title="Generate monthly report"
-          description={`Sends every industry article published in ${prevMonth} to the model for synthesis and publishes the result as a monthly-summary article, listed under Reports → Monthly. It goes live immediately — there is no draft step. If a report already exists for the period you’ll be asked before a second one is created.`}
-          controls={
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => { setConfirm('monthly'); clearFlash() }}
-              disabled={monthlyRunning || confirm === 'monthly' || confirm === 'monthly-force'}
-            >
-              {monthlyRunning ? 'Generating…' : 'Run'}
-            </Button>
-          }
-        >
-          {confirm === 'monthly' && (
-            <ActionPanel
-              text={<>Generate and publish a monthly report for <strong>{prevMonth}</strong> from all industry articles in that period?</>}
-              actions={
-                <>
-                  <Button size="sm" onClick={() => runMonthly(false)} disabled={monthlyRunning}>Confirm</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
-                </>
-              }
-            />
-          )}
-          {confirm === 'monthly-force' && (
-            <ActionPanel
-              tone="warn"
-              text={<>A report for <strong>{prevMonth}</strong> already exists. Generate a second one anyway?</>}
-              actions={
-                <>
-                  <Button size="sm" onClick={() => runMonthly(true)} disabled={monthlyRunning}>Yes, regenerate</Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setConfirm(null); clearFlash() }}>Cancel</Button>
-                </>
-              }
-            />
-          )}
-          {status('monthly')}
-        </ActionRow>
-
-        <ActionRow
-          title="Send The Weekly"
-          description="Composes this week's issue of The Weekly — one issue, identical for every confirmed subscriber, covering the last 7 days: the top story, a Company of the week from the tech directory (a different one each week), how every one of the 13 signals moved against its 4-week average, five Fact Flow facts, a LocStock brief and new directory companies (each only when there is something to report), then every other article — and sends it through Resend. Subscribers have no preferences; the footer has a single Manage subscription link, where unsubscribing takes a confirmation. Pick All subscribers or one address from the dropdown — a single-recipient send skips the resend guard and doesn't mark them as sent, so it never stops Friday's scheduled issue reaching them. Preview only counts recipients; View sample opens the exact issue in a new tab. Nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
-          controls={
-            <>
-              <select
-                value={digestTo}
-                onChange={e => { setDigestTo(e.target.value); setDigestPreview(null) }}
-                aria-label="Send to"
-                className="rounded-md border px-2 py-1 text-sm max-w-[220px]"
-                style={{ background: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
-                disabled={digestSending}
-              >
-                <option value="">All subscribers ({subscribers.length})</option>
-                {subscribers.map(s => (
-                  <option key={s.id} value={s.id}>{s.email}</option>
-                ))}
-              </select>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={previewDigest}
-                disabled={digestPreviewing || digestSending}
-              >
-                {digestPreviewing ? 'Checking…' : 'Preview'}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => window.open('/api/digest/preview', '_blank', 'noopener,noreferrer')}
-              >
-                View sample
-              </Button>
-              <Link
-                href="/admin/digest-history"
-                className="text-sm px-3 py-1.5 rounded-lg transition-colors"
-                style={{ color: 'var(--muted)' }}
-              >
-                Past sends →
-              </Link>
-            </>
-          }
-        >
-          {digestPreview && (digestPreview.recipients === 0 ? (
-            <ActionPanel
-              text={
-                <>
-                  Nobody would receive The Weekly right now
-                  {' '}({digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period,
-                  {' '}{digestPreview.skipped} subscriber{digestPreview.skipped !== 1 ? 's' : ''} skipped).
-                </>
-              }
-              actions={<Button size="sm" variant="ghost" onClick={() => setDigestPreview(null)}>Close</Button>}
-            />
-          ) : (
-            <ActionPanel
-              tone="warn"
-              text={
-                <>
-                  This sends real email. The Weekly will go to{' '}
-                  {digestToEmail ? (
-                    <><strong>{digestToEmail}</strong> only ({digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period).
-                    {' '}A single-recipient send doesn’t affect Friday’s scheduled issue.</>
-                  ) : (
-                    <><strong>{digestPreview.recipients} subscriber{digestPreview.recipients !== 1 ? 's' : ''}</strong>
-                    {' '}({digestPreview.skipped} skipped, {digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period).</>
-                  )}
-                </>
-              }
-              actions={
-                <>
-                  <Button size="sm" onClick={sendDigest} disabled={digestSending}>
-                    {digestSending ? 'Sending…' : digestToEmail ? `Send to ${digestToEmail}` : `Send to ${digestPreview.recipients}`}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setDigestPreview(null)} disabled={digestSending}>Cancel</Button>
-                </>
-              }
-            />
+      <section className="admin-overview" aria-labelledby="workspace-tools">
+        <div className="admin-section-heading"><h2 id="workspace-tools">Your tools</h2><span>Everything in one place</span></div>
+        <div className="admin-tool-grid">
+          {ADMIN_GROUPS.map((group, index) => (
+            <section className="admin-tool-group" key={group.label}>
+              <header><span className="admin-tool-group__number" aria-hidden="true">0{index + 1}</span>
+                <h3>{group.label}</h3><p>{group.description}</p></header>
+              {group.links.map(link => (
+                <Link href={link.href} key={link.href} className="admin-tool-link">
+                  <span><strong>{link.label}</strong><small>{link.description}</small></span><AdminArrow />
+                </Link>
+              ))}
+            </section>
           ))}
-          {status('digest')}
-        </ActionRow>
+        </div>
+      </section>
 
-        <ActionRow
-          title="Backfill Fact Flow"
-          controlsClass="admin-action__controls--input"
-          description="Every article published from now on gets its one Fact Flow fact automatically, on approval. This fills gaps left behind: enter a slug — the part of a URL after /articles/ — to give one article its fact, or run Backfill all to walk every article that still has none, newest first. Facts are dated to their article’s publication date, so backfilling slots them into the stream in order instead of piling old news at the top. Monthly reports are excluded. An article that already has a fact is never touched."
-          controls={
-            <>
-              <input
-                type="text"
-                value={backfillSlug}
-                onChange={e => setBackfillSlug(e.target.value)}
-                placeholder="article-slug"
-                aria-label="Article slug"
-                className="admin-action__input"
-                onKeyDown={e => { if (e.key === 'Enter') backfillFacts() }}
-                disabled={backfillRunning}
+      <section aria-labelledby="operations-title" className="admin-operations">
+        <div className="admin-section-heading"><h2 id="operations-title">Daily operations</h2><span>Run, preview and publish</span></div>
+        <div className="admin-actions">
+
+          <ActionRow
+            title="Run ingest"
+            summary="Collect sources, process Fact Flow and refresh article suggestions."
+            description="Collects RSS source evidence, matches events, creates Fact Flow items, publishes eligible facts from sources with Auto enabled, and refreshes article suggestions. Keep this page open until processing finishes. The same stages run at 10am, 1pm and 5pm Warsaw time on weekdays. Full article generation and publication are manual from Source candidates."
+            controls={
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => { setConfirm('ingest'); clearFlash() }}
+                disabled={confirm === 'ingest'}
+              >
+                Run
+              </Button>
+            }
+          >
+            {confirm === 'ingest' && (
+              <ActionPanel
+                text="Collect source evidence, process Fact Flow and refresh article suggestions? Eligible facts from sources with Auto enabled will publish."
+                actions={
+                  <>
+                    <IngestButton
+                      label="Confirm"
+                      onDone={(result: IngestResult) => {
+                        setConfirm(null)
+                        refreshStats()
+                        const issues = [...result.errors, ...result.research.errors]
+                        flash('ingest', `+${result.processed} source candidate${result.processed !== 1 ? 's' : ''} collected, ${result.skipped} skipped. ${researchRunSummary(result.research)} ${issues.join('; ')}`.trim(), issues.length ? 'error' : 'ok')
+                      }}
+                    />
+                    <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
+                  </>
+                }
               />
+            )}
+            {status('ingest')}
+          </ActionRow>
+
+          <ActionRow
+            title="Run feed generator"
+            summary="Refresh all active generated feeds before collection."
+            description="Regenerates every active generated feed — HTML listing pages read via CSS selectors, or existing feeds re-filtered by keyword — and republishes each at /api/feeds/<name>. Runs automatically at the start of every scheduled ingest run (10am/1pm/5pm Warsaw, workdays), so ingest always reads freshly generated XML. A feed is only ingested once it has been added to Sources; manage feeds, see per-feed status and add them to Sources at /admin/scraped-feeds."
+            controls={
+              <RunFeedButton
+                label="Run"
+                onDone={(result: RunFeedResult) => flash(
+                  'feeds',
+                  `${result.succeeded}/${result.processed} source${result.processed !== 1 ? 's' : ''} refreshed${result.failed ? `, ${result.failed} failed` : ''}.`,
+                  result.failed ? 'error' : 'ok',
+                )}
+              />
+            }
+          >
+            {status('feeds')}
+          </ActionRow>
+
+          <ActionRow
+            title="Generate monthly report"
+            summary="Generate and publish a summary of the previous month."
+            description={`Sends every industry article published in ${prevMonth} to the model for synthesis and publishes the result as a monthly-summary article, listed under Reports → Monthly. It goes live immediately — there is no draft step. If a report already exists for the period you’ll be asked before a second one is created.`}
+            controls={
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={backfillFacts}
-                disabled={backfillRunning || !backfillSlug.trim()}
+                onClick={() => { setConfirm('monthly'); clearFlash() }}
+                disabled={monthlyRunning || confirm === 'monthly' || confirm === 'monthly-force'}
               >
-                {backfillRunning ? 'Extracting…' : 'Backfill'}
+                {monthlyRunning ? 'Generating…' : 'Run'}
               </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={backfillAllFacts}
-                disabled={backfillRunning || backfillAllRunning}
-              >
-                {backfillAllRunning ? 'Backfilling…' : 'Backfill all'}
+            }
+          >
+            {confirm === 'monthly' && (
+              <ActionPanel
+                text={<>Generate and publish a monthly report for <strong>{prevMonth}</strong> from all industry articles in that period?</>}
+                actions={
+                  <>
+                    <Button size="sm" onClick={() => runMonthly(false)} disabled={monthlyRunning}>Confirm</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
+                  </>
+                }
+              />
+            )}
+            {confirm === 'monthly-force' && (
+              <ActionPanel
+                tone="warn"
+                text={<>A report for <strong>{prevMonth}</strong> already exists. Generate a second one anyway?</>}
+                actions={
+                  <>
+                    <Button size="sm" onClick={() => runMonthly(true)} disabled={monthlyRunning}>Yes, regenerate</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setConfirm(null); clearFlash() }}>Cancel</Button>
+                  </>
+                }
+              />
+            )}
+            {status('monthly')}
+          </ActionRow>
+
+          <ActionRow
+            title="Send The Weekly"
+            summary="Preview your newsletter, choose recipients and confirm delivery."
+            description="Composes this week's issue of The Weekly — one issue, identical for every confirmed subscriber, covering the last 7 days: the top story, a Company of the week from the tech directory (a different one each week), how every one of the 13 signals moved against its 4-week average, five Fact Flow facts, a LocStock brief and new directory companies (each only when there is something to report), then every other article — and sends it through Resend. Subscribers have no preferences; the footer has a single Manage subscription link, where unsubscribing takes a confirmation. Pick All subscribers or one address from the dropdown — a single-recipient send skips the resend guard and doesn't mark them as sent, so it never stops Friday's scheduled issue reaching them. Preview only counts recipients; View sample opens the exact issue in a new tab. Nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
+            controls={
+              <>
+                <select
+                  value={digestTo}
+                  onChange={e => { setDigestTo(e.target.value); setDigestPreview(null) }}
+                  aria-label="Send to"
+                  className="rounded-md border px-2 py-1 text-sm max-w-[220px]"
+                  style={{ background: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                  disabled={digestSending}
+                >
+                  <option value="">All subscribers ({subscribers.length})</option>
+                  {subscribers.map(s => (
+                    <option key={s.id} value={s.id}>{s.email}</option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={previewDigest}
+                  disabled={digestPreviewing || digestSending}
+                >
+                  {digestPreviewing ? 'Checking…' : 'Preview'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => window.open('/api/digest/preview', '_blank', 'noopener,noreferrer')}
+                >
+                  View sample
+                </Button>
+                <Link
+                  href="/admin/digest-history"
+                  className="text-sm px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ color: 'var(--muted)' }}
+                >
+                  Past sends →
+                </Link>
+              </>
+            }
+          >
+            {digestPreview && (digestPreview.recipients === 0 ? (
+              <ActionPanel
+                text={
+                  <>
+                    Nobody would receive The Weekly right now
+                    {' '}({digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period,
+                    {' '}{digestPreview.skipped} subscriber{digestPreview.skipped !== 1 ? 's' : ''} skipped).
+                  </>
+                }
+                actions={<Button size="sm" variant="ghost" onClick={() => setDigestPreview(null)}>Close</Button>}
+              />
+            ) : (
+              <ActionPanel
+                tone="warn"
+                text={
+                  <>
+                    This sends real email. The Weekly will go to{' '}
+                    {digestToEmail ? (
+                      <><strong>{digestToEmail}</strong> only ({digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period).
+                      {' '}A single-recipient send doesn’t affect Friday’s scheduled issue.</>
+                    ) : (
+                      <><strong>{digestPreview.recipients} subscriber{digestPreview.recipients !== 1 ? 's' : ''}</strong>
+                      {' '}({digestPreview.skipped} skipped, {digestPreview.articles} article{digestPreview.articles !== 1 ? 's' : ''} in period).</>
+                    )}
+                  </>
+                }
+                actions={
+                  <>
+                    <Button size="sm" onClick={sendDigest} disabled={digestSending}>
+                      {digestSending ? 'Sending…' : digestToEmail ? `Send to ${digestToEmail}` : `Send to ${digestPreview.recipients}`}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDigestPreview(null)} disabled={digestSending}>Cancel</Button>
+                  </>
+                }
+              />
+            ))}
+            {status('digest')}
+          </ActionRow>
+
+        </div>
+      </section>
+
+      <details className="admin-maintenance">
+        <summary><span><strong>Maintenance</strong><small>Backfills, search indexing and market data</small></span><span className="admin-maintenance__toggle">Show tools <span aria-hidden="true">⌄</span></span></summary>
+        <div className="admin-actions">
+          <ActionRow
+            title="Backfill embeddings"
+            summary="Fill missing search and related-reading vectors."
+            description="Generates a semantic-search vector for every published article that doesn’t have one, batching until none are left. Without a vector an article is invisible to /search ranking and to related-reading suggestions. New articles are embedded automatically on publish, so this is only needed after a bulk import or a failed embed."
+            controls={<BackfillEmbeddingsButton />}
+          />
+
+          <ActionRow
+            title="Backfill Fact Flow"
+            summary="Add missing facts from previously published articles."
+            controlsClass="admin-action__controls--input"
+            description="Every article published from now on gets its one Fact Flow fact automatically, on approval. This fills gaps left behind: enter a slug — the part of a URL after /articles/ — to give one article its fact, or run Backfill all to walk every article that still has none, newest first. Facts are dated to their article’s publication date, so backfilling slots them into the stream in order instead of piling old news at the top. Monthly reports are excluded. An article that already has a fact is never touched."
+            controls={
+              <>
+                <input
+                  type="text"
+                  value={backfillSlug}
+                  onChange={e => setBackfillSlug(e.target.value)}
+                  placeholder="article-slug"
+                  aria-label="Article slug"
+                  className="admin-action__input"
+                  onKeyDown={e => { if (e.key === 'Enter') backfillFacts() }}
+                  disabled={backfillRunning}
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={backfillFacts}
+                  disabled={backfillRunning || !backfillSlug.trim()}
+                >
+                  {backfillRunning ? 'Extracting…' : 'Backfill'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={backfillAllFacts}
+                  disabled={backfillRunning || backfillAllRunning}
+                >
+                  {backfillAllRunning ? 'Backfilling…' : 'Backfill all'}
+                </Button>
+              </>
+            }
+          >
+            {status('facts')}
+          </ActionRow>
+
+          <ActionRow
+            title="Refresh market quotes"
+            summary="Update cached LocStock prices and recent history."
+            description="Pulls the latest price and 30-day history for every LocStock ticker from Yahoo Finance and caches them for /compass/locstock. Nothing schedules this — point a daily cron-job.org job at POST /api/market-quotes to automate it."
+            controls={
+              <Button size="sm" variant="secondary" onClick={refreshQuotes} disabled={quotesRunning}>
+                {quotesRunning ? 'Refreshing…' : 'Refresh'}
               </Button>
-            </>
-          }
-        >
-          {status('facts')}
-        </ActionRow>
+            }
+          >
+            {status('quotes')}
+          </ActionRow>
 
-        <ActionRow
-          title="Refresh market quotes"
-          description="Pulls the latest price and 30-day history for every LocStock ticker from Yahoo Finance and caches them for /compass/locstock. Nothing schedules this — point a daily cron-job.org job at POST /api/market-quotes to automate it."
-          controls={
-            <Button size="sm" variant="secondary" onClick={refreshQuotes} disabled={quotesRunning}>
-              {quotesRunning ? 'Refreshing…' : 'Refresh'}
-            </Button>
-          }
-        >
-          {status('quotes')}
-        </ActionRow>
+          <ActionRow
+            title="Refresh LLM pricing"
+            summary="Update model prices and record pricing changes."
+            description="Pulls current per-token pricing for every tracked model from OpenRouter, updates the /compass/llm-pricing simulator, and writes a history row for any model whose price moved. Nothing schedules this — point a daily cron-job.org job at POST /api/llm-pricing to automate it."
+            controls={
+              <Button size="sm" variant="secondary" onClick={refreshPricing} disabled={pricingRunning}>
+                {pricingRunning ? 'Refreshing…' : 'Refresh'}
+              </Button>
+            }
+          >
+            {status('pricing')}
+          </ActionRow>
 
-        <ActionRow
-          title="Refresh LLM pricing"
-          description="Pulls current per-token pricing for every tracked model from OpenRouter, updates the /compass/llm-pricing simulator, and writes a history row for any model whose price moved. Nothing schedules this — point a daily cron-job.org job at POST /api/llm-pricing to automate it."
-          controls={
-            <Button size="sm" variant="secondary" onClick={refreshPricing} disabled={pricingRunning}>
-              {pricingRunning ? 'Refreshing…' : 'Refresh'}
-            </Button>
-          }
-        >
-          {status('pricing')}
-        </ActionRow>
-
-      </div>
+        </div>
+      </details>
     </div>
   )
 }

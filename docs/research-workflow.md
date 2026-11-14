@@ -72,3 +72,5 @@ Against the research-schema fixture, `node tests/manual-ingest.browser.cjs` chec
 
 
 To reproduce a preview build against the unmigrated schema, start a fresh fixture with `FIXTURE_SCHEMA=legacy node tests/fixtures/supabase.cjs` and use the same isolated build settings above. With that build running, `TEST_SCHEMA=legacy node tests/research.browser.cjs` checks public Fact Flow, RSS and the homepage, plus migration-required responses from authenticated research/publishing endpoints. The legacy fallback only handles missing new publication columns; database outages and permission errors still fail visibly.
+
+`PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium node tests/admin-workspace.browser.cjs` checks all 12 admin tools in the grouped Dashboard and shared navigation, desktop/mobile layouts, confirmation panels, newsletter dry-run previews and stats failure recovery against the same isolated fixture. Screenshots are saved under `work/admin-preview/`.

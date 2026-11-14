@@ -73,7 +73,7 @@ export default function PromptsPage() {
 
       <div className="flex flex-col gap-10">
         {PROMPTS.map(({ key, label, hint, default: defaultVal }) => (
-          <div key={key}>
+          <div className="admin-panel" key={key}>
             <Label className="text-base font-semibold mb-1 block" style={{ color: 'var(--text)' }}>{label}</Label>
             {hint && <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>{hint}</p>}
             <Textarea
