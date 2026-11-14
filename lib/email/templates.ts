@@ -1,3 +1,5 @@
+import { Lexer, type Token } from 'marked'
+
 // Inline-styled HTML email builders. Email clients can't read CSS variables,
 // so brand values from assets/css/style.css are hardcoded here as hex.
 
@@ -24,6 +26,36 @@ function escapeHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+/** Inline Markdown only: emit our own tags and never pass through source HTML. */
+export function renderWeeklyNote(markdown: string): string {
+  function render(tokens: Token[], insideLink = false): string {
+    return tokens.map(token => {
+      switch (token.type) {
+        case 'strong':
+          return `<strong>${render(token.tokens || [], insideLink)}</strong>`
+        case 'em':
+          return `<em>${render(token.tokens || [], insideLink)}</em>`
+        case 'link': {
+          const label = render(token.tokens || [], true)
+          if (insideLink) return label
+          let url: URL
+          try { url = new URL(token.href) } catch { return label }
+          if (!['https:', 'http:'].includes(url.protocol)) return label
+          return `<a href="${escapeHtml(url.href)}" style="color:${BRAND.accent};text-decoration:underline;">${label}</a>`
+        }
+        case 'escape':
+          return escapeHtml(token.raw.slice(1))
+        default:
+          // Token text is already entity-escaped by marked. Escape the raw
+          // source instead to preserve literal ampersands and existing copy.
+          // HTML, images and other unsupported markup remain visible text.
+          return escapeHtml(token.raw)
+      }
+    }).join('')
+  }
+  return render(Lexer.lexInline(markdown.trim(), { gfm: true }))
 }
 
 function shell(bodyHtml: string, footerHtml: string): string {
@@ -269,7 +301,7 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, signal
 
   const body = `
     <p style="margin:0 0 16px;font-size:13px;color:${BRAND.muted};">The Weekly · ${escapeHtml(periodLabel)}</p>
-    ${editorNote?.trim() ? `<p style="margin:0 0 24px;font-size:14px;line-height:1.7;color:${BRAND.text};">${escapeHtml(editorNote.trim())}</p>` : ''}
+    ${editorNote?.trim() ? `<p style="margin:0 0 24px;font-size:14px;line-height:1.7;color:${BRAND.text};">${renderWeeklyNote(editorNote)}</p>` : ''}
     ${topHtml}
     ${companyHtml}
     ${signalsHtml}

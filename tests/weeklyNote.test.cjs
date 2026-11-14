@@ -158,3 +158,60 @@ test('newsletter paragraphs are private in PostgreSQL and constrained to Friday 
     await assert.rejects(db.query("update weekly_newsletter_notes set paragraph=repeat('x',2001)"), /check constraint/)
   } finally { await db.close() }
 })
+
+test('weekly Markdown renders bold, italics, nested links and escaped markers without double escaping', () => {
+  const { renderWeeklyNote } = load('lib/email/templates.ts')
+  const { load: parseHtml } = require('cheerio')
+  const html = renderWeeklyNote('Hello **readers** and *friends*: [**our _latest_ report**](https://example.com/report?a=1&b=2). \\*Literal\\* & text.')
+  const $ = parseHtml(html, null, false)
+  assert.equal($('strong').first().text(), 'readers')
+  assert.equal($('em').first().text(), 'friends')
+  assert.equal($('a strong em').text(), 'latest')
+  assert.equal($('a').attr('href'), 'https://example.com/report?a=1&b=2')
+  assert.equal($.root().text(), 'Hello readers and friends: our latest report. *Literal* & text.')
+  assert.ok(html.includes('a=1&amp;b=2'))
+  assert.ok(!html.includes('&amp;amp;'))
+  assert.equal(renderWeeklyNote('__bold__ and _italics_'), '<strong>bold</strong> and <em>italics</em>')
+  assert.equal(renderWeeklyNote('  Ordinary & unformatted text.  '), 'Ordinary &amp; unformatted text.')
+})
+
+test('weekly Markdown never renders source HTML, images, scripts or unsafe link destinations', () => {
+  const { renderWeeklyNote } = load('lib/email/templates.ts')
+  const { load: parseHtml } = require('cheerio')
+  for (const target of [
+    'javascript:alert%281%29', 'JaVaScRiPt:alert%281%29',
+    'javascript&#x3a;alert%281%29', 'java&#x73;cript:alert%281%29',
+    'data:text/html;base64,PHNjcmlwdD4=', 'vbscript:msgbox%281%29',
+    'file:///etc/passwd', '//example.com', '/relative/path', 'mailto:editor@example.test'
+  ]) {
+    const $ = parseHtml(renderWeeklyNote(`[**Read this**](${target})`), null, false)
+    assert.equal($('a').length, 0, target)
+    assert.ok($.root().text().includes('Read this'), target)
+  }
+  const raw = '<script>alert(1)</script><img src="https://tracker.test/pixel" onerror="alert(1)"><svg onload="alert(1)"></svg>'
+  const $ = parseHtml(renderWeeklyNote(raw + ' ![tracking image](https://tracker.test/pixel)'), null, false)
+  assert.equal($('*').length, 0)
+  assert.ok($.root().text().includes(raw))
+  assert.ok($.root().text().includes('![tracking image](https://tracker.test/pixel)'))
+  const link = parseHtml(renderWeeklyNote('[Read](https://example.com/"onclick="alert%281%29)'), null, false)
+  assert.equal(link('a').length, 1)
+  assert.deepEqual(Object.keys(link('a')[0].attribs).sort(), ['href', 'style'])
+  assert.ok(link('a').attr('href').includes('%22'))
+})
+
+test('the newsletter template includes formatted opening copy before the top story', () => {
+  const { digestEmail } = load('lib/email/templates.ts')
+  const { load: parseHtml } = require('cheerio')
+  const html = digestEmail({
+    periodLabel: 'Test week', editorNote: '**Hello** *readers*: [Read more](https://example.com/report).',
+    topStory: { title: 'The top story', url: 'https://example.test/story' },
+    company: null, signalMoves: [], facts: [], market: null, directory: [], more: [], moreCount: 0,
+    manageUrl: 'https://example.test/manage'
+  })
+  const $ = parseHtml(html)
+  const intro = $('p').filter((_, element) => $(element).text() === 'Hello readers: Read more.')
+  assert.equal(intro.find('strong').text(), 'Hello')
+  assert.equal(intro.find('em').text(), 'readers')
+  assert.equal(intro.find('a').attr('href'), 'https://example.com/report')
+  assert.ok(html.indexOf('<strong>Hello</strong>') < html.indexOf('The top story'))
+})

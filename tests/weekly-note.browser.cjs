@@ -43,7 +43,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     const paragraph = page.getByRole('textbox', { name: 'Opening paragraph' })
     await paragraph.waitFor()
     await page.waitForFunction(() => !document.querySelector('.admin-weekly-note textarea').disabled)
-    const copy = 'A personal introduction with <b>news</b> & thoughts for our readers.'
+    const copy = 'Hello **readers** and *friends*: [**our latest report**](https://example.com/report?a=1&b=2). <b>Literal HTML</b> & thoughts.'
     await paragraph.fill(copy)
     const preview = page.getByRole('button', { name: 'Preview', exact: true })
     const sample = page.getByRole('button', { name: 'View sample', exact: true })
@@ -58,9 +58,13 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await page.waitForFunction(expected => document.querySelector('.admin-weekly-note textarea')?.value === expected, copy)
     const [popup] = await Promise.all([page.waitForEvent('popup'), sample.click()])
     await popup.waitForLoadState('domcontentloaded')
-    await popup.getByText(copy, { exact: true }).waitFor()
+    await popup.getByText('Hello readers and friends: our latest report. <b>Literal HTML</b> & thoughts.', { exact: true }).waitFor()
+    assert.equal(await popup.locator('p strong').first().textContent(), 'readers')
+    assert.equal(await popup.locator('p em').first().textContent(), 'friends')
+    assert.equal(await popup.getByRole('link', { name: 'our latest report', exact: true }).getAttribute('href'), 'https://example.com/report?a=1&b=2')
     const html = await popup.content()
-    assert.ok(html.includes('&lt;b&gt;news&lt;/b&gt; &amp; thoughts'))
+    assert.ok(html.includes('&lt;b&gt;Literal HTML&lt;/b&gt; &amp; thoughts'))
+    assert.equal(await popup.locator('b').count(), 0)
     await popup.close()
     await preview.click()
     await page.getByText('This sends real email.', { exact: false }).waitFor()
@@ -89,7 +93,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     assert.ok(!(await sampleResponse.text()).includes('Revised copy for this edition.'))
     assert.equal(sends.length, 1, 'only the explicit dry-run preview should run')
     assert.deepEqual(errors, [])
-    console.log('Weekly paragraph browser checks passed: authentication, save/reload, real sample HTML, unsaved-change protection, confirmation reset, save failure/retry, clearing and mobile layout; no email sent.')
+    console.log('Weekly paragraph browser checks passed: authentication, save/reload, formatted sample HTML with bold/italics/links, unsaved-change protection, confirmation reset, save failure/retry, clearing and mobile layout; no email sent.')
   } finally {
     await browser.close()
   }

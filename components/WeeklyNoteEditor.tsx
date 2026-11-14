@@ -75,9 +75,9 @@ export function WeeklyNoteEditor({ disabled, onReadyChange, onEdit }: {
         <label htmlFor={id}>Opening paragraph <span>Optional</span></label>
         {edition && <span>Edition: {edition}</span>}
       </div>
-      <p id={`${id}-help`}>Add your own introduction above the top story. Saved text is used in the sample, manual sends and the scheduled Friday send. It won’t carry over to next week.</p>
+      <p id={`${id}-help`}>Add your own introduction above the top story. Saved text is used in the sample, manual sends and the scheduled Friday send. It won’t carry over to next week. Format with **bold**, *italics* and [link text](https://example.com).</p>
       <Textarea id={id} aria-describedby={`${id}-help`} rows={3} maxLength={WEEKLY_NOTE_LIMIT}
-        placeholder={loading ? 'Loading paragraph…' : 'A short note to your readers…'}
+        placeholder={loading ? 'Loading paragraph…' : 'A short note with **bold**, *italics* or [a link](https://example.com)…'}
         value={text} disabled={disabled || loading || saving || !saved}
         onChange={event => {
           const value = event.target.value
