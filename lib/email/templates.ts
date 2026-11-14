@@ -149,8 +149,9 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n).trimEnd() + '…' : s
 }
 
-export function digestEmail({ periodLabel, topStory, company, signalMoves, facts, market, directory, more, moreCount, manageUrl }: {
+export function digestEmail({ periodLabel, editorNote, topStory, company, signalMoves, facts, market, directory, more, moreCount, manageUrl }: {
   periodLabel: string
+  editorNote?: string
   topStory: DigestArticle | null
   company: DigestCompany | null
   signalMoves: DigestSignalMove[]
@@ -268,6 +269,7 @@ export function digestEmail({ periodLabel, topStory, company, signalMoves, facts
 
   const body = `
     <p style="margin:0 0 16px;font-size:13px;color:${BRAND.muted};">The Weekly · ${escapeHtml(periodLabel)}</p>
+    ${editorNote?.trim() ? `<p style="margin:0 0 24px;font-size:14px;line-height:1.7;color:${BRAND.text};">${escapeHtml(editorNote.trim())}</p>` : ''}
     ${topHtml}
     ${companyHtml}
     ${signalsHtml}

@@ -6,6 +6,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { DIRECTORY } from '@/lib/data/directory'
 import { fetchDirectoryEntries } from '@/lib/directory'
 import { composeIssue, pickCompanyOfWeek, summarizeMarket, SIGNAL_BASELINE_WEEKS, DigestSourceArticle, Issue } from '@/lib/email/digest'
+import { loadWeeklyNote } from '@/lib/email/weeklyNote'
 import { fetchPeriodArticles } from '@/lib/email/period'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
@@ -17,6 +18,12 @@ export async function buildIssue(
   periodStart: Date,
   periodEnd: Date
 ): Promise<{ issue: Issue | null; error?: string }> {
+  let editorNote: string
+  try {
+    editorNote = (await loadWeeklyNote(service, periodEnd, true)).paragraph
+  } catch (error) {
+    return { issue: null, error: error instanceof Error ? error.message : 'Could not load newsletter paragraph' }
+  }
   const { data: articles, error } = await fetchPeriodArticles(service, periodStart)
   if (error) return { issue: null, error: error.message }
 
@@ -56,5 +63,5 @@ export async function buildIssue(
     company: pickCompanyOfWeek(allCompanies, periodEnd),
     directory: newCompanies,
   })
-  return { issue }
+  return { issue: { ...issue, editorNote } }
 }

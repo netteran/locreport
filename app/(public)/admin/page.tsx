@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { IngestButton, type IngestResult } from '@/components/IngestButton'
 import { BackfillEmbeddingsButton } from '@/components/BackfillEmbeddingsButton'
 import { RunFeedButton, type RunFeedResult } from '@/components/RunFeedButton'
+import { WeeklyNoteEditor } from '@/components/WeeklyNoteEditor'
 import { ADMIN_GROUPS } from '@/lib/adminNav'
 import { researchRunSummary } from '@/lib/manualResearch'
 
@@ -70,6 +71,7 @@ export default function AdminDashboard() {
   const [monthlyRunning, setMonthlyRunning] = useState(false)
   const [quotesRunning, setQuotesRunning] = useState(false)
   const [pricingRunning, setPricingRunning] = useState(false)
+  const [digestNoteReady, setDigestNoteReady] = useState(false)
   const [digestPreviewing, setDigestPreviewing] = useState(false)
   const [digestSending, setDigestSending] = useState(false)
   const [digestPreview, setDigestPreview] = useState<DigestPreview | null>(null)
@@ -455,7 +457,7 @@ export default function AdminDashboard() {
                   size="sm"
                   variant="secondary"
                   onClick={previewDigest}
-                  disabled={digestPreviewing || digestSending}
+                  disabled={digestPreviewing || digestSending || !digestNoteReady}
                 >
                   {digestPreviewing ? 'Checking…' : 'Preview'}
                 </Button>
@@ -463,6 +465,7 @@ export default function AdminDashboard() {
                   size="sm"
                   variant="ghost"
                   onClick={() => window.open('/api/digest/preview', '_blank', 'noopener,noreferrer')}
+                  disabled={!digestNoteReady || digestSending}
                 >
                   View sample
                 </Button>
@@ -476,6 +479,8 @@ export default function AdminDashboard() {
               </>
             }
           >
+            <WeeklyNoteEditor disabled={digestSending || digestPreviewing}
+              onReadyChange={setDigestNoteReady} onEdit={() => setDigestPreview(null)} />
             {digestPreview && (digestPreview.recipients === 0 ? (
               <ActionPanel
                 text={
@@ -504,7 +509,7 @@ export default function AdminDashboard() {
                 }
                 actions={
                   <>
-                    <Button size="sm" onClick={sendDigest} disabled={digestSending}>
+                    <Button size="sm" onClick={sendDigest} disabled={digestSending || !digestNoteReady}>
                       {digestSending ? 'Sending…' : digestToEmail ? `Send to ${digestToEmail}` : `Send to ${digestPreview.recipients}`}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setDigestPreview(null)} disabled={digestSending}>Cancel</Button>
