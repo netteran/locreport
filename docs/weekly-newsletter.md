@@ -1,6 +1,13 @@
 # Editable opening paragraph for The Weekly
 
-In **Admin → Dashboard → Send The Weekly**, use **Opening paragraph** to add a short personal introduction above the top story. The field is optional plain text, limited to 2,000 characters. Line breaks are combined into one paragraph.
+In **Admin → Dashboard → Send The Weekly**, use **Opening paragraph** to add a short personal introduction above the top story. The field is optional Markdown text, limited to 2,000 characters. Line breaks are combined into one paragraph. Supported formatting:
+
+- `**bold**` or `__bold__`
+- `*italics*` or `_italics_`
+- `[link text](https://example.com)` with HTTP or HTTPS destinations
+- Nested formatting, such as `[**bold link**](https://example.com)`
+
+Use **View sample** after saving to see the formatted email. Raw HTML and unsupported markup (including images) display as text. Unsafe or non-web link destinations render their label without a clickable link. Existing paragraphs are stored as before; no additional migration is needed for Markdown support.
 
 1. Check the Friday edition date shown next to the field.
 2. Edit the paragraph and choose **Save paragraph**.
@@ -19,7 +26,7 @@ Before the migration is installed, the editor displays the migration requirement
 
 ## Validation
 
-`npm test` includes the weekly-edition date rules, paragraph validation, authenticated note API, HTML output, shared issue building and private-table permissions in PostgreSQL WASM.
+`npm test` includes the weekly-edition date rules, paragraph validation, authenticated note API, formatted HTML output, shared issue building and private-table permissions in PostgreSQL WASM.
 
 Run the isolated Supabase fixture and app using the setup in `docs/research-workflow.md`, then run:
 
