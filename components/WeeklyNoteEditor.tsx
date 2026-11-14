@@ -28,12 +28,12 @@ export function WeeklyNoteEditor({ disabled, onReadyChange, onEdit }: {
     try {
       const response = await fetch('/api/digest/note', { cache: 'no-store' })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Could not load paragraph')
+      if (!response.ok) throw new Error(data.error || 'Could not load note')
       setSaved(data)
       setText(data.paragraph)
       onReadyChange(true)
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not load paragraph')
+      setError(error instanceof Error ? error.message : 'Could not load note')
     } finally {
       setLoading(false)
     }
@@ -53,13 +53,13 @@ export function WeeklyNoteEditor({ disabled, onReadyChange, onEdit }: {
         body: JSON.stringify({ editionDate: saved.editionDate, paragraph: text })
       })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Could not save paragraph')
+      if (!response.ok) throw new Error(data.error || 'Could not save note')
       setSaved(data)
       setText(data.paragraph)
-      setMessage(data.paragraph ? 'Paragraph saved for this edition.' : 'Paragraph removed from this edition.')
+      setMessage(data.paragraph ? 'Note saved for this edition.' : 'Note removed from this edition.')
       onReadyChange(true)
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not save paragraph')
+      setError(error instanceof Error ? error.message : 'Could not save note')
     } finally {
       setSaving(false)
     }
@@ -72,12 +72,12 @@ export function WeeklyNoteEditor({ disabled, onReadyChange, onEdit }: {
   return (
     <div className="admin-weekly-note">
       <div className="admin-weekly-note__heading">
-        <label htmlFor={id}>Opening paragraph <span>Optional</span></label>
+        <label htmlFor={id}>Opening note <span>Optional</span></label>
         {edition && <span>Edition: {edition}</span>}
       </div>
-      <p id={`${id}-help`}>Add your own introduction above the top story. Saved text is used in the sample, manual sends and the scheduled Friday send. It won’t carry over to next week. Format with **bold**, *italics* and [link text](https://example.com).</p>
-      <Textarea id={id} aria-describedby={`${id}-help`} rows={3} maxLength={WEEKLY_NOTE_LIMIT}
-        placeholder={loading ? 'Loading paragraph…' : 'A short note with **bold**, *italics* or [a link](https://example.com)…'}
+      <p id={`${id}-help`}>Add your own introduction above the top story. Saved text is used in the sample, manual sends and the scheduled Friday send. It won’t carry over to next week. Use # Heading, ## Subheading or ### Small heading on their own lines, plus **bold**, *italics* and [links](https://example.com). Separate paragraphs with a blank line.</p>
+      <Textarea id={id} aria-describedby={`${id}-help`} rows={6} maxLength={WEEKLY_NOTE_LIMIT}
+        placeholder={loading ? 'Loading note…' : '# This week\n\nA short note with **bold**, *italics* or [a link](https://example.com)…'}
         value={text} disabled={disabled || loading || saving || !saved}
         onChange={event => {
           const value = event.target.value
@@ -89,9 +89,9 @@ export function WeeklyNoteEditor({ disabled, onReadyChange, onEdit }: {
       <div className="admin-weekly-note__footer">
         <span>{text.length} / {WEEKLY_NOTE_LIMIT}{dirty ? ' · Save changes before previewing or sending' : ''}</span>
         <div>
-          {error && <Button size="sm" variant="ghost" disabled={disabled || saving || loading} onClick={load}>Reload saved paragraph</Button>}
+          {error && <Button size="sm" variant="ghost" disabled={disabled || saving || loading} onClick={load}>Reload saved note</Button>}
           <Button size="sm" variant="secondary" disabled={disabled || saving || loading || !dirty} onClick={save}>
-            {saving ? 'Saving…' : 'Save paragraph'}
+            {saving ? 'Saving…' : 'Save note'}
           </Button>
         </div>
       </div>

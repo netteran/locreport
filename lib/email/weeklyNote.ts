@@ -17,7 +17,7 @@ export function weeklyEditionDate(now = new Date()): string {
 export function normalizeWeeklyNote(value: unknown): string {
   if (typeof value !== 'string') throw new Error('Paragraph must be text')
   if (value.length > WEEKLY_NOTE_LIMIT) throw new Error(`Keep the paragraph within ${WEEKLY_NOTE_LIMIT} characters`)
-  return value.replace(/\s+/g, ' ').trim()
+  return value.replace(/\r\n?/g, '\n').trim()
 }
 
 export function missingWeeklyNotes(error: { code?: string; message?: string } | null): boolean {
