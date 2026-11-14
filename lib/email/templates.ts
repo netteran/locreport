@@ -58,6 +58,24 @@ export function renderWeeklyNote(markdown: string): string {
   return render(Lexer.lexInline(markdown.trim(), { gfm: true }))
 }
 
+/** Render note blocks without allowing source HTML or unsupported block tags. */
+export function renderWeeklyNoteContent(markdown: string): string {
+  const paragraph = (content: string) =>
+    `<p style="margin:0 0 12px;font-size:14px;line-height:1.7;color:${BRAND.text};">${content}</p>`
+  return Lexer.lex(markdown.trim(), { gfm: true }).map(token => {
+    switch (token.type) {
+      case 'space': return ''
+      case 'heading': {
+        const level = Math.max(1, Math.min(6, token.depth))
+        const size = [24, 21, 18, 16, 15, 14][level - 1]
+        return `<h${level} style="margin:0 0 12px;font-size:${size}px;line-height:1.3;font-weight:700;color:${BRAND.text};">${renderWeeklyNote(token.text)}</h${level}>`
+      }
+      case 'paragraph': return paragraph(renderWeeklyNote(token.text))
+      default: return paragraph(escapeHtml(token.raw.trim()))
+    }
+  }).join('')
+}
+
 function shell(bodyHtml: string, footerHtml: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -301,7 +319,7 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, signal
 
   const body = `
     <p style="margin:0 0 16px;font-size:13px;color:${BRAND.muted};">The Weekly · ${escapeHtml(periodLabel)}</p>
-    ${editorNote?.trim() ? `<p style="margin:0 0 24px;font-size:14px;line-height:1.7;color:${BRAND.text};">${renderWeeklyNote(editorNote)}</p>` : ''}
+    ${editorNote?.trim() ? `<div style="margin:0 0 24px;">${renderWeeklyNoteContent(editorNote)}</div>` : ''}
     ${topHtml}
     ${companyHtml}
     ${signalsHtml}

@@ -1,16 +1,29 @@
-# Editable opening paragraph for The Weekly
+# Editable opening note for The Weekly
 
-In **Admin → Dashboard → Send The Weekly**, use **Opening paragraph** to add a short personal introduction above the top story. The field is optional Markdown text, limited to 2,000 characters. Line breaks are combined into one paragraph. Supported formatting:
+In **Admin → Dashboard → Send The Weekly**, use **Opening note** to add a short personal introduction above the top story. The field is optional Markdown text, limited to 2,000 characters. Line breaks are preserved. Write headings on their own lines and separate paragraphs with a blank line. Supported formatting:
 
+- `# Heading`, `## Subheading`, through `###### Heading` (all six levels)
 - `**bold**` or `__bold__`
 - `*italics*` or `_italics_`
 - `[link text](https://example.com)` with HTTP or HTTPS destinations
 - Nested formatting, such as `[**bold link**](https://example.com)`
 
-Use **View sample** after saving to see the formatted email. Raw HTML and unsupported markup (including images) display as text. Unsafe or non-web link destinations render their label without a clickable link. Existing paragraphs are stored as before; no additional migration is needed for Markdown support.
+For example:
+
+```markdown
+# This week in localization
+
+A short introduction with **bold text** and [a useful link](https://example.com).
+
+## What to watch
+
+Your second paragraph.
+```
+
+Use **View sample** after saving to see the formatted email. Raw HTML and unsupported markup (including images) display as text. Unsafe or non-web link destinations render their label without a clickable link. Existing paragraphs are stored as before; no additional migration is needed for Markdown or heading support.
 
 1. Check the Friday edition date shown next to the field.
-2. Edit the paragraph and choose **Save paragraph**.
+2. Edit the paragraph and choose **Save note**.
 3. Use **View sample** to inspect the actual newsletter. **Preview** still checks recipients and opens the existing send confirmation.
 4. Confirm a manual send if needed, or leave the saved paragraph for the scheduled Friday send.
 

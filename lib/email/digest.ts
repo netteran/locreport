@@ -219,7 +219,7 @@ export interface IssueInput {
 }
 
 export interface Issue {
-  /** Optional inline Markdown paragraph for this Friday edition. */
+  /** Optional Markdown opening note for this Friday edition. */
   editorNote?: string
   /** Articles published in the period. */
   storyCount: number

@@ -25,8 +25,8 @@ test('weekly editions roll over on Saturday in Warsaw, including DST and year bo
   ]) assert.equal(notes.weeklyEditionDate(new Date(instant)), expected)
 })
 
-test('paragraph validation keeps one plain-text paragraph, supports clearing and rejects invalid input', () => {
-  assert.equal(notes.normalizeWeeklyNote('  Hello\n\nreaders.\t Welcome. '), 'Hello readers. Welcome.')
+test('note validation preserves Markdown line breaks, supports clearing and rejects invalid input', () => {
+  assert.equal(notes.normalizeWeeklyNote('  Hello\n\nreaders.\t Welcome. '), 'Hello\n\nreaders.\t Welcome.')
   assert.equal(notes.normalizeWeeklyNote('  '), '')
   assert.equal(notes.normalizeWeeklyNote('x'.repeat(2000)).length, 2000)
   for (const value of [null, {}, 1, 'x'.repeat(2001)]) assert.throws(() => notes.normalizeWeeklyNote(value))
@@ -90,7 +90,7 @@ test('admin API persists edits, supports removal and rejects unauthenticated, in
   assert.equal((await put({ editionDate, paragraph: ' Hello\nreaders. ' })).status, 200)
   const result = await routes.GET()
   assert.equal(result.headers.get('Cache-Control'), 'no-store')
-  assert.deepEqual(await result.json(), { editionDate, paragraph: 'Hello readers.' })
+  assert.deepEqual(await result.json(), { editionDate, paragraph: 'Hello\nreaders.' })
   for (const paragraph of [null, 'x'.repeat(2001)]) {
     assert.equal((await put({ editionDate, paragraph })).status, 400)
   }
@@ -214,4 +214,39 @@ test('the newsletter template includes formatted opening copy before the top sto
   assert.equal(intro.find('em').text(), 'readers')
   assert.equal(intro.find('a').attr('href'), 'https://example.com/report')
   assert.ok(html.indexOf('<strong>Hello</strong>') < html.indexOf('The top story'))
+})
+
+test('newsletter note headings preserve all six levels and inline formatting with email styles', () => {
+  const { renderWeeklyNoteContent } = load('lib/email/templates.ts')
+  const { load: parseHtml } = require('cheerio')
+  const markdown = Array.from({ length: 6 }, (_, i) => `${'#'.repeat(i + 1)} Heading **${i + 1}**`).join('\n\n')
+  const $ = parseHtml(renderWeeklyNoteContent(markdown), null, false)
+  for (let level = 1; level <= 6; level++) {
+    assert.equal($(`h${level}`).length, 1)
+    assert.equal($(`h${level} strong`).text(), String(level))
+    assert.match($(`h${level}`).attr('style'), /font-size:\d+px/)
+  }
+  assert.equal($('p :header').length, 0)
+})
+
+test('note line breaks survive saving and form headings and separate paragraphs', () => {
+  const { renderWeeklyNoteContent } = load('lib/email/templates.ts')
+  const { load: parseHtml } = require('cheerio')
+  const text = notes.normalizeWeeklyNote('  # Title\r\n\r\nFirst paragraph.\r\nContinued.\r\n\r\n## Next\r\n\r\nSecond paragraph.  ')
+  assert.equal(text, '# Title\n\nFirst paragraph.\nContinued.\n\n## Next\n\nSecond paragraph.')
+  const $ = parseHtml(renderWeeklyNoteContent(text), null, false)
+  assert.deepEqual($.root().children().toArray().map(element => element.tagName), ['h1', 'p', 'h2', 'p'])
+  assert.equal($('p').first().text(), 'First paragraph.\nContinued.')
+  assert.equal($('p').last().text(), 'Second paragraph.')
+})
+
+test('headings keep HTML and dangerous links inert; escaped heading markers remain text', () => {
+  const { renderWeeklyNoteContent } = load('lib/email/templates.ts')
+  const { load: parseHtml } = require('cheerio')
+  const $ = parseHtml(renderWeeklyNoteContent('# <img src=x onerror=alert(1)> [read](javascript:alert%281%29)\n\n<script>alert(1)</script>\n\n\\# Literal heading\n\n####### Too many markers'), null, false)
+  assert.equal($('h1').length, 1)
+  assert.equal($('img, script, a').length, 0)
+  assert.ok($('h1').text().includes('<img src=x onerror=alert(1)> read'))
+  assert.ok($.root().text().includes('# Literal heading'))
+  assert.ok($.root().text().includes('####### Too many markers'))
 })
