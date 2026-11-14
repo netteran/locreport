@@ -3252,9 +3252,9 @@ article.page > h1 {
 .mr-featured {
   margin: 0 0 var(--space-8);
   padding: var(--space-7) var(--space-7);
-  background: var(--gradient-accent);
+  background: var(--featured-bg);
   border-radius: var(--radius-xl);
-  color: #fff;
+  color: var(--featured-text);
   position: relative;
   overflow: hidden;
 }
@@ -3266,7 +3266,7 @@ article.page > h1 {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.65);
+  color: var(--featured-muted);
   margin-bottom: var(--space-3);
 }
 .mr-featured-title {
@@ -3274,10 +3274,10 @@ article.page > h1 {
   font-weight: 800;
   margin: 0 0 var(--space-3);
   line-height: 1.2;
-  color: #fff;
+  color: var(--featured-text);
 }
 .mr-featured-title a {
-  color: #fff;
+  color: var(--featured-text);
   text-decoration: none;
 }
 .mr-featured-title a:hover {
@@ -3287,7 +3287,7 @@ article.page > h1 {
 }
 .mr-featured-meta {
   font-size: 0.8rem;
-  color: rgba(255,255,255,0.6);
+  color: var(--featured-muted);
   font-weight: 600;
   margin-bottom: var(--space-4);
   letter-spacing: 0.01em;
@@ -3324,7 +3324,7 @@ article.page > h1 {
   gap: 6px;
   padding: 11px 26px;
   background: #fff;
-  color: var(--accent);
+  color: #233094;
   border-radius: var(--radius-sm);
   font-size: 0.9rem;
   font-weight: 700;
@@ -3336,7 +3336,7 @@ article.page > h1 {
   background: rgba(255,255,255,0.9);
   transform: translateY(-1px);
   box-shadow: 0 4px 14px rgba(0,0,0,0.15);
-  color: var(--accent-hover);
+  color: #17181C;
   text-decoration: none !important;
 }
 
