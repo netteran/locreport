@@ -92,6 +92,7 @@ before(async () => {
   ]), /business_implications.*jsonb.*text\[\]/)
   await db.exec(fs.readFileSync('supabase/migrations/20261115_publication_metadata_types.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261115_publication_metadata_types.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261117_candidate_evidence_pool.sql', 'utf8'))
   await db.exec(
     'grant usage on schema public to anon,authenticated,service_role;grant select on all tables in schema public to anon,authenticated;grant all on all tables in schema public to service_role;'
   )
@@ -204,12 +205,14 @@ test('uncertain matches are held without creating a second event or fact', async
     c = await candidate(s)
   assert.equal(await record(c, uid(), eid, 'uncertain'), null)
   const row = await scalar(
-    'select event_id,suggested_event_id,review_reason from source_candidates where id=$1',
+    'select event_id,suggested_event_id,review_reason,status,processing_status from source_candidates where id=$1',
     [c]
   )
   assert.equal(row.event_id, null)
   assert.equal(row.suggested_event_id, eid)
   assert.match(row.review_reason, /Uncertain/)
+  assert.equal(row.status, 'available', 'uncertain matches remain in the article evidence pool')
+  assert.equal(row.processing_status, 'ready', 'uncertain matches remain eligible for article suggestions')
 })
 
 test('compositions reserve evidence atomically; failed overlapping reservations leave no orphan', async () => {
@@ -565,4 +568,16 @@ test('metadata repair lets the previously blocked draft publish without regenera
   const { id } = await scalar('select publish_editorial_draft($1,$2) as id', [publicationUpgradeDraft, body])
   assert.deepEqual((await scalar('select business_implications from articles where id=$1', [id])).business_implications, ['Buyer impact'])
   assert.equal((await scalar('select publish_editorial_draft($1,$2) as id', [publicationUpgradeDraft, body])).id, id)
+})
+
+
+test('semantic suggestions keep older uncertain evidence eligible', async () => {
+  const feed = await source(), first = await candidate(feed), second = await candidate(feed)
+  const embedding = JSON.stringify([1, ...Array(1535).fill(0)])
+  await db.query(`update source_candidates set created_at=now()-interval '90 days',
+    processing_status='ready', review_reason='Uncertain event match: review before publishing',
+    embedding=$1::vector where id=any($2::uuid[])`, [embedding, [first, second]])
+  const edges = (await db.query('select * from candidate_group_edges()')).rows
+  assert.ok(edges.some(edge => edge.source_id === first && edge.related_id === second))
+  assert.ok(edges.some(edge => edge.source_id === second && edge.related_id === first))
 })

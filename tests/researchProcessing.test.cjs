@@ -96,3 +96,46 @@ test('event extraction requests enforce the same action and stage enums as valid
   }
   assert.deepEqual(schema.schema.required.sort(), Object.keys(schema.schema.properties).sort())
 })
+
+test('article suggestions retain old and uncertain evidence without requiring an event match', async () => {
+  const rows = ['old', 'uncertain'].map(id => ({
+    id, title: id, source_name: 'Publisher', source_published_at: '2025-01-01',
+    event_id: null, extracted_facts: 'Complementary source evidence', topics: ['localization'], entities: []
+  }))
+  let request
+  const writes = []
+  const filters = []
+  const service = {
+    from(table) {
+      const q = {
+        select() { return q },
+        eq(key, value) { filters.push([table, key, value]); return q },
+        gte() { assert.fail('Waiting evidence must not expire from suggestions') },
+        order() { return q }, limit() { return q },
+        maybeSingle: async () => ({ data: null, error: null }),
+        upsert: async data => { writes.push([table, data]); return { data: null, error: null } },
+        then(resolve, reject) { return Promise.resolve({ data: rows, error: null }).then(resolve, reject) }
+      }
+      return q
+    },
+    rpc: async () => ({ data: [], error: null })
+  }
+  const fixture = { exports: {} }
+  new Function('exports', 'require', 'module', ts.transpileModule(
+    fs.readFileSync('lib/research.ts', 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
+  ).outputText)(fixture.exports, id => id === '@/lib/openai' ? {
+    getOpenAI: () => ({ chat: { completions: { create: async input => {
+      request = input
+      return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ groups: [{
+        title: 'A related analysis', question: 'What changed?', rationale: 'Complementary evidence', candidate_ids: ['old', 'uncertain']
+      }] }) } }] }
+    } } } })
+  } : dependencies[id] || require(id), fixture)
+  await fixture.exports.refreshStoryGroups(service)
+  assert.deepEqual(JSON.parse(request.messages[1].content).sources.map(s => s.id), ['old', 'uncertain'])
+  assert.deepEqual(writes.find(([table]) => table === 'story_groups')[1].candidate_ids, ['old', 'uncertain'])
+  assert.deepEqual(filters.filter(([table]) => table === 'source_candidates'), [
+    ['source_candidates', 'status', 'available'], ['source_candidates', 'processing_status', 'ready']
+  ])
+})
