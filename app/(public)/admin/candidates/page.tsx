@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { SourceCandidate, StoryGroup, Composition } from '@/lib/researchTypes'
+import { filterCandidates, publisherName } from '@/lib/candidateFilters'
 import { ResearchProcessButton } from '@/components/ResearchProcessButton'
 
 type Event = { id: string; headline: string; stage: string; review_required: boolean }
@@ -18,7 +19,11 @@ export default function CandidatesPage() {
   }>({ candidates: [], groups: [], events: [], compositions: [] })
   const [tab, setTab] = useState('candidates'),
     [query, setQuery] = useState(''),
-    [status, setStatus] = useState('available')
+    [status, setStatus] = useState('available'),
+    [publisher, setPublisher] = useState(''),
+    [dateFrom, setDateFrom] = useState(''),
+    [dateTo, setDateTo] = useState(''),
+    [sort, setSort] = useState('published-desc')
   const [selected, setSelected] = useState<string[]>([]),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
@@ -33,16 +38,14 @@ export default function CandidatesPage() {
   useEffect(() => {
     load().catch((e) => setError(String(e)))
   }, [load])
+  const publishers = useMemo(
+    () => [...new Set(data.candidates.map(publisherName))].sort((a, b) => a.localeCompare(b)),
+    [data.candidates]
+  )
+  const invalidDates = !!dateFrom && !!dateTo && dateFrom > dateTo
   const visible = useMemo(
-    () =>
-      data.candidates.filter(
-        (c) =>
-          (status === 'all' || c.status === status) &&
-          `${c.title} ${c.source_name} ${c.topics.join(' ')} ${c.entities.join(' ')}`
-            .toLowerCase()
-            .includes(query.toLowerCase())
-      ),
-    [data.candidates, status, query]
+    () => filterCandidates(data.candidates, { status, query, publisher, dateFrom, dateTo, sort }),
+    [data.candidates, status, query, publisher, dateFrom, dateTo, sort]
   )
   async function run(action: () => Promise<void>) {
     setBusy(true)
@@ -105,22 +108,53 @@ export default function CandidatesPage() {
       {tab === 'candidates' && (
         <>
           <ResearchProcessButton disabled={busy} onDone={load} />
-          <div className="admin-toolbar">
-            <Input
-              aria-label="Search candidates"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search titles, sources or topics"
-            />
-            <select
-              aria-label="Candidate status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              {['available', 'reserved', 'used', 'dismissed', 'all'].map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="text-xs space-y-1">
+              <span>Search</span>
+              <Input aria-label="Search candidates" value={query}
+                onChange={(e) => setQuery(e.target.value)} placeholder="Titles, publishers or topics" />
+            </label>
+            <label className="text-xs space-y-1">
+              <span>Original publisher</span>
+              <select className="w-full rounded-lg border px-3 py-2 text-sm" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+                value={publisher} onChange={(e) => setPublisher(e.target.value)}>
+                <option value="">All publishers</option>
+                {publishers.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </label>
+            <label className="text-xs space-y-1">
+              <span>Status</span>
+              <select className="w-full rounded-lg border px-3 py-2 text-sm" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+                value={status} onChange={(e) => setStatus(e.target.value)}>
+                {['available', 'reserved', 'used', 'dismissed', 'all'].map((s) => <option key={s}>{s}</option>)}
+              </select>
+            </label>
+            <label className="text-xs space-y-1">
+              <span>Published from</span>
+              <Input type="date" value={dateFrom} max={dateTo || undefined}
+                aria-invalid={invalidDates} onChange={(e) => setDateFrom(e.target.value)} />
+            </label>
+            <label className="text-xs space-y-1">
+              <span>Published through</span>
+              <Input type="date" value={dateTo} min={dateFrom || undefined}
+                aria-invalid={invalidDates} onChange={(e) => setDateTo(e.target.value)} />
+            </label>
+            <label className="text-xs space-y-1">
+              <span>Sort by</span>
+              <select className="w-full rounded-lg border px-3 py-2 text-sm" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
+                value={sort} onChange={(e) => setSort(e.target.value)}>
+                <option value="published-desc">Published: newest first</option>
+                <option value="published-asc">Published: oldest first</option>
+                <option value="collected-desc">Recently collected</option>
+              </select>
+            </label>
+          </div>
+          {invalidDates && <p role="alert" className="text-sm text-red-600">The start date must be on or before the end date.</p>}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs" style={{ color: 'var(--muted)' }}>
+            <span role="status">{visible.length} of {data.candidates.length} loaded candidates · latest 300 collected · dates use original publication date</span>
+            <Button size="xs" variant="ghost" onClick={() => {
+              setQuery(''); setPublisher(''); setDateFrom(''); setDateTo(''); setStatus('available'); setSort('published-desc')
+            }}>Reset filters</Button>
           </div>
           {selected.length > 0 && (
             <div className="flex gap-3 items-center">
@@ -136,131 +170,137 @@ export default function CandidatesPage() {
               </Button>
             </div>
           )}
-          {visible.map((c) => (
-            <section
-              key={c.id}
-              className="admin-panel space-y-2"
-              style={{ borderColor: 'var(--border)' }}
-            >
-              <div className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  aria-label={`Select ${c.title}`}
-                  checked={selected.includes(c.id)}
-                  disabled={c.status !== 'available'}
-                  onChange={(e) =>
-                    setSelected((s) =>
-                      e.target.checked ? [...s, c.id] : s.filter((id) => id !== c.id)
-                    )
-                  }
-                />
-                <div className="flex-1">
-                  <a
-                    href={c.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold"
-                  >
-                    {c.title} ↗
-                  </a>
-                  <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-                    {c.source_name} · {c.source_published_at?.slice(0, 10) || 'Undated source'} ·{' '}
-                    {c.quality} · {c.status} · {c.processing_status}
-                  </p>
-                </div>
-              </div>
-              <p className="text-xs">{c.topics.join(' · ')}</p>
-              {c.review_reason && (
-                <p className="text-sm" style={{ color: 'var(--gold,#92400e)' }}>
-                  {c.review_reason}
-                </p>
-              )}
-              <details>
-                <summary className="text-sm cursor-pointer">Source evidence</summary>
-                <pre className="whitespace-pre-wrap text-xs mt-2">{c.extracted_facts}</pre>
-              </details>
-              <div className="flex gap-2 flex-wrap">
-                {c.status === 'available' && (
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => run(() => patch({ id: c.id, status: 'dismissed' }))}
-                  >
-                    Dismiss
-                  </Button>
-                )}
-                {c.status === 'used' && (
-                  <Button
-                    size="xs"
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() => run(() => patch({ id: c.id, status: 'available' }))}
-                  >
-                    Reuse in another article
-                  </Button>
-                )}
-                {c.status === 'dismissed' && (
-                  <Button
-                    size="xs"
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() => run(() => patch({ id: c.id, status: 'available' }))}
-                  >
-                    Restore
-                  </Button>
-                )}
-                {c.reserved_by && (
-                  <Link
-                    href={`/admin/candidates/compositions/${c.reserved_by}`}
-                    className="text-sm underline"
-                  >
-                    Open composition
-                  </Link>
-                )}
-                {c.suggested_event_id && (
-                  <Button
-                    size="xs"
-                    disabled={busy}
-                    onClick={() => run(() => patch({ id: c.id, event_id: c.suggested_event_id }))}
-                  >
-                    Confirm same event
-                  </Button>
-                )}
-                {c.suggested_fact_id && (
-                  <Button
-                    size="xs"
-                    disabled={busy}
-                    onClick={() =>
-                      run(() => patch({ id: c.id, legacy_fact_id: c.suggested_fact_id }))
+          <div className="overflow-hidden rounded-lg border" style={{ borderColor: 'var(--border)' }}>
+            {visible.map((c) => (
+              <section
+                key={c.id}
+                className="border-b last:border-b-0 px-3 py-2"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${c.title}`}
+                    checked={selected.includes(c.id)}
+                    disabled={c.status !== 'available'}
+                    onChange={(e) =>
+                      setSelected((s) =>
+                        e.target.checked ? [...s, c.id] : s.filter((id) => id !== c.id)
+                      )
                     }
-                  >
-                    Confirm same published fact
-                  </Button>
+                  />
+                  <div className="min-w-0 flex-1">
+                    <a
+                      href={c.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold break-words"
+                    >
+                      {c.title} ↗
+                    </a>
+                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                      <span className="font-medium">{publisherName(c)}</span> ·{' '}
+                      {c.source_published_at ? <time dateTime={c.source_published_at}>{c.source_published_at.slice(0, 10)}</time> : 'Undated source'}
+                      {c.status !== 'available' && ` · ${c.status}`}
+                      {c.processing_status !== 'ready' && ` · ${c.processing_status}`}
+                    </p>
+                  </div>
+                </div>
+
+                {c.review_reason && (
+                  <p className="text-sm" style={{ color: 'var(--gold,#92400e)' }}>
+                    {c.review_reason}
+                  </p>
                 )}
-                {c.review_reason?.startsWith('Conflicting') && c.event_id && (
-                  <Button
-                    size="xs"
-                    disabled={busy}
-                    onClick={() => run(() => patch({ id: c.id, event_id: c.event_id }))}
-                  >
-                    Confirm evidence after review
-                  </Button>
-                )}
-                {c.review_reason?.startsWith('Uncertain') && (
-                  <Button
-                    size="xs"
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() => run(() => patch({ id: c.id, new_event: true }))}
-                  >
-                    Treat as a distinct event
-                  </Button>
-                )}
-              </div>
-            </section>
-          ))}
-          {!visible.length && <p>No matching source candidates.</p>}
+                <details className="ml-7 mt-1">
+                  <summary className="text-xs cursor-pointer" style={{ color: 'var(--muted)' }}>Evidence & actions</summary>
+                  <p className="text-xs mt-2">{c.quality} · {c.status} · {c.processing_status}</p>
+                  <p className="text-xs mt-1">{c.topics.join(' · ')}</p>
+                  <pre className="whitespace-pre-wrap text-xs mt-2">{c.extracted_facts}</pre>
+                  <div className="flex gap-2 flex-wrap mt-2">
+                    {c.status === 'available' && (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => run(() => patch({ id: c.id, status: 'dismissed' }))}
+                      >
+                        Dismiss
+                      </Button>
+                    )}
+                    {c.status === 'used' && (
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => run(() => patch({ id: c.id, status: 'available' }))}
+                      >
+                        Reuse in another article
+                      </Button>
+                    )}
+                    {c.status === 'dismissed' && (
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => run(() => patch({ id: c.id, status: 'available' }))}
+                      >
+                        Restore
+                      </Button>
+                    )}
+                    {c.reserved_by && (
+                      <Link
+                        href={`/admin/candidates/compositions/${c.reserved_by}`}
+                        className="text-sm underline"
+                      >
+                        Open composition
+                      </Link>
+                    )}
+                    {c.suggested_event_id && (
+                      <Button
+                        size="xs"
+                        disabled={busy}
+                        onClick={() => run(() => patch({ id: c.id, event_id: c.suggested_event_id }))}
+                      >
+                        Confirm same event
+                      </Button>
+                    )}
+                    {c.suggested_fact_id && (
+                      <Button
+                        size="xs"
+                        disabled={busy}
+                        onClick={() =>
+                          run(() => patch({ id: c.id, legacy_fact_id: c.suggested_fact_id }))
+                        }
+                      >
+                        Confirm same published fact
+                      </Button>
+                    )}
+                    {c.review_reason?.startsWith('Conflicting') && c.event_id && (
+                      <Button
+                        size="xs"
+                        disabled={busy}
+                        onClick={() => run(() => patch({ id: c.id, event_id: c.event_id }))}
+                      >
+                        Confirm evidence after review
+                      </Button>
+                    )}
+                    {c.review_reason?.startsWith('Uncertain') && (
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => run(() => patch({ id: c.id, new_event: true }))}
+                      >
+                        Treat as a distinct event
+                      </Button>
+                    )}
+                  </div>
+                </details>
+              </section>
+            ))}
+            {!visible.length && <p className="p-4 text-sm">No matching source candidates. Try changing or resetting the filters.</p>}
+          </div>
         </>
       )}
       {tab === 'groups' && (
