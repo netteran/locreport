@@ -1,3 +1,5 @@
+import type { EditorialPitch } from './editorialPitches'
+
 export interface SourceCandidate {
   id: string
   title: string
@@ -32,6 +34,7 @@ export interface EventDescriptor {
 }
 
 export interface StoryGroup {
+  pitch?: EditorialPitch | null
   id: string
   title: string
   question: string
