@@ -24,6 +24,7 @@ export default function CandidatesPage() {
     [dateFrom, setDateFrom] = useState(''),
     [dateTo, setDateTo] = useState(''),
     [sort, setSort] = useState('published-desc')
+  const [pitchQueue, setPitchQueue] = useState<'ready' | 'investigate'>('ready')
   const [selected, setSelected] = useState<string[]>([]),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
@@ -317,45 +318,77 @@ export default function CandidatesPage() {
       {tab === 'groups' && (
         <>
           <ResearchProcessButton label="Refresh suggestions" disabled={busy} onDone={load} />
-          <p className="text-sm" style={{ color: 'var(--muted)' }}>Suggestions connect evidence around an editorial question. Same-event reports can add detail; related developments can support a broader analysis. Refresh checks up to 60 of the latest available, processed sources, with no age cutoff.</p>
-          {data.groups.map((g) => {
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>Editorial pitches look for tensions, consequences and unexpected connections, then face an evidence critique. Recent coverage helps avoid repetition. Refresh considers up to 60 available processed sources, with no age cutoff.</p>
+          <div className="flex flex-wrap gap-2" aria-label="Editorial pitch queues">
+            <Button variant={pitchQueue === 'ready' ? 'primary' : 'secondary'} onClick={() => setPitchQueue('ready')}>Ready to develop</Button>
+            <Button variant={pitchQueue === 'investigate' ? 'primary' : 'secondary'} onClick={() => setPitchQueue('investigate')}>Worth investigating</Button>
+          </div>
+          <p className="text-xs" style={{ color: 'var(--muted)' }}>{pitchQueue === 'ready'
+            ? 'Evidence-backed pitches for your review. Choosing one opens source selection and direction; it does not generate or publish an article.'
+            : 'Reporting leads with unproven premises or missing evidence. Gather the listed evidence before developing an article.'}</p>
+          {data.groups.filter(g => (g.pitch?.stage || 'ready') === pitchQueue)
+            .sort((a, b) => (b.pitch?.score || 0) - (a.pitch?.score || 0)).map((g) => {
             const candidates = g.candidate_ids
               .map((id) => data.candidates.find((c) => c.id === id))
               .filter((c): c is SourceCandidate => !!c && c.status === 'available')
             return (
-              candidates.length >= 2 && (
+              candidates.length >= 1 && (
                 <section
                   key={g.id}
                   className="border rounded-lg p-4 space-y-3"
                   style={{ borderColor: 'var(--border)' }}
                 >
-                  <h2 className="font-semibold">{g.title}</h2>
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <h2 className="font-semibold">{g.title}</h2>
+                    {g.pitch && <span className="text-xs" style={{ color: 'var(--muted)' }}>Editorial assessment: {g.pitch.score}/100</span>}
+                  </div>
                   <p>{g.question}</p>
                   <p className="text-sm" style={{ color: 'var(--muted)' }}>
                     {g.rationale}
                   </p>
+                  {g.pitch ? (
+                    <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                      {[
+                        ['Why now', g.pitch.why_now], ['Who it helps', g.pitch.audience],
+                        ['What makes it different', g.pitch.originality], ['What could challenge it', g.pitch.counterargument]
+                      ].map(([label, value]) => <div key={label}><dt className="font-medium">{label}</dt><dd style={{ color: 'var(--muted)' }}>{value}</dd></div>)}
+                      {g.pitch.missing_evidence.length > 0 && <div className="sm:col-span-2">
+                        <dt className="font-medium">Reporting needed</dt>
+                        <dd><ul className="list-disc pl-5">{g.pitch.missing_evidence.map((item, i) => <li key={i}>{item}</li>)}</ul></dd>
+                      </div>}
+                      <div className="sm:col-span-2 text-xs" style={{ color: 'var(--muted)' }}>
+                        <dt className="inline">Model assessments (0–5): </dt>
+                        <dd className="inline">reader value {g.pitch.scores.reader_value} · originality {g.pitch.scores.originality} · evidence {g.pitch.scores.evidence}. These are editorial judgments, not verified facts.</dd>
+                      </div>
+                    </dl>
+                  ) : <p className="text-xs" style={{ color: 'var(--muted)' }}>Earlier source-group suggestion; no editorial assessment yet. Refresh to discover new pitches.</p>}
+                  <h3 className="text-sm font-medium">Supporting evidence</h3>
                   <ul className="text-sm space-y-1">
                     {candidates.map((c) => (
                       <li key={c.id}>
-                        {c.title} · {c.source_name}
+                        <a href={c.source_url} target="_blank" rel="noopener noreferrer" className="underline">{c.title}</a> · {publisherName(c)}
+                        {g.pitch?.source_contributions.find(item => item.candidate_id === c.id)?.contribution && <p style={{ color: 'var(--muted)' }}>{g.pitch.source_contributions.find(item => item.candidate_id === c.id)?.contribution}</p>}
                       </li>
                     ))}
                   </ul>
-                  <div className="flex gap-2">
-                    <Button
-                      disabled={busy}
+                  {candidates.length !== g.candidate_ids.length && <p className="text-xs" style={{ color: 'var(--muted)' }}>Some supporting sources are no longer available. Refresh suggestions to reassess this pitch before developing it.</p>}
+                  <div className="flex flex-wrap gap-3">
+                    {g.pitch?.stage !== 'investigate' && <Button
+                      disabled={busy || candidates.length !== g.candidate_ids.length}
                       onClick={() =>
                         run(() =>
                           combine(
                             candidates.map((c) => c.id),
                             g.title,
-                            g.question
+                            g.pitch ? [g.question, `Reader and decision: ${g.pitch.audience}`,
+                              `Editorial contribution: ${g.pitch.originality}`,
+                              `Test this counterargument: ${g.pitch.counterargument}`].join('\n\n') : g.question
                           )
                         )
                       }
                     >
                       Choose sources & direction
-                    </Button>
+                    </Button>}
                     <Button
                       variant="ghost"
                       disabled={busy}
@@ -368,8 +401,8 @@ export default function CandidatesPage() {
               )
             )
           })}
-          {!data.groups.length && (
-            <p>Suggestions appear when collected evidence supports a common editorial question.</p>
+          {!data.groups.some(g => (g.pitch?.stage || 'ready') === pitchQueue && g.candidate_ids.some(id => data.candidates.some(c => c.id === id && c.status === 'available'))) && (
+            <p className="text-sm">No available pitches in this queue. Refresh suggestions to assess the collected evidence.</p>
           )}
         </>
       )}

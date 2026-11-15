@@ -5,8 +5,14 @@ const fs = require('node:fs')
 const ts = require('typescript')
 const { createClient } = require('@supabase/supabase-js')
 
+const editorial = { exports: {} }
+new Function('exports', 'require', 'module', ts.transpileModule(
+  fs.readFileSync('lib/editorialPitches.ts', 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
+).outputText)(editorial.exports, require, editorial)
 const m = { exports: {} }
 const dependencies = {
+  '@/lib/editorialPitches': editorial.exports,
   '@/lib/openai': { getOpenAI: () => assert.fail('A locked batch must not call a model') },
   '@/lib/embeddings': {},
   '@/lib/eventMatching': {},
@@ -111,10 +117,10 @@ test('article suggestions retain old and uncertain evidence without requiring an
         select() { return q },
         eq(key, value) { filters.push([table, key, value]); return q },
         gte() { assert.fail('Waiting evidence must not expire from suggestions') },
-        order() { return q }, limit() { return q },
+        order() { return q }, limit() { return q }, lte() { return q },
         maybeSingle: async () => ({ data: null, error: null }),
         upsert: async data => { writes.push([table, data]); return { data: null, error: null } },
-        then(resolve, reject) { return Promise.resolve({ data: rows, error: null }).then(resolve, reject) }
+        then(resolve, reject) { return Promise.resolve({ data: table === 'source_candidates' ? rows : [], error: null }).then(resolve, reject) }
       }
       return q
     },
@@ -128,7 +134,11 @@ test('article suggestions retain old and uncertain evidence without requiring an
     getOpenAI: () => ({ chat: { completions: { create: async input => {
       request = input
       return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ groups: [{
-        title: 'A related analysis', question: 'What changed?', rationale: 'Complementary evidence', candidate_ids: ['old', 'uncertain']
+        title: 'A related analysis', question: 'What changed?', rationale: 'Complementary evidence', candidate_ids: ['old', 'uncertain'],
+        stage: 'ready', why_now: 'New operating choices', audience: 'Buyers deciding who to hire',
+        originality: 'Tests operational consequences', counterargument: 'Costs may not increase', missing_evidence: [],
+        source_contributions: [{ candidate_id: 'old', contribution: 'Baseline' }, { candidate_id: 'uncertain', contribution: 'Recent perspective' }],
+        scores: { reader_value: 4, originality: 4, evidence: 4 }
       }] }) } }] }
     } } } })
   } : dependencies[id] || require(id), fixture)

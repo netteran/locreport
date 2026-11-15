@@ -93,6 +93,8 @@ before(async () => {
   await db.exec(fs.readFileSync('supabase/migrations/20261115_publication_metadata_types.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261115_publication_metadata_types.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261117_candidate_evidence_pool.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261118_editorial_pitches.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261118_editorial_pitches.sql', 'utf8'))
   await db.exec(
     'grant usage on schema public to anon,authenticated,service_role;grant select on all tables in schema public to anon,authenticated;grant all on all tables in schema public to service_role;'
   )

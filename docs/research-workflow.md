@@ -74,3 +74,19 @@ Against the research-schema fixture, `node tests/manual-ingest.browser.cjs` chec
 To reproduce a preview build against the unmigrated schema, start a fresh fixture with `FIXTURE_SCHEMA=legacy node tests/fixtures/supabase.cjs` and use the same isolated build settings above. With that build running, `TEST_SCHEMA=legacy node tests/research.browser.cjs` checks public Fact Flow, RSS and the homepage, plus migration-required responses from authenticated research/publishing endpoints. The legacy fallback only handles missing new publication columns; database outages and permission errors still fail visibly.
 
 `PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium node tests/admin-workspace.browser.cjs` checks all 12 admin tools in the grouped Dashboard and shared navigation, desktop/mobile layouts, confirmation panels, newsletter dry-run previews and stats failure recovery against the same isolated fixture. Screenshots are saved under `work/admin-preview/`.
+
+
+### Editorial article pitches
+
+Apply `20261118_editorial_pitches.sql` after the existing research migrations. It adds nullable `story_groups.pitch` JSON metadata; older suggestions stay readable. A refresh explains the missing migration before calling a model if the column is absent.
+
+Suggested articles now runs two model passes: a broader set of up to 18 proposed angles, followed by a skeptical evidence critique retaining at most 10. Both see up to 60 available processed source candidates, the latest 30 published article titles/excerpts, and 30 previous pitches (including dismissed ones). This is limited editorial memory, not a search across the entire archive. Sources and previous text are treated as data. No live web research or interviews are performed.
+
+The first pass explores contradictions, incentives, consequences and connections beyond semantic similarity. The critique checks reader value, originality and evidence strength. The UI ranks ideas using 40% reader value, 35% originality and 25% evidence, with model-assigned scores labelled as editorial assessments.
+
+- **Ready to develop:** a supported editorial question with no essential missing reporting and an evidence score of at least 4/5. Choosing it opens the existing manual composition workflow with the reader, angle and counterargument as direction. It never generates or publishes automatically.
+- **Worth investigating:** a promising but unproven angle, with explicit missing evidence and reporting tasks. It has no direct composition action. Add the evidence as source candidates, then refresh for reassessment; an editor can still independently select sources from Candidates.
+
+Every stored pitch must reference 1–8 supplied candidates, explain each source contribution, name the reader's decision, explain novelty and state a counterargument. Missing evidence or weak evidence downgrades a nominally ready pitch to an investigation. Different questions can reuse the same evidence; identical source/question combinations do not revive dismissed suggestions. Source or recent-coverage changes invalidate the refresh cache. Repeating refresh on unchanged inputs reuses the saved batch.
+
+Review a sample of real pitches after rollout: the automated tests use model fixtures and cannot establish live editorial quality. Neither model scores nor the ready label establish that claims are verified. Older waiting sources remain eligible, but the current 60-source limit means this is not exhaustive archive discovery.
