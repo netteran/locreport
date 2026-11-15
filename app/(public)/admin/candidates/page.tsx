@@ -81,8 +81,8 @@ export default function CandidatesPage() {
     <div className="max-w-[1000px] space-y-5">
       <h1 className="text-2xl font-bold">Source candidates</h1>
       <p className="text-sm" style={{ color: 'var(--muted)' }}>
-        Collected evidence for your next article. Choose 1–8 sources, add your direction, then
-        generate a draft when you are ready.
+        Keep useful evidence here until it fits an article. Related sources can contribute to suggested
+        articles, including several reports about the same event. Choose 1–8 sources when you are ready.
       </p>
       <div className="flex gap-2 flex-wrap">
         {[
@@ -107,7 +107,8 @@ export default function CandidatesPage() {
       )}
       {tab === 'candidates' && (
         <>
-          <ResearchProcessButton disabled={busy} onDone={load} />
+          <ResearchProcessButton label="Find related article suggestions" disabled={busy} onDone={load} />
+          <p className="text-xs" style={{ color: 'var(--muted)' }}>Available sources stay in your evidence pool. Event matching does not need to be resolved before choosing sources for an article.</p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <label className="text-xs space-y-1">
               <span>Search</span>
@@ -126,7 +127,7 @@ export default function CandidatesPage() {
               <span>Status</span>
               <select className="w-full rounded-lg border px-3 py-2 text-sm" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
                 value={status} onChange={(e) => setStatus(e.target.value)}>
-                {['available', 'reserved', 'used', 'dismissed', 'all'].map((s) => <option key={s}>{s}</option>)}
+                {['available', 'reserved', 'used', 'dismissed', 'all'].map((s) => <option key={s} value={s}>{s === 'dismissed' ? 'set aside' : s}</option>)}
               </select>
             </label>
             <label className="text-xs space-y-1">
@@ -207,13 +208,13 @@ export default function CandidatesPage() {
                   </div>
                 </div>
 
-                {c.review_reason && (
-                  <p className="text-sm" style={{ color: 'var(--gold,#92400e)' }}>
-                    {c.review_reason}
+                {c.review_reason?.startsWith('Uncertain') && (
+                  <p className="ml-7 mt-1 text-xs" style={{ color: 'var(--muted)' }}>
+                    Available for articles · fact publication awaits event matching
                   </p>
                 )}
                 <details className="ml-7 mt-1">
-                  <summary className="text-xs cursor-pointer" style={{ color: 'var(--muted)' }}>Evidence & actions</summary>
+                  <summary className="text-xs cursor-pointer" style={{ color: 'var(--muted)' }}>Source evidence</summary>
                   <p className="text-xs mt-2">{c.quality} · {c.status} · {c.processing_status}</p>
                   <p className="text-xs mt-1">{c.topics.join(' · ')}</p>
                   <pre className="whitespace-pre-wrap text-xs mt-2">{c.extracted_facts}</pre>
@@ -225,7 +226,7 @@ export default function CandidatesPage() {
                         disabled={busy}
                         onClick={() => run(() => patch({ id: c.id, status: 'dismissed' }))}
                       >
-                        Dismiss
+                        Set aside
                       </Button>
                     )}
                     {c.status === 'used' && (
@@ -256,47 +257,57 @@ export default function CandidatesPage() {
                         Open composition
                       </Link>
                     )}
-                    {c.suggested_event_id && (
-                      <Button
-                        size="xs"
-                        disabled={busy}
-                        onClick={() => run(() => patch({ id: c.id, event_id: c.suggested_event_id }))}
-                      >
-                        Confirm same event
-                      </Button>
-                    )}
-                    {c.suggested_fact_id && (
-                      <Button
-                        size="xs"
-                        disabled={busy}
-                        onClick={() =>
-                          run(() => patch({ id: c.id, legacy_fact_id: c.suggested_fact_id }))
-                        }
-                      >
-                        Confirm same published fact
-                      </Button>
-                    )}
-                    {c.review_reason?.startsWith('Conflicting') && c.event_id && (
-                      <Button
-                        size="xs"
-                        disabled={busy}
-                        onClick={() => run(() => patch({ id: c.id, event_id: c.event_id }))}
-                      >
-                        Confirm evidence after review
-                      </Button>
-                    )}
-                    {c.review_reason?.startsWith('Uncertain') && (
-                      <Button
-                        size="xs"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => run(() => patch({ id: c.id, new_event: true }))}
-                      >
-                        Treat as a distinct event
-                      </Button>
-                    )}
                   </div>
+                  {c.status === 'available' && <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>Set aside only irrelevant or unusable evidence. It is kept and can be restored from the set-aside filter.</p>}
                 </details>
+                {(c.review_reason || c.suggested_event_id || c.suggested_fact_id) && (
+                  <details className="ml-7 mt-1">
+                    <summary className="text-xs cursor-pointer" style={{ color: 'var(--muted)' }}>Fact publication & event matching</summary>
+                    <p className="text-xs mt-2">This review concerns standalone facts. Sources remain available for articles while a match is uncertain. Confirming a match keeps the source as supporting evidence; marking a separate event does not publish it.</p>
+                    {c.review_reason && <p className="text-xs mt-2">{c.review_reason.startsWith('Uncertain') ? 'The system could not confirm whether this is the same event. Automatic fact publication is on hold.' : c.review_reason}</p>}
+                    <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
+                      {c.suggested_event_id && (
+                        <Button
+                          size="xs"
+                          disabled={busy}
+                          onClick={() => run(() => patch({ id: c.id, event_id: c.suggested_event_id }))}
+                        >
+                          Confirm same event
+                        </Button>
+                      )}
+                      {c.suggested_fact_id && (
+                        <Button
+                          size="xs"
+                          disabled={busy}
+                          onClick={() =>
+                            run(() => patch({ id: c.id, legacy_fact_id: c.suggested_fact_id }))
+                          }
+                        >
+                          Confirm same published fact
+                        </Button>
+                      )}
+                      {c.review_reason?.startsWith('Conflicting') && c.event_id && (
+                        <Button
+                          size="xs"
+                          disabled={busy}
+                          onClick={() => run(() => patch({ id: c.id, event_id: c.event_id }))}
+                        >
+                          Confirm evidence after review
+                        </Button>
+                      )}
+                      {c.review_reason?.startsWith('Uncertain') && (
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          disabled={busy}
+                          onClick={() => run(() => patch({ id: c.id, new_event: true }))}
+                        >
+                          Mark as separate event
+                        </Button>
+                      )}
+                    </div>
+                  </details>
+                )}
               </section>
             ))}
             {!visible.length && <p className="p-4 text-sm">No matching source candidates. Try changing or resetting the filters.</p>}
@@ -306,6 +317,7 @@ export default function CandidatesPage() {
       {tab === 'groups' && (
         <>
           <ResearchProcessButton label="Refresh suggestions" disabled={busy} onDone={load} />
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>Suggestions connect evidence around an editorial question. Same-event reports can add detail; related developments can support a broader analysis. Refresh checks up to 60 of the latest available, processed sources, with no age cutoff.</p>
           {data.groups.map((g) => {
             const candidates = g.candidate_ids
               .map((id) => data.candidates.find((c) => c.id === id))
