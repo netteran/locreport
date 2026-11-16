@@ -43,8 +43,11 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     const paths = await page.locator('.admin-tool-link').evaluateAll(links => links.map(link => link.getAttribute('href')))
     assert.equal(paths.length, 12)
     assert.equal(new Set(paths).size, 12)
-    const navigationPaths = await page.locator('.admin-nav--desktop a').evaluateAll(links => links.map(link => link.getAttribute('href')))
+    await page.getByRole('button', { name: 'Toggle admin menu' }).waitFor()
+    const navigationPaths = await page.locator('.admin-menu-dropdown a').evaluateAll(links => links.map(link => link.getAttribute('href')))
     assert.deepEqual(new Set(navigationPaths), new Set(['/admin', ...paths]))
+    assert.equal(await page.locator('.admin-sidebar').count(), 0)
+    assert.equal(await page.getByRole('menuitem', { name: 'Log out', includeHidden: true }).count(), 1)
     assert.equal(writes.length, 0, 'opening the overview must not run operations')
 
     const monthly = page.locator('.admin-action').filter({ has: page.getByRole('button', { name: 'Generate monthly report', exact: true }) })
@@ -76,26 +79,42 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await page.setViewportSize({ width: 390, height: 844 })
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.screenshot({ path: 'work/admin-preview/dashboard-mobile.png', fullPage: true })
-    await page.locator('.admin-nav--mobile > summary').click()
-    assert.equal(await page.getByRole('navigation', { name: 'Admin navigation' }).getByRole('link').count(), 13)
-    await page.getByRole('navigation', { name: 'Admin navigation' }).getByRole('link', { name: 'Source candidates', exact: true }).click()
+    await page.getByRole('button', { name: 'Toggle admin menu' }).click()
+    assert.equal(await page.locator('.admin-menu-dropdown a').count(), 13)
+    await page.getByRole('menuitem', { name: 'Source candidates', exact: true }).click()
     await page.getByRole('heading', { name: 'Source candidates', exact: true }).waitFor()
-    assert.equal(await page.locator('.admin-nav--mobile').getAttribute('open'), null, 'mobile navigation closes after route changes')
+    assert.equal(await page.getByRole('button', { name: 'Toggle admin menu' }).getAttribute('aria-expanded'), 'false', 'admin menu closes after route changes')
 
     // Every top-level tool stays reachable and fits the mobile viewport.
     for (const path of paths) {
       await page.goto(base + path, { waitUntil: 'domcontentloaded' })
       await page.locator('.admin-page h1').waitFor()
+      await page.getByRole('button', { name: 'Toggle admin menu' }).waitFor()
       await page.setViewportSize({ width: 1440, height: 1000 })
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} overflows desktop viewport`)
       if (['/admin/sources', '/admin/direct', '/admin/directory'].includes(path)) {
         await page.evaluate(() => window.scrollTo(0, 0))
         await page.screenshot({ path: `work/admin-preview/${path.split('/').pop()}-desktop.png`, fullPage: true })
       }
+      if (path === '/admin/fact-flow') {
+        await page.getByRole('article', { name: 'Private pending fact', exact: true }).waitFor()
+        assert.equal(await page.locator('.fact-flow-card').count(), 1)
+        assert.equal(await page.getByRole('button', { name: /^pending/ }).getAttribute('aria-pressed'), 'true')
+        const card = page.getByRole('article', { name: 'Private pending fact', exact: true })
+        assert.equal(await card.getByRole('button', { name: 'Publish fact', exact: true }).count(), 1)
+        const body = await card.locator('.fact-flow-card__body > div').first().boundingBox()
+        const actions = await card.locator('.fact-flow-card__actions').boundingBox()
+        assert.ok(actions.y >= body.y + body.height, 'publication actions must follow this fact text')
+        await page.screenshot({ path: 'work/admin-preview/fact-flow-desktop.png', fullPage: true })
+        await page.getByRole('button', { name: /^published/ }).click()
+        assert.equal(await page.locator('.fact-flow-card').count(), 2)
+        assert.equal(await page.locator('.fact-flow-card').first().getByRole('button', { name: 'Withdraw', exact: true }).count(), 1)
+      }
       await page.setViewportSize({ width: 390, height: 844 })
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} overflows mobile viewport`)
-      await page.locator('.admin-nav--mobile > summary').click()
-      assert.equal(await page.getByRole('navigation', { name: 'Admin navigation' }).locator('[aria-current="page"]').getAttribute('href'), path)
+      if (path === '/admin/fact-flow') await page.screenshot({ path: 'work/admin-preview/fact-flow-mobile.png', fullPage: true })
+      await page.getByRole('button', { name: 'Toggle admin menu' }).click()
+      assert.equal(await page.locator('.admin-menu-dropdown [aria-current="page"]').getAttribute('href'), path)
     }
     statsFail = true
     await page.goto(base + '/admin', { waitUntil: 'domcontentloaded' })

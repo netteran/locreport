@@ -340,6 +340,8 @@ article.page:has(.dir-grid) { max-width: var(--site-max-width); overflow-x: hidd
   top: calc(100% + 6px);
   left: 0;
   min-width: 190px;
+  max-height: calc(100dvh - 100px);
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -507,6 +509,7 @@ ul.nav-dropdown-menu {
   color: color-mix(in srgb, var(--text) 72%, var(--muted));
   transition: color 0.2s ease, background 0.2s ease;
 }
+.admin-menu-dropdown a[aria-current="page"],
 .admin-menu-dropdown a:hover {
   color: var(--text);
   background: var(--accent-soft);

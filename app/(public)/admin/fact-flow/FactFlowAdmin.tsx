@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { AdminFact as Fact } from '@/lib/adminFacts'
 
 function timeAgo(iso: string): string {
@@ -13,8 +13,9 @@ function timeAgo(iso: string): string {
   return `${d}d ago`
 }
 
-function FactRow({ fact, onDeleted, onSaved, onLinked }: {
+function FactRow({ fact, onDeleted, onSaved, onLinked, publicationActions }: {
   fact: Fact
+  publicationActions: ReactNode
   onDeleted: (id: string) => void
   onSaved: (id: string, content: string) => void
   onLinked: (id: string, article_id: string | null, slug: string | null) => void
@@ -89,7 +90,7 @@ function FactRow({ fact, onDeleted, onSaved, onLinked }: {
   const articleSlug = fact.articles?.[0]?.slug ?? null
 
   return (
-    <div style={{ borderBottom: '1px solid var(--border)', padding: 'var(--space-4) 0' }}>
+    <div>
       {editing ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <textarea
@@ -128,7 +129,7 @@ function FactRow({ fact, onDeleted, onSaved, onLinked }: {
           </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-4)' }}>
+        <div className="fact-flow-card__body">
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: '0.9rem', color: 'var(--text)', lineHeight: 1.55, margin: 0 }}>{fact.content}</p>
             <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '4px' }}>
@@ -183,7 +184,8 @@ function FactRow({ fact, onDeleted, onSaved, onLinked }: {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
+          <div className="fact-flow-card__actions">
+            {publicationActions}
             {confirming ? (
               <>
                 <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Delete?</span>
@@ -376,7 +378,7 @@ function AddFactForm({ onAdded }: { onAdded: (fact: Fact) => void }) {
 
 export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
   const [facts, setFacts] = useState(initialFacts)
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('pending')
   const [publicationError, setPublicationError] = useState('')
   const [publishing, setPublishing] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -448,20 +450,20 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
         <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{facts.length} facts</span>
       </div>
 
-      <div style={{ maxWidth: 760, marginBottom: 'var(--space-4)' }}>
+      <div style={{ marginBottom: 'var(--space-4)' }}>
         <AddFactForm onAdded={handleAdded} />
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="fact-flow-filters" aria-label="Filter facts by status">
         {['pending', 'published', 'rejected', 'withdrawn', 'all'].map((s) => (
           <button
             className="border rounded px-3 py-1 text-sm"
             style={statusFilter === s ? { background: 'var(--accent)', color: '#fff' } : undefined}
             key={s}
-            onClick={() => setStatusFilter(s)}
+            onClick={() => { setStatusFilter(s); setSelected(new Set()) }}
             aria-pressed={statusFilter === s}
           >
-            {s}
+            {s}<span>{s === 'all' ? facts.length : facts.filter(f => f.status === s).length}</span>
           </button>
         ))}
       </div>
@@ -494,12 +496,12 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
       ) : !facts.some(f => statusFilter === 'all' || f.status === statusFilter) ? (
         <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>No {statusFilter} facts in this list.</p>
       ) : (
-        <div style={{ maxWidth: 760 }}>
+        <div className="fact-flow-list">
           {facts
             .filter((f) => statusFilter === 'all' || f.status === statusFilter)
             .map((fact) => (
-              <div key={fact.id}>
-                <div className="flex gap-2 flex-wrap items-center mb-2 text-xs">
+              <article key={fact.id} className="fact-flow-card" aria-label={fact.content}>
+                <div className="fact-flow-card__header">
                   {fact.status === 'pending' && (
                     <input
                       type="checkbox"
@@ -514,35 +516,8 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
                       }
                     />
                   )}
-                  <span>{fact.status}</span>
+                  <span className="fact-flow-status" data-status={fact.status}>{fact.status}</span>
                   {fact.review_reason && <span className="text-red-600">{fact.review_reason}</span>}
-                  {(fact.status === 'pending' || fact.status === 'withdrawn') && (
-                    <button
-                      disabled={publishing}
-                      className="border rounded px-2 py-1"
-                      onClick={() => changeStatus([fact.id], 'published')}
-                    >
-                      Publish fact
-                    </button>
-                  )}
-                  {fact.status === 'pending' && (
-                    <button
-                      disabled={publishing}
-                      className="border rounded px-2 py-1"
-                      onClick={() => changeStatus([fact.id], 'rejected')}
-                    >
-                      Reject
-                    </button>
-                  )}
-                  {fact.status === 'published' && (
-                    <button
-                      disabled={publishing}
-                      className="border rounded px-2 py-1"
-                      onClick={() => changeStatus([fact.id], 'withdrawn')}
-                    >
-                      Withdraw
-                    </button>
-                  )}
                 </div>
                 <FactRow
                   key={fact.id}
@@ -550,8 +525,37 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
                   onDeleted={handleDeleted}
                   onSaved={handleSaved}
                   onLinked={handleLinked}
+                  publicationActions={<>
+                    {(fact.status === 'pending' || fact.status === 'withdrawn') && (
+                      <button
+                        disabled={publishing}
+                        className="fact-flow-publish border rounded px-2 py-1"
+                        onClick={() => changeStatus([fact.id], 'published')}
+                      >
+                        Publish fact
+                      </button>
+                    )}
+                    {fact.status === 'pending' && (
+                      <button
+                        disabled={publishing}
+                        className="border rounded px-2 py-1"
+                        onClick={() => changeStatus([fact.id], 'rejected')}
+                      >
+                        Reject
+                      </button>
+                    )}
+                    {fact.status === 'published' && (
+                      <button
+                        disabled={publishing}
+                        className="border rounded px-2 py-1"
+                        onClick={() => changeStatus([fact.id], 'withdrawn')}
+                      >
+                        Withdraw
+                      </button>
+                    )}
+                  </>}
                 />
-              </div>
+              </article>
             ))}
         </div>
       )}

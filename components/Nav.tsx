@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState, useRef } from 'react'
 import { ReadingProgress } from '@/components/ReadingProgress'
-import { ADMIN_LINKS } from '@/lib/adminNav'
+import { ADMIN_LINKS, activeAdminLink } from '@/lib/adminNav'
 import { OPEN_DIGEST_EVENT } from '@/components/DigestPopup'
 
 const NAV_LINKS = [
@@ -84,8 +84,15 @@ export function Nav() {
         setMenuOpen(false)
       }
     }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') { setOpenDropdown(null); setMenuOpen(false) }
+    }
     document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleEscape)
+    }
   }, [])
 
   // The mobile menu closes on any navigation, including back/forward.
@@ -331,7 +338,10 @@ export function Nav() {
             onMouseLeave={canHover ? scheduleClose : undefined}
           >
             <button
-              onClick={() => setOpenDropdown(v => v === ADMIN_MENU_KEY ? null : ADMIN_MENU_KEY)}
+              onClick={() => {
+                if (canHover) openMenu(ADMIN_MENU_KEY)
+                else setOpenDropdown(v => v === ADMIN_MENU_KEY ? null : ADMIN_MENU_KEY)
+              }}
               aria-haspopup="true"
               aria-expanded={openDropdown === ADMIN_MENU_KEY}
               aria-label="Toggle admin menu"
@@ -354,7 +364,7 @@ export function Nav() {
             >
               {ADMIN_LINKS.map(({ href, label }) => (
                 <li key={href} role="none">
-                  <Link href={href} role="menuitem" onClick={() => setOpenDropdown(null)}>
+                  <Link href={href} role="menuitem" aria-current={pathname.startsWith('/admin') && activeAdminLink(pathname).href === href ? 'page' : undefined} onClick={() => setOpenDropdown(null)}>
                     {href === '/admin/drafts' && pendingDrafts !== null ? `${label} (${pendingDrafts})` : label}
                   </Link>
                 </li>

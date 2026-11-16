@@ -72,10 +72,17 @@ test('admin page displays loading failure instead of the empty-list component', 
   assert.match(html, /database unavailable/)
   assert.ok(!html.includes('No facts yet'))
 })
-test('admin starts with all statuses visible and marks the active filter', () => {
+test('admin defaults to pending and keeps fact actions inside their card', () => {
   const { FactFlowAdmin } = load('app/(public)/admin/fact-flow/FactFlowAdmin.tsx')
   const html = renderToStaticMarkup(React.createElement(FactFlowAdmin, { initialFacts: facts }))
   assert.match(html, /Funding announcement/)
-  assert.match(html, /Published news/)
-  assert.match(html, /aria-pressed="true"[^>]*>all<\/button>/)
+  assert.ok(!html.includes('Published news'))
+  assert.match(html, /aria-pressed="true"[^>]*>pending<span>/)
+  const card = html.match(/<article[^>]*class="fact-flow-card"[^>]*>([\s\S]*?)<\/article>/)?.[1]
+  assert.ok(card)
+  assert.ok(card.indexOf('Funding announcement') < card.indexOf('Publish fact'))
+  assert.match(card, /fact-flow-card__actions/)
+  assert.match(card, /Publish fact/)
+  assert.match(card, /Reject/)
+  assert.match(card, /Edit/)
 })
