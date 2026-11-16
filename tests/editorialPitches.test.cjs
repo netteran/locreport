@@ -104,7 +104,7 @@ test('missing schema, model errors and invented evidence do not cache a successf
   const missing = fixture({ schemaError: { code: '42703', message: 'column story_groups.pitch does not exist' } })
   await assert.rejects(missing.run(), /20261118_editorial_pitches.sql/)
   assert.equal(missing.requests.length, 0)
-  for (const results of [[{}], [{ groups: [base] }, {}], [{ groups: [base] }, { groups: [{ ...base, candidate_ids: ['invented'] }] }]]) {
+  for (const results of [[{}], [{ groups: [base] }, {}, {}], [{ groups: [base] }, { groups: [{ ...base, candidate_ids: ['invented'] }] }, { groups: [{ ...base, candidate_ids: ['invented'] }] }]]) {
     const f = fixture({ results })
     await assert.rejects(f.run(), /pitch|critique/)
     assert.equal(f.writes.length, 0)
@@ -121,4 +121,29 @@ test('evidence changes can advance an existing lead without reviving a dismissed
   const dismissed = fixture({ existing: { id: 'dismissed', dismissed: true } })
   await dismissed.run()
   assert.equal(dismissed.writes.filter(w => w.table === 'story_groups').length, 0)
+})
+
+
+test('both editorial passes constrain structure and source IDs, with one bounded repair', async () => {
+  const f = fixture({ results: [{ groups: [base] }, { groups: [{ ...base, source_contributions: [] }] }, { groups: [base] }] })
+  await f.run()
+  assert.equal(f.requests.length, 3)
+  for (const request of f.requests) {
+    assert.equal(request.response_format.type, 'json_schema')
+    assert.equal(request.response_format.json_schema.strict, true)
+    const item = request.response_format.json_schema.schema.properties.groups.items
+    assert.deepEqual(item.properties.candidate_ids.items.enum, ['source-1'])
+    assert.ok(item.required.includes('source_contributions'))
+    assert.ok(item.required.includes('counterargument'))
+  }
+  assert.match(JSON.parse(f.requests[2].messages[1].content).correction, /exactly one/)
+  assert.equal(f.writes.filter(w => w.table === 'story_groups').length, 1)
+})
+
+test('a critique can return no supported ideas without failing Fact Flow or inventing pitches', async () => {
+  const f = fixture({ results: [{ groups: [base] }, { groups: [] }] })
+  await f.run()
+  assert.equal(f.requests.length, 2)
+  assert.equal(f.writes.filter(w => w.table === 'story_groups').length, 0)
+  assert.ok(f.writes.some(w => w.table === 'settings'))
 })

@@ -7,7 +7,7 @@ new Function('exports', 'module', ts.transpileModule(
   fs.readFileSync('lib/manualResearch.ts', 'utf8'),
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
 ).outputText)(m.exports, m)
-const { runResearchPipeline } = m.exports
+const { runResearchPipeline, researchRunSummary } = m.exports
 
 function responses(t, queue) {
   const calls = []
@@ -107,4 +107,12 @@ test('platform HTML timeouts remain readable and recoverable', async (t) => {
   const result = await runResearchPipeline()
   assert.match(result.errors[0], /timed out.*Saved sources/)
   assert.equal(result.processingComplete, false)
+})
+
+
+test('article-only failures do not label successful Fact Flow processing as faulty', () => {
+  assert.equal(researchRunSummary({ processingComplete: true, suggestionsRefreshed: false,
+    errors: ['Article suggestions: Critique failed'] }), 'Fact Flow processing complete; article suggestions not refreshed.')
+  assert.match(researchRunSummary({ processingComplete: true, suggestionsRefreshed: false,
+    errors: ['Candidate failed', 'Article suggestions: Critique failed'] }), /Fact Flow processing finished with issues/)
 })

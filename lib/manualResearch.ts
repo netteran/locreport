@@ -24,7 +24,7 @@ export async function postResearchJson(url: string, body: unknown = {}) {
 
 export function researchRunSummary(result: ResearchRunResult) {
   const facts = result.processingComplete
-    ? `Fact Flow processing ${result.errors.length ? 'finished with issues' : 'complete'}`
+    ? `Fact Flow processing ${result.errors.some(error => !error.startsWith('Article suggestions:')) ? 'finished with issues' : 'complete'}`
     : 'Fact Flow processing incomplete'
   return `${facts}; article suggestions ${result.suggestionsRefreshed ? 'refreshed' : 'not refreshed'}.`
 }
