@@ -14,7 +14,7 @@ const PROMPTS: { key: PromptKey; label: string; hint?: string; default: string }
   { key: 'prompt_factflow', label: 'Fact Flow — news signal distillation', hint: 'Legacy single-article fact distillation. Source-candidate facts use event extraction and deduplication. Today’s real date is injected automatically ahead of the fact sheet at call time — no need to add it here.', default: DEFAULT_FACTFLOW_PROMPT },
   { key: 'prompt_podcast_extractor', label: 'Podcast — episode notes (from transcript)', hint: 'Manual podcast drafts only (/admin/sources → Podcasts). Runs on Gemini over the full episode (YouTube video, audio or a pasted transcript). Today’s date, the episode title/description and the people roster are injected automatically.', default: DEFAULT_PODCAST_EXTRACTOR_PROMPT },
   { key: 'prompt_podcast', label: 'Podcast — article write-up', hint: 'Turns the episode notes into the article. The people roster, LinkedIn URLs and Spotify/YouTube links come from the podcast source’s config and are injected automatically; any link not listed there is stripped after generation.', default: DEFAULT_PODCAST_PROMPT },
-  { key: 'prompt_monthly', label: 'Monthly report (2000-word synthesis)', hint: 'Used by the Next.js monthly report generator. The Jekyll GitHub Actions script has its own copy — update both if you change the structure.', default: DEFAULT_MONTHLY_PROMPT },
+  { key: 'prompt_monthly', label: 'Monthly report (2000-word synthesis)', hint: 'Monthly industry briefing from published analysis, Fact Flow and collected source evidence, compared with the previous briefing. About 2000 words when warranted; shorter when evidence is thin. Uses exact source and article links.', default: DEFAULT_MONTHLY_PROMPT },
 ]
 
 export default function PromptsPage() {

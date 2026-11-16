@@ -6,7 +6,7 @@ import { articleHref, safeImageUrl } from '@/lib/utils'
 
 export const metadata: Metadata = {
   title: 'Monthly Reports',
-  description: 'Monthly localization industry reports — curated summaries of translation, AI, and language technology trends.',
+  description: 'Monthly industry briefings connecting language-services evidence, meaningful shifts, practical consequences and questions to watch.',
   alternates: { canonical: '/reports/monthly' },
 }
 
