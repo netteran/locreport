@@ -110,3 +110,13 @@ The migration also queues existing clean pending snippet facts from active trust
 ### Fact Flow admin layout
 
 Fact Flow opens on Pending, with counts on each status filter. Each card contains its own status, source metadata, review message and action row beneath the fact text. Switching filters clears bulk selection. Admin pages use the full content width; the site-header Admin dropdown is the single navigation menu, with the current tool highlighted and logout at the bottom.
+
+### Monthly industry briefings
+
+The monthly report uses a bounded selection of the previous Warsaw calendar month's published industry analyses (up to 60), published Fact Flow items (up to 200), and processed source candidates (up to 120 dated sources plus 30 undated sources collected that month). Available, reserved and used evidence is eligible; dismissed or unprocessed evidence is excluded. Input text has separate section budgets totaling 160,000 characters, including the latest earlier monthly briefing for expectations comparison. Counts returned by the generator reflect the evidence actually included, not total market activity.
+
+The report can now run without a published long-form article if dated source evidence or public facts exist. Undated collected material is background only; the earlier briefing alone cannot establish new activity. Event IDs and review flags help preserve uncertainty and avoid treating repeated reporting as independent developments. Evidence-query errors stop generation rather than implying a quiet month.
+
+The editable **Monthly report (2000-word synthesis)** prompt now asks for two or three supported shifts, a comparison of expectations, practical consequences and a short watchlist with confirming/disconfirming evidence. Approximately 2000 words is a target when justified, not a padding quota. A thin month earns a shorter update. Original-source links are permitted alongside exact LocReport article links; unsupported URLs, missing citations, empty output and truncated completions are rejected before insertion. Existing immediate-publication and explicit duplicate-override behavior remains.
+
+Apply `20261120_monthly_industry_briefing_prompt.sql` to update an already-saved `prompt_monthly` value. The previous value is retained under `prompt_monthly_before_industry_briefing`. Other prompt settings and existing reports are unchanged. The repository default and admin help text are updated too; there is no separate Jekyll generator in this repository. The generator is still admin-only and does not run or publish a real report as part of this code change.
