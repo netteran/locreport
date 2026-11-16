@@ -10,7 +10,7 @@ import {
   normalizeEntity,
   parseDescriptor
 } from '@/lib/eventMatching'
-import { normalizePitch, PITCH_PROMPT, CRITIQUE_PROMPT } from '@/lib/editorialPitches'
+import { normalizePitch, pitchResponseSchema, PITCH_PROMPT, CRITIQUE_PROMPT } from '@/lib/editorialPitches'
 import { revalidateFactSurfaces } from '@/lib/revalidate'
 import type { SourceCandidate, EventDescriptor } from '@/lib/researchTypes'
 
@@ -282,7 +282,7 @@ export async function refreshStoryGroups(service: ResearchService) {
     .select('title,excerpt,published_at').lte('published_at', new Date().toISOString())
     .order('published_at', { ascending: false }).limit(30)) || []
   // History informs novelty, but saving a batch must not invalidate its own cache.
-  const signature = createHash('sha256').update('editorial-pitches-v1:' + JSON.stringify({ rows, coverage })).digest('hex')
+  const signature = createHash('sha256').update('editorial-pitches-v2:' + JSON.stringify({ rows, coverage })).digest('hex')
   const prior = checked(await service.from('settings').select('value')
     .eq('key', 'research_group_signature').maybeSingle())
   if (prior?.value === signature) return
@@ -293,14 +293,29 @@ export async function refreshStoryGroups(service: ResearchService) {
     recent_coverage: coverage,
     previous_pitches: history.map(g => ({ title: g.title, question: g.question, dismissed: g.dismissed }))
   }
-  const proposals = await jsonModel(PITCH_PROMPT, context, undefined, 0.7)
+  const sourceIds = rows.map(r => r.id)
+  const proposals = await jsonModel(PITCH_PROMPT, context, pitchResponseSchema(sourceIds, 18), 0.7)
   if (!Array.isArray(proposals.groups)) throw new Error('Editorial pitching returned no valid pitch list; try refreshing again.')
-  const result = await jsonModel(CRITIQUE_PROMPT, { ...context, proposed_pitches: proposals.groups.slice(0, 18) })
-  if (!Array.isArray(result.groups)) throw new Error('Editorial critique returned no valid pitch list; try refreshing again.')
-  const available = new Set<string>(rows.map(r => r.id))
-  const groups = result.groups.slice(0, 10).map((value: unknown) => normalizePitch(value, available))
+  const available = new Set<string>(sourceIds)
+  const critiqueInput = { ...context, proposed_pitches: proposals.groups.slice(0, 18) }
+  const schema = pitchResponseSchema(sourceIds, 10)
+  let result = await jsonModel(CRITIQUE_PROMPT, critiqueInput, schema)
+  const normalize = (response: { groups?: unknown }) => (Array.isArray(response.groups) ? response.groups.slice(0, 10) : [])
+    .map((value: unknown) => normalizePitch(value, available))
     .filter((group: ReturnType<typeof normalizePitch>): group is NonNullable<typeof group> => !!group)
-  if (result.groups.length && !groups.length) throw new Error('Editorial critique returned incomplete or unsupported pitches; try refreshing again.')
+  let groups = normalize(result)
+  if (!Array.isArray(result.groups) || (result.groups.length && !groups.length)) {
+    // A bounded repair handles semantic contract failures that JSON Schema cannot express,
+    // such as a missing contribution for a selected source. Never save unsupported evidence.
+    result = await jsonModel(CRITIQUE_PROMPT, { ...critiqueInput,
+      rejected_pitches: Array.isArray(result.groups) ? result.groups.slice(0, 10) : [],
+      correction: 'The last response failed validation. Fill every editorial field with nonempty text; select 1–8 supplied source IDs and provide exactly one nonempty source contribution per selected ID. Return an empty groups array if no pitch is supportable.'
+    }, schema)
+    groups = normalize(result)
+  }
+  if (!Array.isArray(result.groups) || (result.groups.length && !groups.length)) {
+    throw new Error('Article suggestions could not produce valid evidence-backed pitches after one repair attempt. Fact Flow processing is separate; saved sources and previous suggestions remain available.')
+  }
   for (const group of groups) {
     // Different editorial questions may legitimately use the same sources.
     const fingerprint = createHash('sha256').update(JSON.stringify([
