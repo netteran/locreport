@@ -9,6 +9,7 @@ import { RunFeedButton, type RunFeedResult } from '@/components/RunFeedButton'
 import { WeeklyNoteEditor } from '@/components/WeeklyNoteEditor'
 import { ADMIN_GROUPS } from '@/lib/adminNav'
 import { researchRunSummary } from '@/lib/manualResearch'
+import { monthlyPeriod } from '@/lib/monthlyBriefing'
 
 type Confirm = 'ingest' | 'monthly' | 'monthly-force' | null
 type DigestPreview = { recipients: number; skipped: number; articles: number }
@@ -147,7 +148,7 @@ export default function AdminDashboard() {
     flash(
       'monthly',
       res.ok
-        ? `Monthly report generated: "${data.title}" — ${data.article_count} articles summarised.`
+        ? `Monthly report generated: "${data.title}" — ${data.article_count} analyses, ${data.fact_count ?? 0} facts and ${data.source_count ?? 0} sources assessed.`
         : (data.error ?? 'Generation failed.'),
       res.ok ? 'ok' : 'error',
     )
@@ -288,9 +289,8 @@ export default function AdminDashboard() {
     }
   }
 
-  const now = new Date()
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    .toLocaleString('en-US', { month: 'long', year: 'numeric' })
+  const reportingPeriod = monthlyPeriod()
+  const prevMonth = `${reportingPeriod.monthName} ${reportingPeriod.year}`
 
   return (
     <div className="admin-dashboard">
@@ -395,8 +395,8 @@ export default function AdminDashboard() {
 
           <ActionRow
             title="Generate monthly report"
-            summary="Generate and publish a summary of the previous month."
-            description={`Sends every industry article published in ${prevMonth} to the model for synthesis and publishes the result as a monthly-summary article, listed under Reports → Monthly. It goes live immediately — there is no draft step. If a report already exists for the period you’ll be asked before a second one is created.`}
+            summary="Publish a briefing on the previous month’s industry shifts."
+            description={`Assesses published analyses, Fact Flow and collected source evidence from ${prevMonth}, comparing with the previous briefing. Publishes an industry briefing focused on supported shifts, practical consequences and questions to watch, listed under Reports → Monthly. A thin month produces a shorter update. It goes live immediately — there is no draft step. If a report already exists for the period you’ll be asked before a second one is created.`}
             controls={
               <Button
                 size="sm"
@@ -410,7 +410,7 @@ export default function AdminDashboard() {
           >
             {confirm === 'monthly' && (
               <ActionPanel
-                text={<>Generate and publish a monthly report for <strong>{prevMonth}</strong> from all industry articles in that period?</>}
+                text={<>Generate and publish a monthly report for <strong>{prevMonth}</strong> from published analysis, Fact Flow and collected source evidence, compared with the previous briefing?</>}
                 actions={
                   <>
                     <Button size="sm" onClick={() => runMonthly(false)} disabled={monthlyRunning}>Confirm</Button>
