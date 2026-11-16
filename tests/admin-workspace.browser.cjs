@@ -46,6 +46,9 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await page.getByRole('button', { name: 'Toggle admin menu' }).waitFor()
     const navigationPaths = await page.locator('.admin-menu-dropdown a').evaluateAll(links => links.map(link => link.getAttribute('href')))
     assert.deepEqual(new Set(navigationPaths), new Set(['/admin', ...paths]))
+    for (const label of ['Editorial', 'Publishing', 'Configuration']) {
+      assert.equal(await page.locator('.admin-menu-dropdown').getByRole('group', { name: label, includeHidden: true }).getByRole('menuitem', { includeHidden: true }).count(), 4)
+    }
     assert.equal(await page.locator('.admin-sidebar').count(), 0)
     assert.equal(await page.getByRole('menuitem', { name: 'Log out', includeHidden: true }).count(), 1)
     assert.equal(writes.length, 0, 'opening the overview must not run operations')
@@ -90,6 +93,11 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
       await page.goto(base + path, { waitUntil: 'domcontentloaded' })
       await page.locator('.admin-page h1').waitFor()
       await page.getByRole('button', { name: 'Toggle admin menu' }).waitFor()
+      if (path === '/admin/candidates') {
+        const content = await page.locator('.admin-content').boundingBox()
+        const panel = await page.locator('.admin-page > div').boundingBox()
+        assert.ok(Math.abs(content.width - panel.width) < 1, 'source candidates should use the full admin width')
+      }
       await page.setViewportSize({ width: 1440, height: 1000 })
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} overflows desktop viewport`)
       if (['/admin/sources', '/admin/direct', '/admin/directory'].includes(path)) {

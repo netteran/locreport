@@ -109,4 +109,4 @@ The migration also queues existing clean pending snippet facts from active trust
 
 ### Fact Flow admin layout
 
-Fact Flow opens on Pending, with counts on each status filter. Each card contains its own status, source metadata, review message and action row beneath the fact text. Switching filters clears bulk selection. Admin pages use the full content width; the site-header Admin dropdown is the single navigation menu, with the current tool highlighted and logout at the bottom.
+Fact Flow opens on Pending, with counts on each status filter. Each card contains its own status, source metadata, review message and action row beneath the fact text. Switching filters clears bulk selection. Admin pages use the full content width; the site-header Admin dropdown is the single navigation menu, with Editorial, Publishing and Configuration groups, the current tool highlighted and logout at the bottom. Source candidates uses the same full content width as Fact Flow.
