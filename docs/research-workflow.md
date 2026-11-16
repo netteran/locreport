@@ -73,7 +73,7 @@ Against the research-schema fixture, `node tests/manual-ingest.browser.cjs` chec
 
 To reproduce a preview build against the unmigrated schema, start a fresh fixture with `FIXTURE_SCHEMA=legacy node tests/fixtures/supabase.cjs` and use the same isolated build settings above. With that build running, `TEST_SCHEMA=legacy node tests/research.browser.cjs` checks public Fact Flow, RSS and the homepage, plus migration-required responses from authenticated research/publishing endpoints. The legacy fallback only handles missing new publication columns; database outages and permission errors still fail visibly.
 
-`PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium node tests/admin-workspace.browser.cjs` checks all 12 admin tools in the grouped Dashboard and shared navigation, desktop/mobile layouts, confirmation panels, newsletter dry-run previews and stats failure recovery against the same isolated fixture. Screenshots are saved under `work/admin-preview/`.
+`PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium node tests/admin-workspace.browser.cjs` checks all 12 admin tools in the grouped Dashboard and header Admin dropdown (including logout), desktop/mobile layouts and Fact Flow card action placement, confirmation panels, newsletter dry-run previews and stats failure recovery against the same isolated fixture. Screenshots are saved under `work/admin-preview/`.
 
 
 ### Editorial article pitches
@@ -105,3 +105,8 @@ Inspect the actual step logs before attributing an automation failure to the app
 Apply `20261119_autopublish_snippet_facts.sql` with the application update. RSS snippet quality no longer prevents automatic Fact Flow publication for a source with Auto facts enabled. Event eligibility, dates, source attribution, duplicate matching and conflict checks still apply; full articles remain manual.
 
 The migration also queues existing clean pending snippet facts from active trusted sources for reconsideration. Run **Process facts and suggestions** after deployment to process these saved candidates without collecting them again. Dismissed candidates, imported non-auto-publish backlog and facts held for review are not requeued.
+
+
+### Fact Flow admin layout
+
+Fact Flow opens on Pending, with counts on each status filter. Each card contains its own status, source metadata, review message and action row beneath the fact text. Switching filters clears bulk selection. Admin pages use the full content width; the site-header Admin dropdown is the single navigation menu, with the current tool highlighted and logout at the bottom.

@@ -75,6 +75,8 @@ function createFixtureServer(schema = 'research', requests = []) {
         rows = [publicFact, privateFact]
           .filter((f) => f.article_id)
           .map(({ event_id, status, published_at, ...legacy }) => legacy)
+      } else if (req.headers.apikey === 'fixture-service') {
+        rows = [publicFact, independentFact, privateFact]
       } else {
         if (
           url.searchParams.get('status') !== 'eq.published' &&
