@@ -44,6 +44,7 @@ for (const urls of [['https://a.example/news'], ['https://a.example/news', 'http
       '@/lib/companyLinks': { getDirectoryEntries: async () => [], linkifyCompanyMentions: content => content },
       '@/lib/revalidate': { revalidateArticleSurfaces: () => {} },
       '@/lib/sourceName': { draftSourceName: async () => null },
+      '@/lib/monthlyBriefing': load('lib/monthlyBriefing.ts'),
       '@/lib/eventMatching': load('lib/eventMatching.ts')
     })
     const result = await approveDraft(service, draft.id)

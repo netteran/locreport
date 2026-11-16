@@ -61,6 +61,8 @@ export interface ScrapedSource {
 }
 
 export interface Draft {
+  article_type?: 'industry' | 'monthly-summary'
+  monthly_period?: string | null
   id: string
   title: string
   slug: string

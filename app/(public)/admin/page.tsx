@@ -70,6 +70,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<{ articles: number; drafts: number; sources: number } | null>(null)
   const [statsError, setStatsError] = useState(false)
   const [monthlyRunning, setMonthlyRunning] = useState(false)
+  const [monthlyDraftId, setMonthlyDraftId] = useState<string | null>(null)
   const [quotesRunning, setQuotesRunning] = useState(false)
   const [pricingRunning, setPricingRunning] = useState(false)
   const [digestNoteReady, setDigestNoteReady] = useState(false)
@@ -131,6 +132,7 @@ export default function AdminDashboard() {
   async function runMonthly(force = false) {
     setConfirm(null)
     setMonthlyRunning(true)
+    setMonthlyDraftId(null)
     clearFlash()
     const res = await fetch('/api/monthly-report', {
       method: 'POST',
@@ -138,6 +140,13 @@ export default function AdminDashboard() {
       body: JSON.stringify({ force }),
     })
     const data = await res.json()
+    if (data.existing_draft_id) {
+      setMonthlyDraftId(data.existing_draft_id)
+      setMonthlyRunning(false)
+      flash('monthly', 'A monthly report draft is already awaiting review.', 'error')
+      return
+    }
+    if (res.ok) setMonthlyDraftId(data.draft_id)
     if (res.status === 409 && !force) {
       // Report already exists — ask to force
       setMonthlyRunning(false)
@@ -148,7 +157,7 @@ export default function AdminDashboard() {
     flash(
       'monthly',
       res.ok
-        ? `Monthly report generated: "${data.title}" — ${data.article_count} analyses, ${data.fact_count ?? 0} facts and ${data.source_count ?? 0} sources assessed.`
+        ? `Monthly report draft saved: "${data.title}" — ${data.article_count} analyses, ${data.fact_count ?? 0} facts and ${data.source_count ?? 0} sources assessed.`
         : (data.error ?? 'Generation failed.'),
       res.ok ? 'ok' : 'error',
     )
@@ -395,8 +404,8 @@ export default function AdminDashboard() {
 
           <ActionRow
             title="Generate monthly report"
-            summary="Publish a briefing on the previous month’s industry shifts."
-            description={`Assesses published analyses, Fact Flow and collected source evidence from ${prevMonth}, comparing with the previous briefing. Publishes an industry briefing focused on supported shifts, practical consequences and questions to watch, listed under Reports → Monthly. A thin month produces a shorter update. It goes live immediately — there is no draft step. If a report already exists for the period you’ll be asked before a second one is created.`}
+            summary="Create a draft briefing for review before publication."
+            description={`Assesses published analyses, Fact Flow and collected source evidence from ${prevMonth}, comparing with the previous briefing. Saves a pending draft briefing focused on supported shifts, practical consequences and questions to watch. Once approved, it is listed under Reports → Monthly. A thin month produces a shorter update. Review it under Drafts, then choose Approve & publish to make it live. If a report already exists for the period you’ll be asked before another draft is created.`}
             controls={
               <Button
                 size="sm"
@@ -410,7 +419,7 @@ export default function AdminDashboard() {
           >
             {confirm === 'monthly' && (
               <ActionPanel
-                text={<>Generate and publish a monthly report for <strong>{prevMonth}</strong> from published analysis, Fact Flow and collected source evidence, compared with the previous briefing?</>}
+                text={<>Generate a monthly report draft for <strong>{prevMonth}</strong> from published analysis, Fact Flow and collected source evidence, compared with the previous briefing?</>}
                 actions={
                   <>
                     <Button size="sm" onClick={() => runMonthly(false)} disabled={monthlyRunning}>Confirm</Button>
@@ -422,7 +431,7 @@ export default function AdminDashboard() {
             {confirm === 'monthly-force' && (
               <ActionPanel
                 tone="warn"
-                text={<>A report for <strong>{prevMonth}</strong> already exists. Generate a second one anyway?</>}
+                text={<>A report for <strong>{prevMonth}</strong> already exists. Generate a new draft for review?</>}
                 actions={
                   <>
                     <Button size="sm" onClick={() => runMonthly(true)} disabled={monthlyRunning}>Yes, regenerate</Button>
@@ -432,6 +441,7 @@ export default function AdminDashboard() {
               />
             )}
             {status('monthly')}
+            {monthlyDraftId && <Link href={`/admin/drafts/${monthlyDraftId}`} className="text-sm underline" style={{ color: 'var(--accent)' }}>Review monthly report draft →</Link>}
           </ActionRow>
 
           <ActionRow
