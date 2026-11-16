@@ -41,7 +41,7 @@ test('stale, undated, incomplete and opinion evidence cannot auto-publish', () =
   const now = Date.parse('2026-11-13'),
     e = { newsworthy: true, headline: 'A concrete announcement', event_date: '2026-11-12' }
   assert.equal(mayAutoPublish(e, null, 'full', now), true)
-  assert.equal(mayAutoPublish(e, null, 'snippet', now), false)
+  assert.equal(mayAutoPublish(e, null, 'snippet', now), true)
   assert.equal(mayAutoPublish({ ...e, event_date: '2025-01-01' }, null, 'full', now), false)
   assert.equal(mayAutoPublish({ ...e, event_date: null }, null, 'full', now), false)
   assert.equal(mayAutoPublish({ ...e, newsworthy: false }, null, 'full', now), false)

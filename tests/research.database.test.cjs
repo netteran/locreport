@@ -95,6 +95,7 @@ before(async () => {
   await db.exec(fs.readFileSync('supabase/migrations/20261117_candidate_evidence_pool.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261118_editorial_pitches.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261118_editorial_pitches.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261119_autopublish_snippet_facts.sql', 'utf8'))
   await db.exec(
     'grant usage on schema public to anon,authenticated,service_role;grant select on all tables in schema public to anon,authenticated;grant all on all tables in schema public to service_role;'
   )
@@ -169,14 +170,44 @@ test('untrusted facts await review; trusted corroboration publishes without dupl
   )
 })
 
-test('snippet-only evidence and imported backlog cannot auto-publish', async () => {
-  const s = await source(true)
-  for (const extra of [{ quality: 'snippet' }, { allow_auto_publish: false }]) {
-    const eid = await record(await candidate(s, extra))
-    assert.equal(
-      (await scalar('select status from facts where event_id=$1', [eid])).status,
-      'pending'
-    )
+test('trusted snippets auto-publish, while untrusted snippets and imported backlog stay pending', async () => {
+  const trusted = await source(true), untrusted = await source(false)
+  const published = await record(await candidate(trusted, { quality: 'snippet' }))
+  const row = await scalar('select status,source_url,content,published_at from facts where event_id=$1', [published])
+  assert.equal(row.status, 'published')
+  assert.ok(row.source_url && row.content && row.published_at)
+  for (const [feed, extra] of [
+    [untrusted, { quality: 'snippet' }], [trusted, { quality: 'snippet', allow_auto_publish: false }]
+  ]) {
+    const eid = await record(await candidate(feed, extra))
+    assert.equal((await scalar('select status from facts where event_id=$1', [eid])).status, 'pending')
+  }
+})
+
+test('snippet publication still requires eligible, unambiguous events and deduplicates corroboration', async () => {
+  const feed = await source(true), first = await candidate(feed, { quality: 'snippet' })
+  const eid = await record(first, uid(), null, 'new', false)
+  assert.equal((await scalar('select status from facts where event_id=$1', [eid])).status, 'pending')
+  await record(await candidate(feed, { quality: 'snippet' }), uid(), eid, 'same')
+  assert.equal((await scalar('select status from facts where event_id=$1', [eid])).status, 'published')
+  assert.equal(Number((await scalar('select count(*) from facts where event_id=$1', [eid])).count), 1)
+  const uncertain = await candidate(feed, { quality: 'snippet' })
+  assert.equal(await record(uncertain, uid(), eid, 'uncertain'), null)
+  assert.equal((await scalar('select event_id from source_candidates where id=$1', [uncertain])).event_id, null)
+})
+
+test('migration requeues only clean pending trusted snippet facts for processing', async () => {
+  const feed = await source(true), id = await candidate(feed, { quality: 'snippet' })
+  await record(id, uid(), null, 'new', false)
+  const dismissed = await candidate(feed, { quality: 'snippet' })
+  await record(dismissed, uid(), null, 'new', false)
+  await db.query("update source_candidates set status='dismissed' where id=$1", [dismissed])
+  const imported = await candidate(feed, { quality: 'snippet', allow_auto_publish: false })
+  await record(imported)
+  await db.exec(fs.readFileSync('supabase/migrations/20261119_autopublish_snippet_facts.sql', 'utf8'))
+  assert.equal((await scalar('select processing_status from source_candidates where id=$1', [id])).processing_status, 'pending')
+  for (const retained of [dismissed, imported]) {
+    assert.equal((await scalar('select processing_status from source_candidates where id=$1', [retained])).processing_status, 'ready')
   }
 })
 
