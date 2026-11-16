@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState, useRef } from 'react'
 import { ReadingProgress } from '@/components/ReadingProgress'
-import { ADMIN_LINKS, activeAdminLink } from '@/lib/adminNav'
+import { ADMIN_GROUPS, activeAdminLink } from '@/lib/adminNav'
 import { OPEN_DIGEST_EVENT } from '@/components/DigestPopup'
 
 const NAV_LINKS = [
@@ -362,11 +362,21 @@ export function Nav() {
               className={`admin-menu-dropdown${openDropdown === ADMIN_MENU_KEY ? ' is-open' : ''}`}
               role="menu"
             >
-              {ADMIN_LINKS.map(({ href, label }) => (
-                <li key={href} role="none">
-                  <Link href={href} role="menuitem" aria-current={pathname.startsWith('/admin') && activeAdminLink(pathname).href === href ? 'page' : undefined} onClick={() => setOpenDropdown(null)}>
-                    {href === '/admin/drafts' && pendingDrafts !== null ? `${label} (${pendingDrafts})` : label}
-                  </Link>
+              <li role="none">
+                <Link href="/admin" role="menuitem" aria-current={pathname === '/admin' ? 'page' : undefined} onClick={() => setOpenDropdown(null)}>Dashboard</Link>
+              </li>
+              {ADMIN_GROUPS.map(group => (
+                <li key={group.label} role="none" className="admin-menu-group">
+                  <span className="admin-menu-group__label" aria-hidden="true">{group.label}</span>
+                  <ul role="group" aria-label={group.label}>
+                    {group.links.map(({ href, label }) => (
+                      <li key={href} role="none">
+                        <Link href={href} role="menuitem" aria-current={pathname.startsWith('/admin') && activeAdminLink(pathname).href === href ? 'page' : undefined} onClick={() => setOpenDropdown(null)}>
+                          {href === '/admin/drafts' && pendingDrafts !== null ? `${label} (${pendingDrafts})` : label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 </li>
               ))}
               <li role="none" className="admin-menu-divider">

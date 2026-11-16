@@ -79,7 +79,7 @@ export default function CandidatesPage() {
     router.push(`/admin/candidates/compositions/${d.id}`)
   }
   return (
-    <div className="max-w-[1000px] space-y-5">
+    <div className="w-full space-y-5">
       <h1 className="text-2xl font-bold">Source candidates</h1>
       <p className="text-sm" style={{ color: 'var(--muted)' }}>
         Keep useful evidence here until it fits an article. Related sources can contribute to suggested

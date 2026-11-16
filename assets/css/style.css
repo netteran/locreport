@@ -460,7 +460,11 @@ ul.nav-dropdown-menu {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  min-width: 190px;
+  min-width: 220px;
+  max-width: calc(100vw - 2 * var(--page-gutter));
+  max-height: calc(100dvh - 88px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -514,6 +518,9 @@ ul.nav-dropdown-menu {
   color: var(--text);
   background: var(--accent-soft);
 }
+.admin-menu-group { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+.admin-menu-group__label { display: block; padding: 6px 14px 4px; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+.admin-menu-group > ul { margin: 0; padding: 0; list-style: none; }
 .admin-menu-divider {
   margin-top: var(--space-1);
   padding-top: var(--space-1);
