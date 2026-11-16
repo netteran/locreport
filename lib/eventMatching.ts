@@ -111,10 +111,10 @@ export function parseDescriptor(value: unknown): EventDescriptor {
 export function mayAutoPublish(
   event: EventDescriptor,
   sourceDate: string | null,
-  quality: string,
+  _quality: string,
   now = Date.now()
 ) {
-  if (!event.newsworthy || !event.headline || quality === 'snippet') return false
+  if (!event.newsworthy || !event.headline) return false
   const date = event.event_date || sourceDate
   if (!date) return false
   const age = now - Date.parse(date)
