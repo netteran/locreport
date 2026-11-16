@@ -8,6 +8,7 @@ import { ensureArticleFact } from '@/lib/factFlow'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import { revalidateArticleSurfaces } from '@/lib/revalidate'
 import { draftSourceName } from '@/lib/sourceName'
+import { validateBriefing } from '@/lib/monthlyBriefing'
 import { validateSourceCitations } from '@/lib/eventMatching'
 
 type Service = ReturnType<typeof createServiceClient>
@@ -50,6 +51,7 @@ export async function approveDraft(
     if (draft.research_only) return { status: 'error', message: 'Create an article from this source in Source candidates' }
     const { data: already } = await supabase.from('articles').select('id,slug').eq('draft_id',draftId).limit(1).maybeSingle()
     if (already) return { status: 'ok', articleId: already.id, slug: already.slug }
+    const monthlyReport = draft.article_type === 'monthly-summary'
     const content = overrides.content ?? draft.content
     let coveredUrls:string[]=[]
     if(draft.composition_id){
@@ -62,7 +64,7 @@ export async function approveDraft(
     }
     const titleMatch = content.match(/^#\s+(.+)$/m)
     const title = overrides.title?.trim() || titleMatch?.[1]?.trim() || draft.title || 'Untitled'
-    const baseSlug = overrides.slug?.trim() || slugify(title)
+    const baseSlug = overrides.slug?.trim() || (monthlyReport ? draft.slug : slugify(title))
     const slug = await uniqueSlug(baseSlug, 'articles', supabase)
     const excerpt = overrides.excerpt?.trim() || extractTeaser(content)
     const publisher = overrides.publisher?.trim() || 'LocReport'
@@ -74,10 +76,15 @@ export async function approveDraft(
       ? 'LocReport Industry Desk'
       : 'LocReport Editorial Desk'
 
-    const openai = getOpenAI()
-    const classification = await classifyArticle(openai, content)
-    const directoryEntries = await getDirectoryEntries(supabase)
-    const linkedContent = linkifyCompanyMentions(content, directoryEntries)
+    if (monthlyReport) {
+      const evidence = JSON.parse(draft.extracted_facts || '{}')
+      if (!Array.isArray(evidence.allowed_urls) || !draft.monthly_period) throw new Error('Monthly report evidence snapshot is missing; regenerate the draft before publishing.')
+      validateBriefing(`# ${title}\n\n${content}`, new Set(evidence.allowed_urls))
+    }
+    const classification = monthlyReport
+      ? { impact_score: null, time_horizon: null, signal_ids: [], business_implications: [], affected_segments: [] }
+      : await classifyArticle(getOpenAI(), content)
+    const linkedContent = monthlyReport ? content : linkifyCompanyMentions(content, await getDirectoryEntries(supabase))
 
     const { data: publishedId, error: articleError } = await supabase.rpc('publish_editorial_draft', { p_draft: draftId, p_article: {
       title,
@@ -89,7 +96,7 @@ export async function approveDraft(
       image_url,
       image_alt,
       draft_id: draft.id,
-      article_type: 'industry',
+      article_type: monthlyReport ? 'monthly-summary' : 'industry',
       author,
       impact_score: classification.impact_score,
       time_horizon: classification.time_horizon,
@@ -102,9 +109,9 @@ export async function approveDraft(
     const articleRow = { id: publishedId as string }
 
     if (articleRow?.id) {
-      const sourceName = await draftSourceName(supabase, draft)
+      const sourceName = monthlyReport ? null : await draftSourceName(supabase, draft)
 
-      const factResult = draft.composition_id ? null : await ensureArticleFact(supabase, {
+      const factResult = monthlyReport || draft.composition_id ? null : await ensureArticleFact(supabase, {
         articleId: articleRow.id,
         title,
         content: linkedContent,
@@ -120,7 +127,7 @@ export async function approveDraft(
       await embedAndStoreArticle(supabase, articleRow.id)
     }
 
-    revalidateArticleSurfaces({ slug })
+    revalidateArticleSurfaces({ slug, monthlyReport })
 
     return { status: 'ok', articleId: articleRow?.id ?? '', slug }
   } catch (err) {

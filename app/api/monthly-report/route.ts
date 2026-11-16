@@ -3,8 +3,6 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import { DEFAULT_MONTHLY_PROMPT } from '@/lib/prompts'
-import { embedAndStoreArticle } from '@/lib/embeddings'
-import { revalidateArticleSurfaces } from '@/lib/revalidate'
 import { loadMonthlyEvidence, monthlyPeriod, validateBriefing } from '@/lib/monthlyBriefing'
 
 export const maxDuration = 300
@@ -20,9 +18,20 @@ export async function POST(req: NextRequest) {
     const { year, monthName } = period
     const body = req.headers.get('content-type')?.includes('application/json')
       ? await req.json().catch(() => ({})) : {}
+    const pending = await service.from('drafts').select('id,title')
+      .eq('article_type', 'monthly-summary').eq('monthly_period', period.period)
+      .in('status', ['pending', 'rerun', 'rerunning']).limit(1)
+    if (pending.error) {
+      if (['42703', 'PGRST204'].includes(pending.error.code)) return NextResponse.json({ error: 'Apply Supabase migration 20261121_monthly_report_drafts.sql before generating monthly report drafts.' }, { status: 503 })
+      throw new Error(pending.error.message)
+    }
+    if (pending.data?.length) return NextResponse.json({
+      error: `A monthly report draft for ${period.period} is already awaiting review.`,
+      existing_draft_id: pending.data[0].id
+    }, { status: 409 })
     const { data: existing, error: existingError } = await service.from('articles').select('id,title')
       .eq('article_type', 'monthly-summary')
-      .or(`slug.ilike.%${period.period}%,title.ilike.%${monthName} ${year}%`).limit(1)
+      .or(`monthly_period.eq.${period.period},slug.ilike.%${period.period}%,title.ilike.%${monthName} ${year}%`).limit(1)
     if (existingError) throw new Error(existingError.message)
     if (existing?.length && body.force !== true) {
       return NextResponse.json({ error: `Monthly report for ${period.period} already exists.`, existing_id: existing[0].id }, { status: 409 })
@@ -53,17 +62,20 @@ ${JSON.stringify(evidence.context)}` }
     const reportContent = completion.choices[0]?.message.content?.trim() || ''
     validateBriefing(reportContent, evidence.allowedUrls)
     const title = reportContent.match(/^#\s+(.+)$/m)![1].trim()
-    const slug = await uniqueSlug(`${period.period}-${slugify(title)}`, 'articles', service)
-    const { data: article, error: insertError } = await service.from('articles').insert({
-      title, slug, content: reportContent, article_type: 'monthly-summary',
-      author: 'LocReport Editorial Desk', publisher: 'LocReport',
-      tags: ['monthly', 'industry-briefing', 'localization'], published_at: period.endDate
+    const slug = await uniqueSlug(`${period.period}-${slugify(title)}`, 'drafts', service)
+    const { data: draft, error: insertError } = await service.from('drafts').insert({
+      title, slug, content: reportContent, article_type: 'monthly-summary', monthly_period: period.period,
+      source_url: null, status: 'pending', research_only: false,
+      extracted_facts: JSON.stringify({ context: evidence.context, allowed_urls: [...evidence.allowedUrls], counts: evidence.counts })
     }).select().single()
+    if (insertError?.code === '23505') {
+      const concurrent = await service.from('drafts').select('id').eq('article_type', 'monthly-summary')
+        .eq('monthly_period', period.period).in('status', ['pending', 'rerun', 'rerunning']).limit(1)
+      if (concurrent.data?.length) return NextResponse.json({ error: 'A monthly report draft is already awaiting review.', existing_draft_id: concurrent.data[0].id }, { status: 409 })
+    }
     if (insertError) throw new Error(insertError.message)
-    await embedAndStoreArticle(service, article.id)
-    revalidateArticleSurfaces({ slug, monthlyReport: true })
-    return NextResponse.json({ ok: true, period: period.period, article_count: evidence.counts.articles,
-      fact_count: evidence.counts.facts, source_count: evidence.counts.sources, id: article.id, title })
+    return NextResponse.json({ ok: true, status: 'pending', period: period.period, article_count: evidence.counts.articles,
+      fact_count: evidence.counts.facts, source_count: evidence.counts.sources, draft_id: draft.id, title })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
   }

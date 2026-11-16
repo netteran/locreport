@@ -6,7 +6,7 @@ const { NextRequest } = require('next/server')
 function load(file, dependencies = {}) {
   const m = { exports: {} }
   new Function('exports', 'require', 'module', ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX }
   }).outputText)(m.exports, id => dependencies[id] || require(id), m)
   return m.exports
 }
@@ -14,14 +14,14 @@ const monthly = load('lib/monthlyBriefing.ts')
 const prompts = load('lib/prompts.ts')
 const source = { id: 'candidate', title: 'Supplier changes pricing', source_url: 'https://publisher.test/pricing', source_name: 'Publisher',
   source_published_at: '2026-10-15', created_at: '2026-10-15', extracted_facts: 'The supplier announced a pricing change.', quality: 'snippet', event_id: 'event-1', review_reason: null }
-function database({ articles = [], facts = [], sources = [source], undated = [], previous = [], duplicate = [], errorTable = null, savedPrompt = null } = {}) {
-  const calls = [], inserts = []
-  return { calls, inserts, from(table) {
+function database({ articles = [], facts = [], sources = [source], undated = [], previous = [], duplicate = [], draftDuplicate = [], errorTable = null, savedPrompt = null } = {}) {
+  const calls = [], inserts = [], insertTables = []
+  return { calls, inserts, insertTables, from(table) {
     const filters = [], call = { table, filters }; calls.push(call)
     const result = () => {
-      const data = table === 'articles' ? filters.some(([k]) => k === 'or') ? duplicate
+      const data = table === 'articles' ? filters.some(([k, v]) => k === 'or' && v.includes('slug.ilike')) ? duplicate
         : filters.some(([k, v]) => k === 'article_type' && v === 'monthly-summary') ? previous : articles
-        : table === 'facts' ? facts : table === 'source_candidates' ? filters.some(([k]) => k === 'is') ? undated : sources : []
+        : table === 'drafts' ? draftDuplicate : table === 'facts' ? facts : table === 'source_candidates' ? filters.some(([k]) => k === 'is') ? undated : sources : []
       return { data, error: table === errorTable ? { message: 'Database unavailable' } : null }
     }
     const q = {
@@ -31,7 +31,7 @@ function database({ articles = [], facts = [], sources = [source], undated = [],
       gte(k, v) { filters.push(['gte', k, v]); return q }, lt(k, v) { filters.push(['lt', k, v]); return q },
       lte(k, v) { filters.push(['lte', k, v]); return q }, or(v) { filters.push(['or', v]); return q },
       order() { return q }, limit(n) { call.limit = n; return q },
-      insert(data) { inserts.push(data); return q },
+      insert(data) { inserts.push(data); insertTables.push(table); return q },
       maybeSingle: async () => ({ data: savedPrompt ? { value: savedPrompt } : null, error: null }),
       single: async () => ({ data: { id: 'report' }, error: null }),
       then(resolve, reject) { return Promise.resolve(result()).then(resolve, reject) }
@@ -112,7 +112,13 @@ test('report generation uses the wider evidence pool and the saved monthly promp
   assert.equal(f.modelCalls[0].messages[0].content, 'Custom monthly house style')
   assert.match(f.modelCalls[0].messages[1].content, /source_evidence/)
   assert.ok(f.modelCalls[0].max_tokens >= 4000)
-  assert.ok(db.inserts[0].tags.includes('industry-briefing'))
+  assert.equal(data.status, 'pending')
+  assert.equal(data.draft_id, 'report')
+  assert.deepEqual(db.insertTables, ['drafts'])
+  assert.equal(db.inserts[0].article_type, 'monthly-summary')
+  assert.equal(db.inserts[0].status, 'pending')
+  assert.ok(db.inserts[0].monthly_period)
+  assert.deepEqual(JSON.parse(db.inserts[0].extracted_facts).allowed_urls, [source.source_url])
 })
 
 test('unauthorized, duplicate, empty evidence, truncated and unsupported reports never publish', async t => {
@@ -142,4 +148,59 @@ test('monthly prompt migration updates the editable setting and preserves its ea
     assert.equal(rows.find(r => r.key === 'prompt_monthly_before_industry_briefing').value, 'Previous custom prompt')
     assert.equal(rows.find(r => r.key === 'other').value, 'Keep me')
   } finally { await db.close() }
+})
+
+
+test('an existing pending monthly draft is returned for review even when force is requested', async t => {
+  const old = process.env.ADMIN_EMAIL; process.env.ADMIN_EMAIL = 'editor@test'
+  t.after(() => { if (old === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = old })
+  const db = database({ draftDuplicate: [{ id: 'pending-monthly' }] }), f = generator(db)
+  const response = await f.run({ force: true })
+  assert.equal(response.status, 409)
+  assert.equal((await response.json()).existing_draft_id, 'pending-monthly')
+  assert.equal(f.modelCalls.length, 0)
+  assert.equal(db.inserts.length, 0)
+})
+
+test('explicit approval preserves report identity, reviewed text and caches without creating a news fact', async () => {
+  const draft = { id: 'monthly-draft', title: 'October briefing', content: '# October briefing\n\nOriginal [evidence](https://publisher.test/pricing).',
+    slug: '2026-10-briefing', article_type: 'monthly-summary', monthly_period: '2026-10',
+    extracted_facts: JSON.stringify({ allowed_urls: [source.source_url] }) }
+  const calls = [], cache = []
+  const service = { from(table) {
+    const q = { select() { return q }, eq() { return q }, limit() { return q },
+      single: async () => ({ data: draft, error: null }), maybeSingle: async () => ({ data: null, error: null }) }
+    return q
+  }, rpc: async (name, args) => { calls.push({ name, args }); return { data: 'published-monthly', error: null } } }
+  const fail = () => assert.fail('Monthly publication must not classify or create a Fact Flow item')
+  const publisher = load('lib/publish.ts', {
+    '@/lib/slugify': { slugify: () => 'edited', uniqueSlug: async value => value }, '@/lib/utils': { extractTeaser: () => 'Excerpt' },
+    '@/lib/classify': { classifyArticle: fail }, '@/lib/openai': { getOpenAI: fail },
+    '@/lib/embeddings': { embedAndStoreArticle: async () => {} }, '@/lib/factFlow': { ensureArticleFact: fail },
+    '@/lib/companyLinks': { getDirectoryEntries: fail, linkifyCompanyMentions: fail },
+    '@/lib/revalidate': { revalidateArticleSurfaces: args => cache.push(args) }, '@/lib/sourceName': { draftSourceName: fail },
+    '@/lib/eventMatching': {}, '@/lib/monthlyBriefing': monthly
+  })
+  const edited = 'Edited [evidence](https://publisher.test/pricing).'
+  const result = await publisher.approveDraft(service, draft.id, { title: 'Reviewed briefing', content: edited })
+  assert.equal(result.status, 'ok')
+  assert.equal(calls[0].name, 'publish_editorial_draft')
+  assert.equal(calls[0].args.p_article.article_type, 'monthly-summary')
+  assert.equal(calls[0].args.p_article.content, edited)
+  assert.equal(calls[0].args.p_article.title, 'Reviewed briefing')
+  assert.equal(calls[0].args.p_article.slug, draft.slug)
+  assert.equal(cache[0].monthlyReport, true)
+})
+
+
+test('monthly review shows readable source evidence rather than raw storage metadata', () => {
+  const React = require('react'), { renderToStaticMarkup } = require('react-dom/server')
+  const { MonthlyReportEvidence } = load('components/MonthlyReportEvidence.tsx')
+  const html = renderToStaticMarkup(React.createElement(MonthlyReportEvidence, { snapshot: JSON.stringify({ context: {
+    source_evidence: [{ title: 'Supplier report', source_url: source.source_url, source_name: 'Publisher', extracted_facts: 'Reported facts', quality: 'snippet', review_reason: 'Check attribution' }]
+  }, allowed_urls: [source.source_url] }) }))
+  assert.match(html, /Supplier report/)
+  assert.match(html, /Reported facts/)
+  assert.match(html, /Check attribution/)
+  assert.ok(!html.includes('allowed_urls'))
 })

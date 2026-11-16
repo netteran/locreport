@@ -4,6 +4,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { marked } from 'marked'
 import { Draft } from '@/lib/types'
 import { ImageDropzone } from '@/components/ImageDropzone'
+import { MonthlyReportEvidence } from '@/components/MonthlyReportEvidence'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,7 +52,7 @@ export default function DraftReviewPage() {
 
   const [impactScore, setImpactScore] = useState(() => searchParams.get('impact_score') ?? '')
   const [timeHorizon, setTimeHorizon] = useState(() => searchParams.get('time_horizon') ?? '')
-  const contentType = searchParams.get('content_type') ?? 'industry'
+  const contentType = draft?.article_type ?? searchParams.get('content_type') ?? 'industry'
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
@@ -79,7 +80,8 @@ export default function DraftReviewPage() {
         const strippedContent = d.content.replace(/^#\s+.+\n?/, '').trimStart()
         setContent(strippedContent)
         setEditTitle(d.title || '')
-        setEditSlug(clientSlugify(d.title || ''))
+        setEditSlug(d.article_type === 'monthly-summary' ? d.slug : clientSlugify(d.title || ''))
+        if (d.article_type === 'monthly-summary') setSlugManuallyEdited(true)
         setEditSourceUrl(d.source_url ?? '')
         setEditImageUrl(d.image_url ?? '')
         setEditImageAlt(d.image_alt ?? '')
@@ -109,7 +111,7 @@ export default function DraftReviewPage() {
           source_url: editSourceUrl || null,
           image_url: editImageUrl.trim() || null,
           image_alt: editImageAlt.trim() || null,
-          fact: factContent,
+          fact: draft?.article_type === 'monthly-summary' ? undefined : factContent,
         }),
       })
       if (!res.ok) {
@@ -145,7 +147,7 @@ export default function DraftReviewPage() {
           impact_score: impactScore ? Number(impactScore) : null,
           time_horizon: timeHorizon || null,
           content_type: contentType,
-          fact: factContent,
+          fact: draft?.article_type === 'monthly-summary' ? undefined : factContent,
         }),
       })
       if (!res.ok) {
@@ -327,7 +329,10 @@ export default function DraftReviewPage() {
           Reviewed and edited here so it goes out approved, not merely inherited
           from ingest's distillation; Save draft / Approve & publish send it in the
           same request as the article body (see saveDraft/action below). */}
-      {draft.composition_id ? <div className="mb-6 rounded-lg p-4 text-sm" style={{border:'1px solid var(--border)'}}>
+      {draft.article_type === 'monthly-summary' ? <div className="mb-6 rounded-lg p-4 text-sm" style={{ border: '1px solid var(--border)' }}>
+        Monthly report · {draft.monthly_period}. Review and edit this briefing before choosing Approve & publish. It will appear under Reports → Monthly and will not create a new Fact Flow item.
+        <MonthlyReportEvidence snapshot={draft.extracted_facts} />
+      </div> : draft.composition_id ? <div className="mb-6 rounded-lg p-4 text-sm" style={{border:'1px solid var(--border)'}}>
         Fact Flow news is published independently. This article will be linked to existing published facts from its selected sources. Body citations are optional.
         {' '}<a href="/admin/fact-flow" className="underline">Review Fact Flow</a>
       </div> : (
@@ -475,7 +480,7 @@ export default function DraftReviewPage() {
           <>
             <Button onClick={() => action('approved')} disabled={loading || saving}>Approve & publish</Button>
             <Button variant="danger" onClick={() => action('rejected')} disabled={loading || saving}>Reject</Button>
-            <Button variant="secondary" onClick={() => draft.composition_id ? router.push(`/admin/candidates/compositions/${draft.composition_id}`) : setConfirmRerun(true)} disabled={loading || saving || confirmRerun}>Re-run</Button>
+            {draft.article_type !== 'monthly-summary' && <Button variant="secondary" onClick={() => draft.composition_id ? router.push(`/admin/candidates/compositions/${draft.composition_id}`) : setConfirmRerun(true)} disabled={loading || saving || confirmRerun}>Re-run</Button>}
           </>
         )}
         <Button variant="secondary" onClick={saveDraft} disabled={saving || loading || rerunning}>

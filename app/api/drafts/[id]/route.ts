@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
   // The draft's Fact Flow fact, reviewed and edited alongside the article body —
   // see saveDraftFact below for how an edit here reaches the same row.
-  const fact = await findDraftFact(supabase, id)
+  const fact = data.article_type === 'monthly-summary' ? null : await findDraftFact(supabase, id)
   return NextResponse.json({ ...data, fact })
 }
 
@@ -37,10 +37,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   let draftFactResult: Awaited<ReturnType<typeof saveDraftFact>> | null = null
   const { data: draftMeta } = await supabase
     .from('drafts')
-    .select('composition_id')
+    .select('*')
     .eq('id', id)
     .single()
-  if (body.fact !== undefined && !draftMeta?.composition_id) {
+  if (body.fact !== undefined && !draftMeta?.composition_id && draftMeta?.article_type !== 'monthly-summary') {
     draftFactResult = await saveDraftFact(supabase, { draftId: id, content: body.fact })
     if (draftFactResult.status === 'refused' || draftFactResult.status === 'failed') {
       return NextResponse.json(
@@ -85,6 +85,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   // Echo back the fact state too, so the client can sync without a second round
   // trip — mirrors the shape GET returns.
-  const fact = await findDraftFact(supabase, id)
+  const fact = data.article_type === 'monthly-summary' ? null : await findDraftFact(supabase, id)
   return NextResponse.json({ ...data, fact })
 }

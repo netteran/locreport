@@ -96,6 +96,8 @@ before(async () => {
   await db.exec(fs.readFileSync('supabase/migrations/20261118_editorial_pitches.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261118_editorial_pitches.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261119_autopublish_snippet_facts.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261121_monthly_report_drafts.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261121_monthly_report_drafts.sql', 'utf8'))
   await db.exec(
     'grant usage on schema public to anon,authenticated,service_role;grant select on all tables in schema public to anon,authenticated;grant all on all tables in schema public to service_role;'
   )
@@ -613,4 +615,26 @@ test('semantic suggestions keep older uncertain evidence eligible', async () => 
   const edges = (await db.query('select * from candidate_group_edges()')).rows
   assert.ok(edges.some(edge => edge.source_id === first && edge.related_id === second))
   assert.ok(edges.some(edge => edge.source_id === second && edge.related_id === first))
+})
+
+
+test('monthly reports stay private drafts until explicit publication and retain their report period/type', async () => {
+  const id = uid(), factsBefore = (await scalar('select count(*) from facts')).count
+  await db.query(`insert into drafts(id,title,content,article_type,monthly_period,status)
+    values($1,'October briefing','Reviewed analysis','monthly-summary','2026-10','pending')`, [id])
+  assert.equal(Number((await scalar('select count(*) from articles where draft_id=$1', [id])).count), 0)
+  await assert.rejects(db.query(`insert into drafts(id,title,article_type,monthly_period,status)
+    values($1,'Concurrent draft','monthly-summary','2026-10','pending')`, [uid()]), /monthly_report_pending_draft/)
+  const aid = (await scalar('select publish_editorial_draft($1,$2) as id', [id, JSON.stringify({
+    title: 'Reviewed October briefing', slug: 'reviewed-october-briefing', content: 'Reviewed analysis',
+    article_type: 'industry', author: 'LocReport Editorial Desk'
+  })])).id
+  const row = await scalar('select article_type,monthly_period,content from articles where id=$1', [aid])
+  assert.equal(row.article_type, 'monthly-summary', 'report identity comes from the saved draft, not caller metadata')
+  assert.equal(row.monthly_period, '2026-10')
+  assert.equal(row.content, 'Reviewed analysis')
+  assert.equal((await scalar('select status from drafts where id=$1', [id])).status, 'approved')
+  assert.equal((await scalar('select count(*) from facts')).count, factsBefore)
+  const repeated = (await scalar('select publish_editorial_draft($1,$2) as id', [id, '{}'])).id
+  assert.equal(repeated, aid)
 })

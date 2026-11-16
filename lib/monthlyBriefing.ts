@@ -44,8 +44,9 @@ export async function loadMonthlyEvidence(service: SupabaseClient, period: Retur
       .is('source_published_at', null).gte('created_at', startDate).lt('created_at', endDate)
       .order('created_at', { ascending: false }).limit(30),
     service.from('articles').select('title,content,slug,published_at')
-      .eq('article_type', 'monthly-summary').lte('published_at', startDate)
-      .order('published_at', { ascending: false }).limit(1)
+      .eq('article_type', 'monthly-summary')
+      .or(`monthly_period.lt.${period.period},and(monthly_period.is.null,published_at.lte.${startDate})`)
+      .order('monthly_period', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(1)
   ])
   const articles = checked(results[0], 'articles') || []
   const facts = checked(results[1], 'published facts') || []
