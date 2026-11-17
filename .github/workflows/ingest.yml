@@ -23,6 +23,9 @@ jobs:
     # 10 min covers feeds + ingest; the rest is headroom for the podcast step, whose
     # calls can each take up to 5 min; research processing has its own steps.
     timeout-minutes: 75
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      VERCEL_AUTOMATION_SECRET: ${{ secrets.VERCEL_AUTOMATION_SECRET }}
     steps:
       - name: Check DST offset
         id: dst
@@ -67,12 +70,22 @@ jobs:
       - name: Refresh generated feeds
         if: steps.dst.outputs.proceed == 'true'
         run: |
-          RESPONSE="$(curl -f --max-time 300 -X POST https://locreport.com/api/scraped-sources/run \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json")"
+          : "${VERCEL_AUTOMATION_SECRET:?Add the VERCEL_AUTOMATION_SECRET repository secret}"
+          if RESPONSE="$(curl --silent --show-error --fail-with-body --max-time 300 -X POST https://locreport.com/api/scraped-sources/run \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "x-automation-secret: $VERCEL_AUTOMATION_SECRET" \
+            -H "Content-Type: application/json")"; then
+            if ! printf '%s' "$RESPONSE" | jq -e -s 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+              echo "::error::Expected a JSON object; check Vercel Firewall for a security challenge."
+              exit 1
+            fi
+          else
+            echo "::error::Automation request failed; check the HTTP status above and the Vercel Firewall exception."
+            exit 1
+          fi
           echo "$RESPONSE"
 
-          FAILED="$(printf '%s' "$RESPONSE" | grep -o '"failed":[0-9]*' | head -1 | cut -d: -f2)"
+          FAILED="$(printf '%s' "$RESPONSE" | jq -r '.failed // 0')"
           if [ -n "$FAILED" ] && [ "$FAILED" -gt 0 ]; then
             echo "::warning::$FAILED generated feed(s) errored while regenerating — see /admin/scraped-feeds"
           fi
@@ -94,9 +107,20 @@ jobs:
       - name: Run ingest
         if: ${{ !cancelled() && steps.dst.outputs.proceed == 'true' }}
         run: |
-          curl -f --max-time 300 -X POST https://locreport.com/api/ingest \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json"
+          : "${VERCEL_AUTOMATION_SECRET:?Add the VERCEL_AUTOMATION_SECRET repository secret}"
+          if RESPONSE="$(curl --silent --show-error --fail-with-body --max-time 300 -X POST https://locreport.com/api/ingest \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "x-automation-secret: $VERCEL_AUTOMATION_SECRET" \
+            -H "Content-Type: application/json")"; then
+            if ! printf '%s' "$RESPONSE" | jq -e -s 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+              echo "::error::Expected a JSON object; check Vercel Firewall for a security challenge."
+              exit 1
+            fi
+          else
+            echo "::error::Automation request failed; check the HTTP status above and the Vercel Firewall exception."
+            exit 1
+          fi
+          echo "$RESPONSE"
       # Podcast sources with automatic collection enabled. Each call does ONE unit of
       # work (one Gemini call: episode notes, or the write-up + publish), so it
       # fits a single 300 s function; repeat until the route reports "idle".
@@ -107,13 +131,23 @@ jobs:
         continue-on-error: true
         run: |
           for i in 1 2 3 4 5 6; do
-            RESPONSE="$(curl -sS --max-time 300 -X POST https://locreport.com/api/podcasts/auto \
-              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-              -H "Content-Type: application/json" || echo '{"action":"error","error":"request failed"}')"
+            : "${VERCEL_AUTOMATION_SECRET:?Add the VERCEL_AUTOMATION_SECRET repository secret}"
+            if RESPONSE="$(curl --silent --show-error --fail-with-body --max-time 300 -X POST https://locreport.com/api/podcasts/auto \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              -H "x-automation-secret: $VERCEL_AUTOMATION_SECRET" \
+              -H "Content-Type: application/json")"; then
+              if ! printf '%s' "$RESPONSE" | jq -e -s 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+                echo "::error::Expected a JSON object; check Vercel Firewall for a security challenge."
+                exit 1
+              fi
+            else
+              echo "::error::Automation request failed; check the HTTP status above and the Vercel Firewall exception."
+              exit 1
+            fi
             echo "$RESPONSE"
-            case "$RESPONSE" in
-              *'"action":"idle"'*) break ;;
-              *'"action":"error"'*) echo "::warning::Podcast auto run: $RESPONSE"; break ;;
+            case "$(printf '%s' "$RESPONSE" | jq -r '.action // ""')" in
+              idle) break ;;
+              error) echo "::warning::Podcast auto run: $RESPONSE"; break ;;
             esac
           done
 
@@ -121,19 +155,40 @@ jobs:
         if: ${{ !cancelled() && steps.dst.outputs.proceed == 'true' }}
         run: |
           for i in 1 2 3 4 5; do
-            RESPONSE="$(curl -f --max-time 300 -X POST https://locreport.com/api/research/process \
-              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-              -H "Content-Type: application/json")"
+            : "${VERCEL_AUTOMATION_SECRET:?Add the VERCEL_AUTOMATION_SECRET repository secret}"
+            if RESPONSE="$(curl --silent --show-error --fail-with-body --max-time 300 -X POST https://locreport.com/api/research/process \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              -H "x-automation-secret: $VERCEL_AUTOMATION_SECRET" \
+              -H "Content-Type: application/json")"; then
+              if ! printf '%s' "$RESPONSE" | jq -e -s 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+                echo "::error::Expected a JSON object; check Vercel Firewall for a security challenge."
+                exit 1
+              fi
+            else
+              echo "::error::Automation request failed; check the HTTP status above and the Vercel Firewall exception."
+              exit 1
+            fi
             echo "$RESPONSE"
             if command -v jq >/dev/null 2>&1; then
               COUNT="$(printf '%s' "$RESPONSE" | jq '.errors | length')"
               if [ "$COUNT" -gt 0 ]; then echo "::warning::$COUNT candidates require retry or review"; fi
             fi
-            case "$RESPONSE" in *'"action":"idle"'*) break ;; esac
+            case "$(printf '%s' "$RESPONSE" | jq -r '.action // ""')" in idle) break ;; esac
           done
       - name: Refresh suggested articles (never generate or publish articles)
         if: ${{ !cancelled() && steps.dst.outputs.proceed == 'true' }}
         run: |
-          curl -f --max-time 300 -X POST https://locreport.com/api/research/process \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json" -d '{"stage":"groups"}'
+          : "${VERCEL_AUTOMATION_SECRET:?Add the VERCEL_AUTOMATION_SECRET repository secret}"
+          if RESPONSE="$(curl --silent --show-error --fail-with-body --max-time 300 -X POST https://locreport.com/api/research/process \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "x-automation-secret: $VERCEL_AUTOMATION_SECRET" \
+            -H "Content-Type: application/json" -d '{"stage":"groups"}')"; then
+            if ! printf '%s' "$RESPONSE" | jq -e -s 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+              echo "::error::Expected a JSON object; check Vercel Firewall for a security challenge."
+              exit 1
+            fi
+          else
+            echo "::error::Automation request failed; check the HTTP status above and the Vercel Firewall exception."
+            exit 1
+          fi
+          echo "$RESPONSE"
