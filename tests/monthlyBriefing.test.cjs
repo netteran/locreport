@@ -91,7 +91,7 @@ function generator(db, { authorized = true, content = '# Monthly briefing\n\nThe
   const route = load('app/api/monthly-report/route.ts', {
     '@/lib/supabase/server': { createClient: async () => ({ auth: { getUser: async () => ({ data: { user: authorized ? { email: 'editor@test' } : null } }) } }), createServiceClient: () => db },
     '@/lib/openai': { getOpenAI: () => ({ chat: { completions: { create: async input => {
-      modelCalls.push(input); return { choices: [{ finish_reason: finish, message: { content } }] }
+      modelCalls.push(input); return { choices: [{ finish_reason: finish, message: { content: Array.isArray(content) ? content[Math.min(modelCalls.length - 1, content.length - 1)] : content } }] }
     } } } }) },
     '@/lib/slugify': { slugify: () => 'monthly-briefing', uniqueSlug: async value => value },
     '@/lib/prompts': prompts, '@/lib/monthlyBriefing': monthly,
@@ -254,4 +254,59 @@ test('invalid or incomplete date ranges are rejected before queries or generatio
     assert.equal(db.calls.length, 0)
     assert.equal(f.modelCalls.length, 0)
   }
+})
+
+test('citation validation recognizes equivalent source URLs and complete Markdown destinations', () => {
+  const urls = new Set(['/articles/analysis', 'https://publisher.test/story_(update)?edition=2&lang=en'])
+  const content = `# Briefing
+[Contents](#findings)
+[Analysis](https://www.locreport.com/articles/analysis/?utm_source=report#summary)
+[Source](https://publisher.test/story_(update)?lang=en&edition=2&utm_campaign=monthly#results)
+[Reference][report]
+
+[report]: <https://publisher.test/story_(update)?edition=2&lang=en>
+`
+  assert.doesNotThrow(() => monthly.validateBriefing(content, urls))
+  assert.doesNotThrow(() => monthly.validateBriefing('# Briefing\n<https://locreport.com/articles/analysis>', urls))
+  assert.doesNotThrow(() => monthly.validateBriefing('# Briefing\n[Source](https://publisher.test/story_(update)?edition=2&amp;lang=en)', urls))
+  assert.throws(() => monthly.validateBriefing('# Briefing\n[Contents](#findings)', urls), /omitted evidence links/)
+  for (const url of ['https://evil.test/articles/analysis', 'https://locreport.com.evil.test/articles/analysis',
+    'https://publisher.test/story_(update)?edition=3&lang=en', 'https://publisher.test/invented',
+    'javascript:alert(1)', 'https://locreport.com/articles/Analysis']) {
+    assert.throws(() => monthly.validateBriefing(`# Briefing\n[Unsupported](<${url}>)`, urls), monthly.BriefingCitationError)
+  }
+  assert.throws(() => monthly.validateBriefing('# Briefing\n[Unsupported][source]\n\n[source]: https://invented.test', urls), /https:\/\/invented.test/)
+})
+
+test('generation repairs unsupported citations once before saving a validated draft', async t => {
+  const old = process.env.ADMIN_EMAIL; process.env.ADMIN_EMAIL = 'editor@test'
+  t.after(() => { if (old === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = old })
+  const db = database(), f = generator(db, { content: [
+    '# Briefing\n[Unsupported](https://invented.test)',
+    '# Repaired briefing\nThe [supplier report](https://publisher.test/pricing) raises questions.'
+  ] })
+  const res = await f.run()
+  assert.equal(res.status, 200)
+  assert.equal(f.modelCalls.length, 2)
+  assert.equal(f.modelCalls[0].messages.length, 2)
+  assert.match(f.modelCalls[0].messages[1].content, /Approved citation URLs/)
+  assert.equal(f.modelCalls[1].temperature, 0)
+  const repair = f.modelCalls[1].messages.at(-1).content
+  assert.match(repair, /https:\/\/invented.test/)
+  assert.match(repair, /https:\/\/publisher.test\/pricing/)
+  assert.match(repair, /Remove any claim/)
+  assert.equal(db.inserts.length, 1)
+  assert.match(db.inserts[0].content, /^# Repaired briefing/)
+  assert.equal(db.inserts[0].status, 'pending')
+})
+
+test('failed citation repair never saves a draft and reports the unsupported URL', async t => {
+  const old = process.env.ADMIN_EMAIL; process.env.ADMIN_EMAIL = 'editor@test'
+  t.after(() => { if (old === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = old })
+  const db = database(), f = generator(db, { content: '# Briefing\n[Unsupported](https://invented.test)' })
+  const res = await f.run()
+  assert.equal(res.status, 500)
+  assert.match((await res.json()).error, /https:\/\/invented.test/)
+  assert.equal(f.modelCalls.length, 2)
+  assert.equal(db.inserts.length, 0)
 })
