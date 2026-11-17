@@ -638,3 +638,19 @@ test('monthly reports stay private drafts until explicit publication and retain 
   const repeated = (await scalar('select publish_editorial_draft($1,$2) as id', [id, '{}'])).id
   assert.equal(repeated, aid)
 })
+
+test('publication-first upgrade requeues held available evidence without restoring excluded sources', async () => {
+  const feed = await source(true)
+  const retry = await candidate(feed)
+  const excluded = await candidate(feed, { allow_auto_publish: false })
+  const dismissed = await candidate(feed)
+  for (const id of [retry, excluded, dismissed]) {
+    await db.query("update source_candidates set processing_status='ready', review_reason='Uncertain event match: review before publishing' where id=$1", [id])
+  }
+  await db.query("update source_candidates set status='dismissed' where id=$1", [dismissed])
+  await db.exec(fs.readFileSync('supabase/migrations/20261122_retry_uncertain_fact_matches.sql', 'utf8'))
+  assert.equal((await scalar('select processing_status from source_candidates where id=$1', [retry])).processing_status, 'pending')
+  for (const id of [excluded, dismissed]) {
+    assert.equal((await scalar('select processing_status from source_candidates where id=$1', [id])).processing_status, 'ready')
+  }
+})

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked, descriptorForReview } from '@/lib/research'
-import { eventIdentity } from '@/lib/eventMatching'
+import { eventIdentity, mayAutoPublish } from '@/lib/eventMatching'
 import { revalidateFactSurfaces } from '@/lib/revalidate'
 
 export async function GET() {
@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest) {
       const event = await descriptorForReview(candidate)
       if (!event.newsworthy || !event.headline)
         throw new Error('This source has no qualifying current news event')
-      // Manual matching attaches evidence; publication remains an explicit separate action.
+      // A separately confirmed event follows the usual source and eligibility gates.
       checked(
         await service.rpc('record_candidate_event', {
           p_candidate: b.id,
@@ -80,7 +80,7 @@ export async function PATCH(req: NextRequest) {
             (b.new_event ? `:reviewed:${candidate.id}` : ''),
           p_descriptor: event,
           p_relation: b.new_event ? 'new' : 'same',
-          p_auto_eligible: false
+          p_auto_eligible: b.new_event === true && mayAutoPublish(event, candidate.source_published_at, candidate.quality)
         })
       )
       revalidateFactSurfaces()
