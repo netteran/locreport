@@ -330,7 +330,7 @@ export default function DraftReviewPage() {
           from ingest's distillation; Save draft / Approve & publish send it in the
           same request as the article body (see saveDraft/action below). */}
       {draft.article_type === 'monthly-summary' ? <div className="mb-6 rounded-lg p-4 text-sm" style={{ border: '1px solid var(--border)' }}>
-        Monthly report · {draft.monthly_period}. Review and edit this briefing before choosing Approve & publish. It will appear under Reports → Monthly and will not create a new Fact Flow item.
+        Monthly report · {draft.report_start_date && draft.report_end_date ? `${draft.report_start_date} to ${draft.report_end_date}` : draft.monthly_period}. Review and edit this briefing before choosing Approve & publish. It will appear under Reports → Monthly and will not create a new Fact Flow item.
         <MonthlyReportEvidence snapshot={draft.extracted_facts} />
       </div> : draft.composition_id ? <div className="mb-6 rounded-lg p-4 text-sm" style={{border:'1px solid var(--border)'}}>
         Fact Flow news is published independently. This article will be linked to existing published facts from its selected sources. Body citations are optional.

@@ -1,24 +1,41 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-/** Calendar months follow the editorial timezone, including CET/CEST boundaries. */
+/** Inclusive calendar dates follow the editorial timezone, including DST. */
+function warsawMidnight(date: string) {
+  const utc = Date.parse(`${date}T00:00:00Z`)
+  const zone = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Warsaw', timeZoneName: 'shortOffset' })
+    .formatToParts(utc).find(p => p.type === 'timeZoneName')!.value
+  const offset = Number(zone.match(/GMT\+(\d+)/)?.[1] || 0)
+  return new Date(utc - offset * 3600000).toISOString()
+}
+
+export function reportPeriod(start: unknown, end: unknown) {
+  for (const date of [start, end]) {
+    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date || date < '1900-01-01' || date > '9998-12-31') {
+      throw new Error('Choose valid start and end dates (YYYY-MM-DD).')
+    }
+  }
+  const startDay = start as string, endDay = end as string
+  if (startDay > endDay) throw new Error('The end date must be on or after the start date.')
+  const nextDay = new Date(Date.parse(endDay) + 86400000).toISOString().slice(0, 10)
+  const year = Number(startDay.slice(0, 4)), month = Number(startDay.slice(5, 7))
+  const period = startDay.slice(0, 7)
+  const fullMonth = startDay.endsWith('-01') && nextDay.endsWith('-01') && endDay.startsWith(period)
+  const monthName = new Date(`${startDay}T12:00:00Z`).toLocaleString('en-US', { month: 'long', timeZone: 'UTC' })
+  return { period, year, month, monthName, startDay, endDay, fullMonth,
+    label: fullMonth ? `${monthName} ${year}` : `${startDay} to ${endDay}`,
+    key: fullMonth ? period : `${startDay}-to-${endDay}`,
+    startDate: warsawMidnight(startDay), endDate: warsawMidnight(nextDay) }
+}
+
+/** Default to the previous complete editorial calendar month. */
 export function monthlyPeriod(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Warsaw', year: 'numeric', month: 'numeric' }).formatToParts(now)
-  const currentYear = Number(parts.find(p => p.type === 'year')!.value)
-  const currentMonth = Number(parts.find(p => p.type === 'month')!.value)
-  const previous = new Date(Date.UTC(currentYear, currentMonth - 2, 1))
-  const year = previous.getUTCFullYear(), month = previous.getUTCMonth() + 1
-  function boundary(y: number, m: number) {
-    const utc = Date.UTC(y, m, 1)
-    const zone = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Warsaw', timeZoneName: 'shortOffset' })
-      .formatToParts(utc).find(p => p.type === 'timeZoneName')!.value
-    const offset = Number(zone.match(/GMT\+(\d+)/)?.[1] || 0)
-    return new Date(utc - offset * 3600000).toISOString()
-  }
-  return {
-    period: `${year}-${String(month).padStart(2, '0')}`, year, month,
-    monthName: previous.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' }),
-    startDate: boundary(year, month - 1), endDate: boundary(year, month)
-  }
+  const year = Number(parts.find(p => p.type === 'year')!.value)
+  const month = Number(parts.find(p => p.type === 'month')!.value)
+  return reportPeriod(new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 10),
+    new Date(Date.UTC(year, month - 1, 0)).toISOString().slice(0, 10))
 }
 
 function checked<T>(result: { data: T; error: { message: string } | null }, label: string): T {
@@ -45,8 +62,8 @@ export async function loadMonthlyEvidence(service: SupabaseClient, period: Retur
       .order('created_at', { ascending: false }).limit(30),
     service.from('articles').select('title,content,slug,published_at')
       .eq('article_type', 'monthly-summary')
-      .or(`monthly_period.lt.${period.period},and(monthly_period.is.null,published_at.lte.${startDate})`)
-      .order('monthly_period', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(1)
+      .or(`report_end_date.lt.${period.startDay},and(report_end_date.is.null,monthly_period.lt.${period.period}),and(report_end_date.is.null,monthly_period.is.null,published_at.lt.${startDate})`)
+      .order('report_end_date', { ascending: false, nullsFirst: false }).order('monthly_period', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(1)
   ])
   const articles = checked(results[0], 'articles') || []
   const facts = checked(results[1], 'published facts') || []
@@ -65,15 +82,16 @@ export async function loadMonthlyEvidence(service: SupabaseClient, period: Retur
   }
   const context = {
     period: period.period,
+    date_range: { start: period.startDay, end: period.endDay, timezone: 'Europe/Warsaw', end_inclusive: true },
     coverage_note: 'A bounded selection of collected evidence, not exhaustive industry coverage. Publication dates establish reporting timing, not necessarily event timing. Undated sources are context only.',
     articles: bounded(articles, 40000, a => ({ title: a.title, publisher: a.publisher, source_url: a.source_url, url: link(a.slug),
       published_at: a.published_at, analysis: (a.content || a.excerpt || '').slice(0, 5000) })),
     published_facts: bounded(facts, 30000, f => ({ ...f, content: f.content.slice(0, 900) })),
     source_evidence: bounded(sources, 70000, s => ({ ...s, extracted_facts: s.extracted_facts.slice(0, 2500),
       evidence_status: 'Collected source evidence, not independently verified. Preserve review flags and source attribution.',
-      timing: s.source_published_at ? 'Reported during the target month; verify the event date in the evidence.' : 'Undated source collected during the month; background only, not evidence of a new monthly development.' })),
+      timing: s.source_published_at ? 'Reported during the selected period; verify the event date in the evidence.' : 'Undated source collected during the selected period; background only, not evidence of a new development in the selected period.' })),
     previous_briefing: previous ? { title: previous.title, url: link(previous.slug), published_at: previous.published_at,
-      content: previous.content.slice(0, 20000), role: 'Compare expectations only; not new evidence for the target month.' } : null,
+      content: previous.content.slice(0, 20000), role: 'Compare expectations only; not new evidence for the selected period.' } : null,
     limits: { articles: 60, published_facts: 200, dated_sources: 120, undated_sources: 30, text_budget_characters: 160000 }
   }
   const allowedUrls = new Set<string>()

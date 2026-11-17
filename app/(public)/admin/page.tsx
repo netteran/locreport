@@ -69,6 +69,8 @@ function ActionPanel({ tone = 'info', text, actions }: {
 export default function AdminDashboard() {
   const [stats, setStats] = useState<{ articles: number; drafts: number; sources: number } | null>(null)
   const [statsError, setStatsError] = useState(false)
+  const [reportStart, setReportStart] = useState(() => monthlyPeriod().startDay)
+  const [reportEnd, setReportEnd] = useState(() => monthlyPeriod().endDay)
   const [monthlyRunning, setMonthlyRunning] = useState(false)
   const [monthlyDraftId, setMonthlyDraftId] = useState<string | null>(null)
   const [quotesRunning, setQuotesRunning] = useState(false)
@@ -137,7 +139,7 @@ export default function AdminDashboard() {
     const res = await fetch('/api/monthly-report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ force }),
+      body: JSON.stringify({ force, start_date: reportStart, end_date: reportEnd }),
     })
     const data = await res.json()
     if (data.existing_draft_id) {
@@ -298,8 +300,8 @@ export default function AdminDashboard() {
     }
   }
 
-  const reportingPeriod = monthlyPeriod()
-  const prevMonth = `${reportingPeriod.monthName} ${reportingPeriod.year}`
+  const reportLabel = `${reportStart} to ${reportEnd}`
+  const invalidReportRange = !reportStart || !reportEnd || reportStart > reportEnd
 
   return (
     <div className="admin-dashboard">
@@ -405,21 +407,33 @@ export default function AdminDashboard() {
           <ActionRow
             title="Generate monthly report"
             summary="Create a draft briefing for review before publication."
-            description={`Assesses published analyses, Fact Flow and collected source evidence from ${prevMonth}, comparing with the previous briefing. Saves a pending draft briefing focused on supported shifts, practical consequences and questions to watch. Once approved, it is listed under Reports → Monthly. A thin month produces a shorter update. Review it under Drafts, then choose Approve & publish to make it live. If a report already exists for the period you’ll be asked before another draft is created.`}
+            description={`Assesses published analyses, Fact Flow and collected source evidence from the selected dates (inclusive, Europe/Warsaw), comparing with the previous briefing. Saves a pending draft briefing focused on supported shifts, practical consequences and questions to watch. Once approved, it is listed under Reports → Monthly. A thin month produces a shorter update. Review it under Drafts, then choose Approve & publish to make it live. If a report already exists for the period you’ll be asked before another draft is created.`}
             controls={
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={() => { setConfirm('monthly'); clearFlash() }}
-                disabled={monthlyRunning || confirm === 'monthly' || confirm === 'monthly-force'}
+                disabled={monthlyRunning || invalidReportRange || confirm === 'monthly' || confirm === 'monthly-force'}
               >
                 {monthlyRunning ? 'Generating…' : 'Run'}
               </Button>
             }
           >
+            <div className="flex flex-wrap gap-3 mt-3">
+              <label className="text-sm">Report start date
+                <input type="date" className="block border rounded px-2 py-1 mt-1" value={reportStart} max={reportEnd || undefined}
+                  disabled={monthlyRunning} onChange={e => { setReportStart(e.target.value); setConfirm(null); setMonthlyDraftId(null); clearFlash() }} />
+              </label>
+              <label className="text-sm">Report end date
+                <input type="date" className="block border rounded px-2 py-1 mt-1" value={reportEnd} min={reportStart || undefined}
+                  disabled={monthlyRunning} onChange={e => { setReportEnd(e.target.value); setConfirm(null); setMonthlyDraftId(null); clearFlash() }} />
+              </label>
+            </div>
+            <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>Both dates are included, in Warsaw time. Choose part of a month for a test draft; publication requires approval.</p>
+            {invalidReportRange && <p role="alert" className="text-sm mt-2">Choose a start date and an end date on or after it.</p>}
             {confirm === 'monthly' && (
               <ActionPanel
-                text={<>Generate a monthly report draft for <strong>{prevMonth}</strong> from published analysis, Fact Flow and collected source evidence, compared with the previous briefing?</>}
+                text={<>Generate a monthly report draft for <strong>{reportLabel}</strong> from published analysis, Fact Flow and collected source evidence, compared with the previous briefing?</>}
                 actions={
                   <>
                     <Button size="sm" onClick={() => runMonthly(false)} disabled={monthlyRunning}>Confirm</Button>
@@ -431,7 +445,7 @@ export default function AdminDashboard() {
             {confirm === 'monthly-force' && (
               <ActionPanel
                 tone="warn"
-                text={<>A report for <strong>{prevMonth}</strong> already exists. Generate a new draft for review?</>}
+                text={<>A report for <strong>{reportLabel}</strong> already exists. Generate a new draft for review?</>}
                 actions={
                   <>
                     <Button size="sm" onClick={() => runMonthly(true)} disabled={monthlyRunning}>Yes, regenerate</Button>
