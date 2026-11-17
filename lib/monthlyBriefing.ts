@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { marked } from 'marked'
 
 /** Inclusive calendar dates follow the editorial timezone, including DST. */
 function warsawMidnight(date: string) {
@@ -104,12 +105,51 @@ export async function loadMonthlyEvidence(service: SupabaseClient, period: Retur
     counts: { articles: context.articles.length, facts: context.published_facts.length, sources: context.source_evidence.length } }
 }
 
+/** Match document URLs without treating tracking or on-page anchors as new sources. */
+function citationIdentity(raw: string): string | null {
+  try {
+    const url = new URL(raw.replace(/&amp;/g, '&'), 'https://locreport.com')
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null
+    // Relative paths are only meaningful for our own published articles.
+    if (!/^https?:\/\//i.test(raw) && !raw.startsWith('/articles/')) return null
+    url.hash = ''
+    for (const key of [...url.searchParams.keys()]) {
+      if (/^utm_|^(fbclid|gclid|mc_cid|mc_eid)$/i.test(key)) url.searchParams.delete(key)
+    }
+    url.searchParams.sort()
+    url.pathname = url.pathname.replace(/\/$/, '') || '/'
+    if (['locreport.com', 'www.locreport.com'].includes(url.hostname) && !url.port) {
+      url.hostname = 'locreport.com'
+      url.protocol = 'https:'
+    }
+    return url.toString()
+  } catch { return null }
+}
+
+export class BriefingCitationError extends Error {
+  constructor(public readonly unsupportedUrls: string[]) {
+    super(unsupportedUrls.length
+      ? `Monthly briefing cites a URL outside the supplied evidence: ${unsupportedUrls.slice(0, 5).join(', ')}; nothing was published. Retry generation to repair the citations.`
+      : 'Monthly briefing omitted evidence links; nothing was published. Retry generation to repair the citations.')
+    this.name = 'BriefingCitationError'
+  }
+}
+
 export function validateBriefing(content: string, allowedUrls: Set<string>) {
   if (!content.trim() || !/^#\s+\S/m.test(content)) throw new Error('Monthly briefing returned empty or malformed content; nothing was published.')
+  const allowed = new Set([...allowedUrls].map(citationIdentity).filter((url): url is string => !!url))
+  const unsupported = new Set<string>()
   let cited = false
-  for (const match of content.matchAll(/\[[^\]]*\]\(([^\s)]+)(?:\s+"[^"]*")?\)/g)) {
-    cited = true
-    if (!allowedUrls.has(match[1])) throw new Error('Monthly briefing cites a URL outside the supplied evidence; nothing was published.')
-  }
-  if (!cited) throw new Error('Monthly briefing omitted evidence links; nothing was published.')
+  // Use the same Markdown parser as published articles, including references,
+  // autolinks and URLs containing parentheses. A regex truncates these URLs.
+  marked.walkTokens(marked.lexer(content), token => {
+    if (token.type !== 'link') return
+    // Table-of-contents anchors are navigation, not evidence citations.
+    if (token.href.startsWith('#')) return
+    const identity = citationIdentity(token.href)
+    if (!identity || !allowed.has(identity)) unsupported.add(token.href)
+    else cited = true
+  })
+  if (unsupported.size) throw new BriefingCitationError([...unsupported])
+  if (!cited) throw new BriefingCitationError([])
 }
