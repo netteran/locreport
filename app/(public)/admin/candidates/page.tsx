@@ -264,8 +264,8 @@ export default function CandidatesPage() {
                 {(c.review_reason || c.suggested_event_id || c.suggested_fact_id) && (
                   <details className="ml-7 mt-1">
                     <summary className="text-xs cursor-pointer" style={{ color: 'var(--muted)' }}>Fact publication & event matching</summary>
-                    <p className="text-xs mt-2">This review concerns standalone facts. Sources remain available for articles while a match is uncertain. Confirming a match keeps the source as supporting evidence; marking a separate event does not publish it.</p>
-                    {c.review_reason && <p className="text-xs mt-2">{c.review_reason.startsWith('Uncertain') ? 'The system could not confirm whether this is the same event. Automatic fact publication is on hold.' : c.review_reason}</p>}
+                    <p className="text-xs mt-2">Confirming a match keeps the source as supporting evidence. Marking a separate event allows automatic publication when the source and fact meet the usual eligibility rules. Sources remain available for articles.</p>
+                    {c.review_reason && <p className="text-xs mt-2">{c.review_reason.startsWith('Uncertain') ? 'This source was held under the previous matching policy. Reprocess it or mark it as a separate event to evaluate publication under the current rules.' : c.review_reason}</p>}
                     <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
                       {c.suggested_event_id && (
                         <Button

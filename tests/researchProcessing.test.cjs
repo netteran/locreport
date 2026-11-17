@@ -149,3 +149,49 @@ test('article suggestions retain old and uncertain evidence without requiring an
     ['source_candidates', 'status', 'available'], ['source_candidates', 'processing_status', 'ready']
   ])
 })
+
+test('uncertain duplication does not veto eligible facts; confident matches and conflicts attach', async () => {
+  for (const [match, expectedRelation, expectedId] of [
+    [{ relation: 'uncertain', event_id: 'existing', confidence: 0.95 }, 'new', null],
+    [{ relation: 'different', event_id: null, confidence: 0.6 }, 'new', null],
+    [{ relation: 'same', event_id: 'existing', confidence: 0.85 }, 'new', null],
+    [{ relation: 'same', event_id: 'existing', confidence: 0.95 }, 'same', 'existing'],
+    [{ relation: 'conflict', event_id: 'existing', confidence: 0.95 }, 'conflict', 'existing'],
+    [{ relation: 'same', event_id: 'invented', confidence: 1 }, 'new', null]
+  ]) {
+    let recorded
+    const event = { subject: 'Dubbing firm', object: 'AI savings', newsworthy: true, headline: 'Firm reports AI savings and pricing pressure.', entities: [] }
+    const service = {
+      from(table) {
+        const q = {
+          select() { return q }, eq() { return q }, update() { return q },
+          is() { return q }, gte() { return q }, or() { return q }, order() { return q },
+          limit: async () => ({ data: [], error: null }),
+          single: async () => ({ data: { id: 'incoming', processing_status: 'pending', title: 'AI savings', extracted_facts: 'Evidence', source_published_at: '2026-11-17', quality: 'full' }, error: null }),
+          maybeSingle: async () => ({ data: { id: 'existing' }, error: null }),
+          then(resolve) { return Promise.resolve({ data: null, error: null }).then(resolve) }
+        }
+        return q
+      },
+      async rpc(name, args) {
+        if (name === 'record_candidate_event') recorded = args
+        return { data: name === 'claim_research_lock' ? true : name === 'match_candidate_events' ? [] : null, error: null }
+      }
+    }
+    let calls = 0
+    const fixture = { exports: {} }
+    new Function('exports', 'require', 'module', ts.transpileModule(
+      fs.readFileSync('lib/research.ts', 'utf8'),
+      { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
+    ).outputText)(fixture.exports, id => ({
+      '@/lib/openai': { getOpenAI: () => ({ chat: { completions: { create: async () => ({ choices: [{ message: { content: JSON.stringify(calls++ ? match : event) } }] }) } } }) },
+      '@/lib/eventMatching': { parseDescriptor: x => x, normalizeEntity: x => x, eventIdentity: () => 'identity', mayAutoPublish: () => true },
+      '@/lib/embeddings': { embedText: async () => [1] },
+      '@/lib/revalidate': { revalidateFactSurfaces() {} }
+    }[id] || dependencies[id] || require(id)), fixture)
+    assert.equal(await fixture.exports.processCandidate(service, 'incoming'), true)
+    assert.equal(recorded.p_relation, expectedRelation)
+    assert.equal(recorded.p_event, expectedId)
+    assert.equal(recorded.p_auto_eligible, true)
+  }
+})
