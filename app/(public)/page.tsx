@@ -160,16 +160,18 @@ export default async function HomePage() {
               </div>
               <div className="briefing__grid briefing__grid--single">
                 <article className="briefing__lead">
-                  {leadImage && (
-                    <Link href={articleHref(lead.slug)} className="briefing__lead-image" aria-hidden="true" tabIndex={-1}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={leadImage} alt="" loading="lazy" decoding="async" />
-                    </Link>
-                  )}
-                  <div className="briefing__lead-meta">
-                    {lead.author && <span className="briefing__publisher">{lead.author}</span>}
+                  <div className={`briefing__lead-heading${leadImage ? ' briefing__lead-heading--with-image' : ''}`}>
+                    <div className="briefing__lead-copy">
+                      {lead.author && <span className="briefing__publisher">{lead.author}</span>}
+                      <h2 className="briefing__title"><Link href={articleHref(lead.slug)}>{lead.title}</Link></h2>
+                    </div>
+                    {leadImage && (
+                      <Link href={articleHref(lead.slug)} className="briefing__lead-image" aria-hidden="true" tabIndex={-1}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={leadImage} alt="" width={300} height={200} decoding="async" />
+                      </Link>
+                    )}
                   </div>
-                  <h2 className="briefing__title"><Link href={articleHref(lead.slug)}>{lead.title}</Link></h2>
                   {lead.excerpt && <p className="briefing__excerpt">{lead.excerpt}</p>}
                   <Link className="article-row__read-more" href={articleHref(lead.slug)}>Read the story →</Link>
                 </article>
@@ -188,24 +190,26 @@ export default async function HomePage() {
                   const thumb = safeImageUrl(article.image_url)
                   return (
                     <Fragment key={article.id}>
-                      <article className={`article-row${thumb ? ' article-row--with-thumb' : ''}`}>
-                        <div className="article-row__main">
-                          <div className="article-row__header">
-                            <span className="article-row__date">{date}</span>
+                      <article className="article-row">
+                        <div className={`article-row__heading${thumb ? ' article-row__heading--with-thumb' : ''}`}>
+                          <div className="article-row__main">
+                            <div className="article-row__header">
+                              <span className="article-row__date">{date}</span>
+                            </div>
+                            <h2 className="article-row__title"><Link href={articleHref(article.slug)}>{article.title}</Link></h2>
                           </div>
-                          <h2 className="article-row__title"><Link href={articleHref(article.slug)}>{article.title}</Link></h2>
-                          {article.excerpt && <p className="article-row__excerpt">{article.excerpt}</p>}
-                          <div className="article-row__footer">
-                            {article.author && <span className="article-row__publisher">{article.author}</span>}
-                            <Link className="article-row__read-more" href={articleHref(article.slug)}>Read more →</Link>
-                          </div>
+                          {thumb && (
+                            <Link href={articleHref(article.slug)} className="article-row__thumb" aria-hidden="true" tabIndex={-1}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={thumb} alt="" width={180} height={120} loading="lazy" decoding="async" />
+                            </Link>
+                          )}
                         </div>
-                        {thumb && (
-                          <Link href={articleHref(article.slug)} className="article-row__thumb" aria-hidden="true" tabIndex={-1}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={thumb} alt="" loading="lazy" decoding="async" />
-                          </Link>
-                        )}
+                        {article.excerpt && <p className="article-row__excerpt">{article.excerpt}</p>}
+                        <div className="article-row__footer">
+                          {article.author && <span className="article-row__publisher">{article.author}</span>}
+                          <Link className="article-row__read-more" href={articleHref(article.slug)}>Read more →</Link>
+                        </div>
                       </article>
                       {article.id === thirdFeedArticleId && <HomeFeedAd />}
                     </Fragment>

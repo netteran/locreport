@@ -107,9 +107,7 @@ export default async function ArticlePage({ params }: Props) {
   const a = article as Article
 
   // Strip leading H1 — title is already rendered in the page header
-  let content = a.content.replace(/^#\s+[^\n]+\n?/, '')
-  // Strip leading blockquote (excerpt summary) that LLM includes at the top
-  content = content.replace(/^\s*>[^\n]*(\n>[^\n]*)*/m, '').trimStart()
+  const content = a.content.replace(/^#\s+[^\n]+\n?/, '').trimStart()
 
   const rawHtml = marked.parse(content) as string
   // Add target/_blank + rel=noopener to all external links in rendered content

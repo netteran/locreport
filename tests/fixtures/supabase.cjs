@@ -42,19 +42,62 @@ const editorialArticles = [
     ['Newest authored analysis', 'newest-authored-analysis', '2026-11-16', 1],
     ['Combined analysis', 'combined-analysis', '2026-11-15', 2],
     ['A buyer workflow decision', 'buyer-workflow-decision', '2026-11-13', 3],
-    ['Language technology in practice', 'language-technology-in-practice', '2026-11-11', 4],
+    ['Legacy mindsets, enterprise AI buying decisions, and dynamic orchestration in localization', 'language-technology-in-practice', '2026-11-11', 4],
     ['Older high-impact analysis', 'older-high-impact-analysis', '2026-11-08', 5],
   ].map(([title, slug, day, impact_score], index) => ({
     id: index === 1 ? articleId : `20000000-0000-4000-8000-${String(index + 10).padStart(12, '0')}`,
     title,
     slug,
-    excerpt: 'Editorial perspective grounded in multiple industry sources.',
-    content: 'A practical editorial analysis of language services.\n\nThe evidence informs a buyer decision.',
+    excerpt: index === 1
+      ? 'Localization leaders are reassessing where language expertise fits in enterprise AI buying decisions. Across recent industry discussions, the recurring questions concern quality, governance and the operational work that connects a promising model to a dependable service. This analysis brings those perspectives together, examines the evidence behind competing claims, and considers what changes for buyers, technology providers and language professionals. A longer introduction should remain readable without leaving an empty column beneath its thumbnail.'
+      : 'Editorial perspective grounded in multiple industry sources.',
+    content: index === 0 ? `> Language expertise becomes useful when it informs the whole decision, not just the translation.
+
+A practical editorial analysis of language services, grounded in evidence and the experience of the people doing the work.
+
+## Put the evidence in context
+
+The next step is to connect individual announcements with the choices buyers and language professionals actually face.
+
+> A reported improvement is a starting point for a conversation, not a substitute for evaluation.
+>
+> A second paragraph should feel like part of the same quotation.
+>
+> <cite>Industry discussion, quoted for this isolated preview</cite>
+
+### Three questions worth asking
+
+- **Quality and evaluation.** Define what a useful improvement would look like in the actual workflow.
+  - Include subject specialists in the review.
+  - Check more than the easiest language pair.
+- **Operational fit.** Look at the work around the model as well as the model itself.
+- **Commercial context.** Make responsibilities and assumptions explicit.
+
+A list can also contain several paragraphs in one item:
+
+- Start with the available evidence.
+
+  Explain its limits before drawing a conclusion. Links to [supporting material](https://example.test/evidence) should remain easy to identify.
+
+- Compare the result with the alternatives.
+
+  Retain context when a result is uncertain.
+
+### A practical sequence
+
+1. Agree on the decision to be made.
+2. Test the proposed workflow.
+   1. Use representative material.
+   2. Record the exceptions.
+3. Review the evidence with the people affected.
+
+Conclusions should remain connected to the evidence, with room for an informed disagreement.`
+      : 'A practical editorial analysis of language services.\n\nThe evidence informs a buyer decision.',
     article_type: 'industry',
     author: 'LocReport Editorial',
     publisher: 'LocReport',
     source_url: null,
-    image_url: null,
+    image_url: index === 0 ? '/og-image.jpg' : index === 1 ? '/og-factflow.png' : index === 3 ? '/icon.png' : null,
     image_alt: null,
     signal_ids: ['quality-gap-closure'],
     impact_score,
