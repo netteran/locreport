@@ -24,12 +24,7 @@ import { articleHref } from '@/lib/utils'
  */
 
 /** Cached pages whose content is the article stream. */
-const ARTICLE_PATHS = [
-  '/',
-  '/intelligence',
-  '/intelligence/signals',
-  '/intelligence/high-impact',
-]
+const ARTICLE_PATHS = ['/']
 
 /** Cached pages that render published facts — the stream and the homepage rail. */
 const FACT_PATHS = ['/', '/fact-flow', '/fact-flow/feed.xml']
@@ -57,9 +52,6 @@ function revalidateAll(paths: Iterable<string>) {
  * served at is the clean `/articles/foo`. Interpolating raw would revalidate a
  * path that nothing is cached under, and fail silently.
  *
- * `/intelligence/signals/[id]` is deliberately not revalidated wholesale: the
- * per-signal pages are cheap to leave on their 1h window, and invalidating the
- * whole dynamic segment would stampede regeneration across every signal.
  * `/articles` needs nothing — it is dynamic already.
  */
 export function revalidateArticleSurfaces(opts: { slug?: string | null; monthlyReport?: boolean } = {}) {

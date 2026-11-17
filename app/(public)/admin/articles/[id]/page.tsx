@@ -65,7 +65,7 @@ export default function EditArticlePage() {
     <div className="max-w-[760px]">
       <div className="flex items-center gap-3 mb-6">
         <Button variant="ghost" size="sm" onClick={() => router.back()}>← Back</Button>
-        <h1 className="text-xl font-bold text-[#15191C]">{article.article_type === 'monthly-summary' ? 'Edit monthly report' : 'Edit article'}</h1>
+        <h1 className="text-xl font-bold text-[#15191C]">{article.article_type === 'monthly-summary' ? 'Edit monthly briefing' : 'Edit article'}</h1>
         {message && <span className="text-sm text-green-600">{message}</span>}
       </div>
 

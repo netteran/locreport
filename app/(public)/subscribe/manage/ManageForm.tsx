@@ -62,9 +62,9 @@ export default function ManageForm({
       {subStatus === 'active' && !confirming && (
         <>
           <p className="manage-form__hint manage-form__hint--last">
-            You get The Weekly every Friday: the top story, how every signal we
-            track moved, the week’s key facts, market and directory news when
-            there is any, and everything else we published.
+            You get The Weekly every Friday: our latest articles and briefings,
+            the week’s key facts, and market and directory news when there is
+            something to report.
           </p>
           <div className="manage-form__actions">
             <button className="btn btn--ghost manage-form__unsub" onClick={() => setConfirming(true)}>

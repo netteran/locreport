@@ -13,7 +13,7 @@ export const LOGO_ID = `${SITE_URL}/#logo`
 export const SITE_NAME = 'LocReport'
 
 export const SITE_DESCRIPTION =
-  'LocReport tracks the pulse of the language services industry — daily translation, localization and AI news, signal tracking, and market data.'
+  'Independent analysis of localization, language services and AI, with sourced news in Fact Flow, a Monthly Briefing and practical tools in Compass.'
 
 // Profiles that represent the same entity. Google uses these to resolve the
 // brand name to a single organization, so keep them in sync with the footer.

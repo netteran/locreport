@@ -22,8 +22,6 @@ export async function generateStaticParams() {
 
 type Props = { params: Promise<{ slug: string[] }> }
 
-const IMPACT_LABEL: Record<number, string> = { 1: 'Routine', 2: 'Notable', 3: 'Significant', 4: 'Major', 5: 'Disruptive' }
-
 // Deduped per render pass: the page and generateMetadata both need the
 // article, and without this each one issued its own set of lookups.
 const fetchArticle = cache(async (slugParts: string[]) => {
@@ -167,8 +165,7 @@ export default async function ArticlePage({ params }: Props) {
     relatedArticles = [...relatedArticles, ...extra]
   }
 
-  const hasIntel = !!a.impact_score || articleSignals.length > 0
-    || a.business_implications?.length > 0 || a.affected_segments?.length > 0
+  const hasImplications = a.business_implications?.length > 0
   const hasRelated = relatedArticles.length > 0
 
   const articleUrl = `https://locreport.com/articles/${a.slug.split('/').pop()}`
@@ -250,35 +247,14 @@ export default async function ArticlePage({ params }: Props) {
           <div className="post-content" dangerouslySetInnerHTML={{ __html: html }} />
         )}
 
-        {/* Below the article: Intelligence and Related Reading. */}
-        {hasIntel && (
-          <section className="post-intel" aria-label="Article intelligence">
-            <h2 className="post-section-label">Intelligence</h2>
-            <div className="post-intel__badges">
-              {a.impact_score && (
-                <span className={`impact-badge impact-badge--${a.impact_score}`}>
-                  {IMPACT_LABEL[a.impact_score]}
-                </span>
-              )}
-              {a.time_horizon && (
-                <span className={`time-horizon-badge time-horizon-badge--${a.time_horizon}`}>
-                  {a.time_horizon === 'now' ? 'Immediate' : a.time_horizon === '6months' ? '6-Month Horizon' : 'Long-Term'}
-                </span>
-              )}
-              {articleSignals.map(s => (
-                <Link key={s.id} href={`/intelligence/signals/${s.id}`} className="post-intel__signal">
-                  {s.title}
-                </Link>
-              ))}
+        {hasImplications && (
+          <section className="post-intel" aria-label="Why this matters">
+            <h2 className="post-section-label">Why this matters</h2>
+            <div className="post-intel__implications">
+              <ul className="post-intel__list">
+                {a.business_implications.map((imp, i) => <li key={i}>{imp}</li>)}
+              </ul>
             </div>
-            {a.business_implications?.length > 0 && (
-              <div className="post-intel__implications">
-                <p className="post-intel__sublabel">Why this matters</p>
-                <ul className="post-intel__list">
-                  {a.business_implications.map((imp, i) => <li key={i}>{imp}</li>)}
-                </ul>
-              </div>
-            )}
             {a.affected_segments?.length > 0 && (
               <div className="intelligence-segments post-intel__segments">
                 {a.affected_segments.map(seg => (

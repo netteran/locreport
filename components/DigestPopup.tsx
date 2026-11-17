@@ -459,7 +459,7 @@ function BrandLogo({ className }: { className?: string }) {
 /**
  * The popup's illustration, built from the brand's own pieces rather than a
  * stock picture: the icon's two-square motif in the background, a tilted
- * mock of a Friday issue (wordmark, headlines, a signal sparkline, a fact
+ * mock of a Friday issue (wordmark, headlines, a market sparkline, a fact
  * chip) and an envelope flying in with the icon as its seal. Pure markup and
  * CSS, so it follows the light/dark theme and costs no extra image weight.
  * Everything is drawn on a fixed 340×400 stage that style.css scales down on

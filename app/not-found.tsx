@@ -12,7 +12,7 @@ const LINKS = [
   {
     href: '/articles',
     label: 'Latest Articles',
-    desc: 'Daily coverage of translation, AI, and localization industry developments.',
+    desc: 'Authored reporting and analysis of translation, AI, and localization industry developments.',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
@@ -20,9 +20,9 @@ const LINKS = [
     ),
   },
   {
-    href: '/intelligence',
-    label: 'Intelligence',
-    desc: 'Active signals tracking structural shifts across the language services market.',
+    href: '/fact-flow',
+    label: 'Fact Flow',
+    desc: 'The latest industry news with links to original sources.',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -31,8 +31,8 @@ const LINKS = [
   },
   {
     href: '/reports/monthly',
-    label: 'Monthly Reports',
-    desc: 'Curated monthly synthesis of the most important industry movements.',
+    label: 'Monthly Briefing',
+    desc: 'What mattered this month, its practical implications and what to watch next.',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
@@ -46,16 +46,6 @@ const LINKS = [
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="10" /><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-      </svg>
-    ),
-  },
-  {
-    href: '/intelligence/high-impact',
-    label: 'High-Impact News',
-    desc: 'The most consequential stories filtered by impact score.',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
       </svg>
     ),
   },
@@ -213,7 +203,7 @@ export default function NotFound() {
                 Looking for something specific?
               </p>
               <p style={{ fontSize: '0.875rem', color: 'var(--muted)', margin: '0.25rem 0 0' }}>
-                Use site search to find articles, signals, and reports by keyword.
+                Use site search to find articles, briefings, and industry tools by keyword.
               </p>
             </div>
             <Link href="/search" style={{

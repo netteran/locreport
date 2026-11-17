@@ -15,9 +15,9 @@ export default function AboutPage() {
       <article className="page-prose">
         <h1>About LocReport</h1>
 
-        <p>LocReport is an independent publication portal tracking the pulse of the language services industry.</p>
+        <p>LocReport is an independent publication covering localization, language services and AI.</p>
 
-        <p>We cover daily developments in translation, localization, global content strategy, language technology, and cross-border communication. From emerging AI tools to market shifts and operational innovation, our goal is simple:</p>
+        <p>Our articles bring together multiple sources, industry context and an editorial perspective to explain consequential developments in translation, localization, global content strategy and language technology.</p>
 
         <blockquote>Capture the trends, movements, and ideas shaping the future of global communication.</blockquote>
 
@@ -27,9 +27,9 @@ export default function AboutPage() {
 
         <p>LocReport is an experimental publishing project.</p>
 
-        <p>It was created to explore a focused, signal-over-noise approach to industry reporting — short, relevant, and structured coverage without hype or clutter.</p>
+        <p>We publish when a subject deserves a considered explanation. Each article aims to connect the evidence, test the argument and explain what it means for people working in the industry.</p>
 
-        <p>We are testing formats, tone, and frequency while building a resource that professionals in localization and translation can rely on.</p>
+        <p><Link href="/fact-flow">Fact Flow</Link> carries the ongoing news stream with links to original sources. The <Link href="/reports/monthly">Monthly Briefing</Link> selects the developments that mattered, explains their practical consequences and identifies questions to watch. <Link href="/compass">Compass</Link> brings together our technology directory, LocStock and AI cost simulator.</p>
 
         <h2>Behind LocReport</h2>
 
@@ -39,7 +39,7 @@ export default function AboutPage() {
 
         <p>LocReport grew from that professional journey, a lifelong commitment to learning, and a passion for an industry that connects the world through language. The project exists at the intersection of professional knowledge, editorial craft, and emerging technology, with a particular curiosity about how AI and automation are reshaping the work behind global communication.</p>
 
-        <p>It is an experiment in what industry intelligence can look like when grounded in firsthand experience, shaped by thoughtful inquiry, and open to new perspectives. Its ambition is to follow the industry as an informed participant, asking questions about where it is headed and what its evolution means for the people within it.</p>
+        <p>It is an experiment in what industry publishing can look like when grounded in firsthand experience, shaped by thoughtful inquiry, and open to new perspectives. Its ambition is to follow the industry as an informed participant, asking questions about where it is headed and what its evolution means for the people within it.</p>
 
         <p>In that spirit, LocReport reflects both a professional journey and an ongoing commitment: to build something useful, honest, and persistently curious about the future of global communication.</p>
 

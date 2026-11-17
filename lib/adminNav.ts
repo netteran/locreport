@@ -22,7 +22,7 @@ export const ADMIN_GROUPS: { label: string; description: string; links: AdminLin
     links: [
       { href: '/admin/compose', label: 'Compose', description: 'Turn supplied content into an article' },
       { href: '/admin/direct', label: 'Direct entry', description: 'Save a finished article as a draft for review' },
-      { href: '/admin/reports', label: 'Reports', description: 'Annual and monthly report images' },
+      { href: '/admin/reports', label: 'Briefings & report archive', description: 'Monthly briefing and archived report images' },
       { href: '/admin/digest-history', label: 'Weekly history', description: 'Inspect previous newsletter sends' },
     ],
   },

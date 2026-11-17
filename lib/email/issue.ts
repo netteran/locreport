@@ -5,11 +5,9 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { DIRECTORY } from '@/lib/data/directory'
 import { fetchDirectoryEntries } from '@/lib/directory'
-import { composeIssue, pickCompanyOfWeek, summarizeMarket, SIGNAL_BASELINE_WEEKS, DigestSourceArticle, Issue } from '@/lib/email/digest'
+import { composeIssue, pickCompanyOfWeek, summarizeMarket, DigestSourceArticle, Issue } from '@/lib/email/digest'
 import { loadWeeklyNote } from '@/lib/email/weeklyNote'
 import { fetchPeriodArticles } from '@/lib/email/period'
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 type Service = ReturnType<typeof createServiceClient>
 
@@ -27,17 +25,9 @@ export async function buildIssue(
   const { data: articles, error } = await fetchPeriodArticles(service, periodStart)
   if (error) return { issue: null, error: error.message }
 
-  const baselineStart = new Date(periodStart.getTime() - SIGNAL_BASELINE_WEEKS * WEEK_MS)
-
   // Everything below is supporting material: a failure drops that block from
   // the issue rather than holding the send.
-  const [prior, facts, quotes, directory, allCompanies] = await Promise.all([
-    service
-      .from('articles')
-      .select('signal_ids')
-      .eq('article_type', 'industry')
-      .gte('published_at', baselineStart.toISOString())
-      .lt('published_at', periodStart.toISOString()),
+  const [facts, quotes, directory, allCompanies] = await Promise.all([
     service.from('facts').select('id,content,article_id,published_at').eq('status','published').gte('published_at',periodStart.toISOString()).lt('published_at',periodEnd.toISOString()).order('published_at',{ascending:false}).limit(20),
     service.from('market_quotes').select('ticker, data'),
     service
@@ -57,7 +47,6 @@ export async function buildIssue(
 
   const issue = composeIssue({
     articles: (articles ?? []) as DigestSourceArticle[],
-    priorArticles: prior.data ?? [],
     facts: facts.data ?? [],
     market: quotes.data ? summarizeMarket(quotes.data, periodStart, periodEnd) : null,
     company: pickCompanyOfWeek(allCompanies, periodEnd),

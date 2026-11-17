@@ -7,7 +7,8 @@ import { createPublicClient } from '@/lib/supabase/server'
 import {loadPublishedFacts} from '@/lib/publicFacts'
 import { Article } from '@/lib/types'
 import { articleHref, safeImageUrl } from '@/lib/utils'
-import { SIGNALS, SIGNAL_MAP } from '@/lib/signals'
+import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import { DigestPopupTrigger } from '@/components/DigestPopupTrigger'
 
 export const metadata: Metadata = {
@@ -28,8 +29,6 @@ const SOURCES = [
   'Hugging Face','Mistral AI',
 ]
 
-const IMPACT_LABEL: Record<number, string> = { 1: 'Routine', 2: 'Notable', 3: 'Significant', 4: 'Major', 5: 'Disruptive' }
-
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
@@ -40,12 +39,7 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-// Columns the homepage actually renders. Narrower than `Article` so the
-// query skips `embedding` (a ~15-20KB serialized vector per row) and other
-// unused columns (tags, business_implications, etc.) across 60 rows. It also
-// skips `content`: 60 full articles is ~156KB of markdown fetched to render
-// nothing but excerpts, and this was measurably the slowest request the site
-// made. Where an excerpt is missing the row simply renders without one.
+// Fetch only the fields rendered in the latest-articles list.
 type HomeArticle = Pick<
   Article,
   | 'id'
@@ -54,10 +48,10 @@ type HomeArticle = Pick<
   | 'excerpt'
   | 'author'
   | 'image_url'
-  | 'signal_ids'
-  | 'impact_score'
   | 'published_at'
 >
+
+type HomeBriefing = Pick<Article, 'id' | 'title' | 'slug' | 'excerpt' | 'published_at'> & BriefingCoverage
 
 export const revalidate = 3600
 
@@ -69,17 +63,19 @@ export default async function HomePage() {
   const [articlesResult, latestFacts, { data: latestReport }] = await Promise.all([
     supabase
       .from('articles')
-      .select('id, title, slug, excerpt, author, image_url, signal_ids, impact_score, published_at')
+      .select('id, title, slug, excerpt, author, image_url, published_at')
+      .eq('article_type', 'industry')
       .order('published_at', { ascending: false })
-      .limit(60),
+      .limit(13),
     loadPublishedFacts(supabase,4),
-    supabase
+    withOptionalBriefingCoverage(coverageColumns => supabase
       .from('articles')
-      .select('id, title, slug, excerpt, published_at')
+      .select('id, title, slug, excerpt, published_at' + coverageColumns)
       .eq('article_type', 'monthly-summary')
       .order('published_at', { ascending: false })
       .limit(1)
-      .maybeSingle(),
+      .returns<HomeBriefing[]>()
+      .maybeSingle()),
   ])
 
   // Rendering an empty homepage on a failed query is worse than not
@@ -91,38 +87,11 @@ export default async function HomePage() {
   }
   const allArticles = (articlesResult.data as HomeArticle[]) ?? []
 
-  // Today's briefing: impact-ranked lead from the latest 10 articles,
-  // plus a rail of recent high-impact stories.
-  const leadPool = allArticles.slice(0, 10)
-  const lead = [...leadPool].sort(
-    (a, b) => (b.impact_score ?? 0) - (a.impact_score ?? 0) || b.published_at.localeCompare(a.published_at)
-  )[0]
-  const highImpactRail = allArticles
-    .filter(a => a.id !== lead?.id && (a.impact_score ?? 0) >= 4)
-    .slice(0, 4)
+  const lead = allArticles[0]
+  const recentArticles = allArticles.slice(1)
   const leadImage = safeImageUrl(lead?.image_url)
-  const leadSignals = (lead?.signal_ids ?? [])
-    .map(id => SIGNAL_MAP.get(id))
-    .filter((s): s is NonNullable<typeof s> => Boolean(s))
-    .slice(0, 3)
-
-  // Group by day (up to 3 days)
-  const byDay = new Map<string, HomeArticle[]>()
-  for (const a of allArticles) {
-    const day = new Date(a.published_at).toLocaleDateString('en-US', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-    })
-    if (!byDay.has(day)) {
-      if (byDay.size >= 3) break
-      byDay.set(day, [])
-    }
-    byDay.get(day)!.push(a)
-  }
-
-  // Count feed articles across date groups; the highlighted story is separate.
-  const thirdFeedArticleId = [...byDay.values()]
-    .flat()
-    .filter(article => article.id !== lead?.id)[2]?.id
+  const reportCoverage = latestReport ? briefingCoverageLabel(latestReport) : null
+  const thirdFeedArticleId = recentArticles[2]?.id
 
   return (
     // The homepage keeps the pre-Aug-17 visual system. `.home-v1` scopes both
@@ -140,13 +109,13 @@ export default async function HomePage() {
           <div className="hero-split__left">
             <span className="hero-eyebrow">
               <Image className="hero-eyebrow-icon" src="/icon.png" alt="" width={18} height={18} aria-hidden="true" />
-              Language services intelligence
+              Localization, language services &amp; AI
             </span>
             <h1>LocReport — the pulse of the language services industry</h1>
-            <p className="hero-subtitle">Daily coverage of translation, localization, and AI — curated, analyzed, and tracked through the signals that matter.</p>
+            <p className="hero-subtitle">Independent analysis connecting sources, industry experience and the developments that matter.</p>
             <div className="hero-actions">
               <Link href="/articles" className="btn btn--hero-articles">Browse articles</Link>
-              <Link href="/intelligence" className="btn btn--hero-intel">Intelligence Dashboard</Link>
+              <Link href="/fact-flow" className="btn btn--hero-intel">Follow Fact Flow</Link>
             </div>
           </div>
           <div className="hero-split__right" aria-label="Explore tools">
@@ -180,16 +149,16 @@ export default async function HomePage() {
       {/* ── Home Layout: Main + Sidebar ── */}
       <div className="home-layout container">
         <main className="home-main">
-          {/* ── Highlighted story: impact-ranked lead + high-impact rail ── */}
+          {/* Latest authored article, with its actual publication date. */}
           {lead && (
             <section className="briefing" aria-label="Highlighted story">
               <div className="briefing__head">
-                <span className="briefing__eyebrow">Highlighted story</span>
+                <span className="briefing__eyebrow">Latest analysis</span>
                 <span className="briefing__date">
                   {new Date(lead.published_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </span>
               </div>
-              <div className={`briefing__grid${highImpactRail.length === 0 ? ' briefing__grid--single' : ''}`}>
+              <div className="briefing__grid briefing__grid--single">
                 <article className="briefing__lead">
                   {leadImage && (
                     <Link href={articleHref(lead.slug)} className="briefing__lead-image" aria-hidden="true" tabIndex={-1}>
@@ -198,91 +167,55 @@ export default async function HomePage() {
                     </Link>
                   )}
                   <div className="briefing__lead-meta">
-                    {lead.impact_score && (
-                      <span className={`impact-badge impact-badge--${lead.impact_score}`}>
-                        {IMPACT_LABEL[lead.impact_score] ?? ''}
-                      </span>
-                    )}
                     {lead.author && <span className="briefing__publisher">{lead.author}</span>}
                   </div>
                   <h2 className="briefing__title"><Link href={articleHref(lead.slug)}>{lead.title}</Link></h2>
                   {lead.excerpt && <p className="briefing__excerpt">{lead.excerpt}</p>}
-                  {leadSignals.length > 0 && (
-                    <div className="briefing__signals">
-                      {leadSignals.map(s => (
-                        <Link key={s.id} href={`/intelligence/signals/${s.id}`} className="briefing__signal-chip">
-                          {s.title.length > 42 ? s.title.slice(0, 42) + '…' : s.title}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
                   <Link className="article-row__read-more" href={articleHref(lead.slug)}>Read the story →</Link>
                 </article>
-                {highImpactRail.length > 0 && (
-                  <div className="briefing__rail" aria-label="High impact stories">
-                    <span className="briefing__rail-label">High impact</span>
-                    {highImpactRail.map(a => (
-                      <Link key={a.id} href={articleHref(a.slug)} className="briefing__rail-item">
-                        <span className="briefing__rail-item-title">{a.title}</span>
-                        <span className="briefing__rail-item-meta">
-                          {IMPACT_LABEL[a.impact_score ?? 0] ?? ''} · {new Date(a.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </span>
-                      </Link>
-                    ))}
-                    <Link href="/intelligence/high-impact" className="sidebar-widget__more">All high-impact →</Link>
-                  </div>
-                )}
               </div>
             </section>
           )}
 
           <HomeFeedAd placement="home-briefing" />
 
-          {[...byDay.entries()].map(([, allDayArticles], dayIndex) => {
-            const dayArticles = allDayArticles.filter(a => a.id !== lead?.id)
-            if (dayArticles.length === 0) return null
-            const displayDate = new Date(allDayArticles[0].published_at).toLocaleDateString('en-US', {
-              year: 'numeric', month: 'long', day: 'numeric',
-            })
-            return (
-              <section key={dayIndex} className="day-section">
-                <h2 className="day-header">{displayDate}</h2>
-                <div className="article-list">
-                  {dayArticles.map(article => {
-                    const date = new Date(article.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                    const thumb = safeImageUrl(article.image_url)
-                    return (
-                      <Fragment key={article.id}>
-                        <article className={`article-row${thumb ? ' article-row--with-thumb' : ''}`}>
-                          <div className="article-row__main">
-                            <div className="article-row__header">
-                              <span className="article-row__date">{date}</span>
-                              {article.impact_score && article.impact_score >= 3 && (
-                                <span className={`impact-dot impact-dot--${article.impact_score}`} title={`Impact: ${IMPACT_LABEL[article.impact_score]}`} />
-                              )}
-                            </div>
-                            <h2 className="article-row__title"><Link href={articleHref(article.slug)}>{article.title}</Link></h2>
-                            {article.excerpt && <p className="article-row__excerpt">{article.excerpt}</p>}
-                            <div className="article-row__footer">
-                              {article.author && <span className="article-row__publisher">{article.author}</span>}
-                              <Link className="article-row__read-more" href={articleHref(article.slug)}>Read more →</Link>
-                            </div>
+          {recentArticles.length > 0 && (
+            <section className="day-section" aria-label="More analysis">
+              <h2 className="day-header">More analysis</h2>
+              <div className="article-list">
+                {recentArticles.map(article => {
+                  const date = new Date(article.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  const thumb = safeImageUrl(article.image_url)
+                  return (
+                    <Fragment key={article.id}>
+                      <article className={`article-row${thumb ? ' article-row--with-thumb' : ''}`}>
+                        <div className="article-row__main">
+                          <div className="article-row__header">
+                            <span className="article-row__date">{date}</span>
                           </div>
-                          {thumb && (
-                            <Link href={articleHref(article.slug)} className="article-row__thumb" aria-hidden="true" tabIndex={-1}>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={thumb} alt="" loading="lazy" decoding="async" />
-                            </Link>
-                          )}
-                        </article>
-                        {article.id === thirdFeedArticleId && <HomeFeedAd />}
-                      </Fragment>
-                    )
-                  })}
-                </div>
-              </section>
-            )
-          })}
+                          <h2 className="article-row__title"><Link href={articleHref(article.slug)}>{article.title}</Link></h2>
+                          {article.excerpt && <p className="article-row__excerpt">{article.excerpt}</p>}
+                          <div className="article-row__footer">
+                            {article.author && <span className="article-row__publisher">{article.author}</span>}
+                            <Link className="article-row__read-more" href={articleHref(article.slug)}>Read more →</Link>
+                          </div>
+                        </div>
+                        {thumb && (
+                          <Link href={articleHref(article.slug)} className="article-row__thumb" aria-hidden="true" tabIndex={-1}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={thumb} alt="" loading="lazy" decoding="async" />
+                          </Link>
+                        )}
+                      </article>
+                      {article.id === thirdFeedArticleId && <HomeFeedAd />}
+                    </Fragment>
+                  )
+                })}
+              </div>
+              <Link href="/articles" className="sidebar-widget__more">Browse all articles →</Link>
+            </section>
+          )}
+          {!lead && <p>Our next analysis is on its way. Follow <Link href="/fact-flow">Fact Flow</Link> for the latest sourced news.</p>}
 
           {/* CTA — opens The Weekly popup; the popup stays the only signup form */}
           <section className="cta-section">
@@ -336,32 +269,13 @@ export default async function HomePage() {
 
           {latestReport && (
             <div className="sidebar-widget sidebar-widget--report">
-              <p className="sidebar-report__eyebrow">Monthly Report · {new Date(latestReport.published_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
+              <p className="sidebar-report__eyebrow">Monthly Briefing{reportCoverage ? ` · ${reportCoverage}` : ''}</p>
               <h3 className="sidebar-report__title">{latestReport.title}</h3>
-              <p className="sidebar-report__desc">{latestReport.excerpt ?? 'Key themes, signals, and trends from the language services industry.'}</p>
-              <Link href={articleHref(latestReport.slug)} className="sidebar-report__link">Read the report →</Link>
+              <p className="sidebar-report__desc">{latestReport.excerpt ?? 'What mattered, what it means in practice and what to watch next.'}</p>
+              <Link href={articleHref(latestReport.slug)} className="sidebar-report__link">Read the briefing →</Link>
+              <Link href="/reports/monthly" className="sidebar-widget__more">All monthly briefings →</Link>
             </div>
           )}
-
-          <div className="sidebar-widget sidebar-widget--report">
-            <p className="sidebar-report__eyebrow">2026 Report</p>
-            <h3 className="sidebar-report__title">Global Market Report</h3>
-            <p className="sidebar-report__desc">Market sizing, AI-era growth drivers, and strategic forecasts.</p>
-            <a href="/reports/2026-Annual-Global-Market-Report/" className="sidebar-report__link">Read the report →</a>
-          </div>
-
-          <div className="sidebar-widget">
-            <h3 className="sidebar-widget__title">Active Signals</h3>
-            <div className="sidebar-signal-list">
-              {SIGNALS.slice(0, 6).map(signal => (
-                <Link key={signal.id} href={`/intelligence/signals/${signal.id}`} className="sidebar-signal">
-                  <span className={`sidebar-signal__status sidebar-signal__status--${signal.current_status}`} aria-label={signal.current_status} />
-                  <span className="sidebar-signal__title">{signal.title.length > 58 ? signal.title.slice(0, 58) + '…' : signal.title}</span>
-                </Link>
-              ))}
-            </div>
-            <Link href="/intelligence/signals" className="sidebar-widget__more">All {SIGNALS.length} signals →</Link>
-          </div>
         </aside>
       </div>
     </div>

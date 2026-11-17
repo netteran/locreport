@@ -42,7 +42,7 @@ export async function GET() {
   <channel>
     <title>LocReport</title>
     <link>${BASE_URL}</link>
-    <description>Daily translation and localization news capturing the trends, innovations, and movements shaping the language services industry.</description>
+    <description>Independent analysis and monthly briefings on localization, language services and AI.</description>
     <language>en-us</language>
     <lastBuildDate>${lastBuildDate}</lastBuildDate>
     <atom:link href="${BASE_URL}/feed.xml" rel="self" type="application/rss+xml"/>
