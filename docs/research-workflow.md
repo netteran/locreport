@@ -113,7 +113,7 @@ Fact Flow opens on Pending, with counts on each status filter. Each card contain
 
 ### Monthly industry briefings
 
-The monthly report uses a bounded selection of the previous Warsaw calendar month's published industry analyses (up to 60), published Fact Flow items (up to 200), and processed source candidates (up to 120 dated sources plus 30 undated sources collected that month). Available, reserved and used evidence is eligible; dismissed or unprocessed evidence is excluded. Input text has separate section budgets totaling 160,000 characters, including the latest earlier monthly briefing for expectations comparison. Counts returned by the generator reflect the evidence actually included, not total market activity.
+The monthly report defaults to the previous Warsaw calendar month. Dashboard start/end date controls accept any inclusive date range, including a partial month or a span across months. It uses a bounded selection of the selected period's published industry analyses (up to 60), published Fact Flow items (up to 200), and processed source candidates (up to 120 dated sources plus 30 undated sources collected that month). Available, reserved and used evidence is eligible; dismissed or unprocessed evidence is excluded. Input text has separate section budgets totaling 160,000 characters, including the latest earlier monthly briefing for expectations comparison. Counts returned by the generator reflect the evidence actually included, not total market activity.
 
 The report can now run without a published long-form article if dated source evidence or public facts exist. Undated collected material is background only; the earlier briefing alone cannot establish new activity. Event IDs and review flags help preserve uncertainty and avoid treating repeated reporting as independent developments. Evidence-query errors stop generation rather than implying a quiet month.
 
@@ -131,3 +131,9 @@ Dashboard → Generate monthly report creates a pending draft with a frozen evid
 Generation never inserts an article or turns over public caches. Duplicate pending drafts are prevented both before model calls and by a database unique index; a concurrent generation returns the existing draft for review. The reporting period, rather than approval date alone, identifies newer reports for duplicate detection and earlier briefings for comparison. Authentication, malformed/truncated output and citation checks run before any draft is saved.
 
 `PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium node tests/monthly-report.browser.cjs` checks dashboard generation, the review link, source inspection, editing/saving and explicit approval using intercepted responses against the local auth fixture. No real report is generated or published.
+
+### Custom report coverage
+
+Apply `20261123_monthly_report_date_range.sql` after the monthly draft migration. It saves inclusive start/end dates on drafts and published reports, backfills existing identified monthly reports, and replaces pending-draft uniqueness by exact range. A partial-month draft can coexist with a full-month draft; repeating the same range opens the existing pending draft instead. An already published report for the exact range still requires regeneration confirmation. Old clients submitting only `monthly_period` retain full-month defaults.
+
+Evidence boundaries use midnight in Europe/Warsaw through midnight after the selected end date, including DST transitions. The prompt and frozen evidence snapshot identify exact coverage, and partial-period titles are instructed to include dates. The earlier briefing must end before the selected start; undated sources remain background only. Draft review and explicit publication remain required, including for testing.

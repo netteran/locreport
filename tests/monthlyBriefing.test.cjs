@@ -109,7 +109,7 @@ test('report generation uses the wider evidence pool and the saved monthly promp
   const data = await response.json()
   assert.equal(data.article_count, 0)
   assert.equal(data.source_count, 1)
-  assert.equal(f.modelCalls[0].messages[0].content, 'Custom monthly house style')
+  assert.match(f.modelCalls[0].messages[0].content, /^Custom monthly house style/)
   assert.match(f.modelCalls[0].messages[1].content, /source_evidence/)
   assert.ok(f.modelCalls[0].max_tokens >= 4000)
   assert.equal(data.status, 'pending')
@@ -203,4 +203,55 @@ test('monthly review shows readable source evidence rather than raw storage meta
   assert.match(html, /Reported facts/)
   assert.match(html, /Check attribution/)
   assert.ok(!html.includes('allowed_urls'))
+})
+
+test('custom inclusive dates support half months, single days, leap years and Warsaw DST', () => {
+  const half = monthly.reportPeriod('2026-11-01', '2026-11-15')
+  assert.equal(half.fullMonth, false)
+  assert.equal(half.startDate, '2026-10-31T23:00:00.000Z')
+  assert.equal(half.endDate, '2026-11-15T23:00:00.000Z')
+  assert.equal(half.key, '2026-11-01-to-2026-11-15')
+  const spring = monthly.reportPeriod('2026-03-29', '2026-03-29')
+  assert.equal(Date.parse(spring.endDate) - Date.parse(spring.startDate), 23 * 3600000)
+  const autumn = monthly.reportPeriod('2026-10-25', '2026-10-25')
+  assert.equal(Date.parse(autumn.endDate) - Date.parse(autumn.startDate), 25 * 3600000)
+  assert.equal(monthly.reportPeriod('2028-02-01', '2028-02-29').fullMonth, true)
+  assert.equal(monthly.reportPeriod('2026-10-20', '2026-11-15').period, '2026-10')
+  for (const dates of [['2026-02-29', '2026-03-01'], ['2026-11-16', '2026-11-15'], ['2026-11-01', null], ['bad', '2026-11-15']]) {
+    assert.throws(() => monthly.reportPeriod(...dates))
+  }
+})
+
+test('custom range drives every evidence boundary, snapshot, prompt and draft identity', async t => {
+  const old = process.env.ADMIN_EMAIL; process.env.ADMIN_EMAIL = 'editor@test'
+  t.after(() => { if (old === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = old })
+  const db = database(), f = generator(db)
+  const response = await f.run({ start_date: '2026-11-01', end_date: '2026-11-15' })
+  assert.equal(response.status, 200)
+  const saved = db.inserts[0]
+  assert.equal(saved.report_start_date, '2026-11-01')
+  assert.equal(saved.report_end_date, '2026-11-15')
+  assert.match(saved.slug, /^2026-11-01-to-2026-11-15-/)
+  assert.deepEqual(JSON.parse(saved.extracted_facts).context.date_range, {
+    start: '2026-11-01', end: '2026-11-15', timezone: 'Europe/Warsaw', end_inclusive: true
+  })
+  for (const q of db.calls.filter(q => q.filters.some(([k]) => k === 'gte'))) {
+    assert.equal(q.filters.find(([k]) => k === 'gte')[2], '2026-10-31T23:00:00.000Z')
+    assert.equal(q.filters.find(([k]) => k === 'lt')[2], '2026-11-15T23:00:00.000Z')
+  }
+  assert.match(f.modelCalls[0].messages[0].content, /not a full calendar month/)
+  assert.match(f.modelCalls[0].messages[1].content, /2026-11-01 through 2026-11-15/)
+  const pendingQuery = db.calls.find(q => q.table === 'drafts')
+  assert.match(pendingQuery.filters.find(([k]) => k === 'or')[1], /report_start_date.eq.2026-11-01,report_end_date.eq.2026-11-15/)
+})
+
+test('invalid or incomplete date ranges are rejected before queries or generation', async t => {
+  const old = process.env.ADMIN_EMAIL; process.env.ADMIN_EMAIL = 'editor@test'
+  t.after(() => { if (old === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = old })
+  for (const body of [{ start_date: '2026-11-01' }, { start_date: '2026-11-15', end_date: '2026-11-01' }, { start_date: '2026-02-30', end_date: '2026-03-15' }]) {
+    const db = database(), f = generator(db)
+    assert.equal((await f.run(body)).status, 400)
+    assert.equal(db.calls.length, 0)
+    assert.equal(f.modelCalls.length, 0)
+  }
 })

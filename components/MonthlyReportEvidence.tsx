@@ -15,10 +15,12 @@ export function MonthlyReportEvidence({ snapshot }: { snapshot: string | null })
     { key: 'published_facts', label: 'Fact Flow', body: 'content' },
     { key: 'source_evidence', label: 'Source evidence', body: 'extracted_facts' }
   ]
+  const range = record(context.date_range)
   const previous = record(context.previous_briefing)
   return (
     <details className="mt-3">
       <summary className="cursor-pointer font-medium">Sources assessed for this briefing</summary>
+      {text(range.start) && text(range.end) && <p className="mt-2 text-sm">Coverage: {text(range.start)} to {text(range.end)} (inclusive, Europe/Warsaw)</p>}
       {sections.map(section => {
         const rows = context[section.key]
         return Array.isArray(rows) && rows.length > 0 && <section className="mt-3" key={section.key}>

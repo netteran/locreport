@@ -98,6 +98,8 @@ before(async () => {
   await db.exec(fs.readFileSync('supabase/migrations/20261119_autopublish_snippet_facts.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261121_monthly_report_drafts.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261121_monthly_report_drafts.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261123_monthly_report_date_range.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261123_monthly_report_date_range.sql', 'utf8'))
   await db.exec(
     'grant usage on schema public to anon,authenticated,service_role;grant select on all tables in schema public to anon,authenticated;grant all on all tables in schema public to service_role;'
   )
@@ -624,7 +626,7 @@ test('monthly reports stay private drafts until explicit publication and retain 
     values($1,'October briefing','Reviewed analysis','monthly-summary','2026-10','pending')`, [id])
   assert.equal(Number((await scalar('select count(*) from articles where draft_id=$1', [id])).count), 0)
   await assert.rejects(db.query(`insert into drafts(id,title,article_type,monthly_period,status)
-    values($1,'Concurrent draft','monthly-summary','2026-10','pending')`, [uid()]), /monthly_report_pending_draft/)
+    values($1,'Concurrent draft','monthly-summary','2026-10','pending')`, [uid()]), /monthly_report_range_pending_draft/)
   const aid = (await scalar('select publish_editorial_draft($1,$2) as id', [id, JSON.stringify({
     title: 'Reviewed October briefing', slug: 'reviewed-october-briefing', content: 'Reviewed analysis',
     article_type: 'industry', author: 'LocReport Editorial Desk'
@@ -653,4 +655,20 @@ test('publication-first upgrade requeues held available evidence without restori
   for (const id of [excluded, dismissed]) {
     assert.equal((await scalar('select processing_status from source_candidates where id=$1', [id])).processing_status, 'ready')
   }
+})
+
+test('distinct report ranges coexist, identical ranges conflict and publication preserves dates', async () => {
+  const first = uid(), full = uid()
+  await db.query(`insert into drafts(id,title,article_type,monthly_period,report_start_date,report_end_date,status)
+    values($1,'Half November','monthly-summary','2026-11','2026-11-01','2026-11-15','pending'),
+    ($2,'Full November','monthly-summary','2026-11','2026-11-01','2026-11-30','pending')`, [first, full])
+  await assert.rejects(db.query(`insert into drafts(id,title,article_type,monthly_period,report_start_date,report_end_date,status)
+    values($1,'Duplicate half','monthly-summary','2026-11','2026-11-01','2026-11-15','pending')`, [uid()]), /monthly_report_range_pending_draft/)
+  await assert.rejects(db.query(`insert into drafts(id,title,article_type,monthly_period,report_start_date,report_end_date)
+    values($1,'Reversed','monthly-summary','2026-11','2026-11-15','2026-11-01')`, [uid()]), /drafts_report_date_range/)
+  const aid = (await scalar('select publish_editorial_draft($1,$2) as id', [first, JSON.stringify({
+    title: 'November 1–15 briefing', slug: 'november-half-range-test', content: 'Reviewed analysis'
+  })])).id
+  const row = await scalar('select report_start_date::text,report_end_date::text,monthly_period from articles where id=$1', [aid])
+  assert.deepEqual(row, { report_start_date: '2026-11-01', report_end_date: '2026-11-15', monthly_period: '2026-11' })
 })

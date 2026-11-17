@@ -194,7 +194,7 @@ export default function DraftsPage() {
                     {draft.title}
                   </Link>
                   <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-                    {draft.article_type === 'monthly-summary' && <>Monthly report · {draft.monthly_period} · </>}
+                    {draft.article_type === 'monthly-summary' && <>Monthly report · {draft.report_start_date && draft.report_end_date ? `${draft.report_start_date} to ${draft.report_end_date}` : draft.monthly_period} · </>}
                     {sourceDate
                       ? <><span title="Source published">{sourceDate}</span> · <span title="Ingested">{ingestedDate}</span></>
                       : ingestedDate

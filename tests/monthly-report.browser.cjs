@@ -23,6 +23,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
       value: 'base64-' + Buffer.from(JSON.stringify({ access_token: token, refresh_token: 'fixture-refresh', expires_at: now + 3600, expires_in: 3600, token_type: 'bearer', user })).toString('base64url')
     }])
     const page = await context.newPage()
+    page.setDefaultTimeout(120000)
 
     const errors=[], approvals=[], generations=[];
     page.on('pageerror',e=>errors.push(e.message));
@@ -44,12 +45,15 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
       }
       return r.fulfill({json:{...draft,fact:null}});
     });
-    await page.goto(base+'/admin');
+    await page.goto(base+'/admin',{timeout:120000});
     const row=page.locator('.admin-action').filter({has:page.getByRole('button',{name:'Generate monthly report',exact:true})});
+    await row.getByLabel('Report start date').fill('2026-11-01');
+    await row.getByLabel('Report end date').fill('2026-11-15');
     await row.getByRole('button',{name:'Run',exact:true}).click();
     await row.getByRole('button',{name:'Confirm',exact:true}).click();
     const review=page.getByRole('link',{name:'Review monthly report draft →'});await review.waitFor();
     assert.equal(generations.length,1);assert.equal(approvals.length,0);
+    assert.deepEqual(generations[0],{force:false,start_date:'2026-11-01',end_date:'2026-11-15'});
     await review.click();
     await page.getByLabel('Title',{exact:true}).waitFor();
     assert.equal(await page.getByRole('button',{name:'Re-run',exact:true}).count(),0);
