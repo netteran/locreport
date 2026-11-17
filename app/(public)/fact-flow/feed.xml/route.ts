@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createPublicClient } from '@/lib/supabase/server'
-import { loadPublishedFacts, factPermalink, httpUrl } from '@/lib/publicFacts'
+import { loadPublishedFacts, factPermalink, httpUrl, factMainLink } from '@/lib/publicFacts'
 import { articleHref } from '@/lib/utils'
 import { escapeXml } from '@/lib/utils'
 
@@ -14,13 +14,14 @@ export async function GET() {
   const facts = await loadPublishedFacts(supabase, 100)
   const items = facts.map(f => {
     const title = f.content.slice(0,100)+(f.content.length>100?'…':'')
-    const link=factPermalink(f.id)
+    const main=factMainLink(f)
+    const link=main ? (main.external ? main.href : BASE_URL+main.href) : factPermalink(f.id)
     const source=httpUrl(f.source_url)
     const description=`<p>${escapeXml(f.content)}</p>`
       +(source?`<p><a href="${escapeXml(source)}">Source: ${escapeXml(f.source_name||'Original reporting')}</a></p>`:'')
       +f.analyses.map(a=>`<p><a href="${BASE_URL}${articleHref(a.slug)}">LocReport analysis: ${escapeXml(a.title)}</a></p>`).join('')
     return `<item><title>${escapeXml(title)}</title><link>${escapeXml(link)}</link>
-      <guid isPermaLink="false">${escapeXml(link)}</guid><pubDate>${new Date(f.published_at).toUTCString()}</pubDate>
+      <guid isPermaLink="false">${escapeXml(factPermalink(f.id))}</guid><pubDate>${new Date(f.published_at).toUTCString()}</pubDate>
       <description>${escapeXml(description)}</description></item>`
   }).join('')
   const lastBuildDate=facts[0]?new Date(facts[0].published_at).toUTCString():new Date().toUTCString()

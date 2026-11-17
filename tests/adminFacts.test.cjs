@@ -23,7 +23,7 @@ function client(results) {
       select(value) { call.select = value; return q },
       order() { return q }, limit() { return q },
       in(key, values) { call[key] = values; return q },
-      then(resolve, reject) { return Promise.resolve(results[table]).then(resolve, reject) }
+      then(resolve, reject) { return Promise.resolve(results[table] || {data:[],error:null}).then(resolve, reject) }
     }
     return q
   } }
@@ -40,7 +40,7 @@ test('admin loads pending and published facts without an inferred article relati
   assert.equal(rows[0].articles, null)
   assert.deepEqual(rows[1].articles, [{ slug: 'analysis' }])
   assert.ok(!db.calls[0].select.includes('('), 'must not depend on inferred foreign keys')
-  assert.deepEqual(db.calls[1].id, ['article'])
+  assert.deepEqual(db.calls.find(c => c.table === 'articles').id, ['article'])
 })
 for (const error of [
   { code: '42703', message: 'column facts.status does not exist' },
@@ -64,6 +64,7 @@ test('a genuinely empty facts table returns an empty list without querying artic
 test('admin page displays loading failure instead of the empty-list component', async () => {
   const { default: Page } = load('app/(public)/admin/fact-flow/page.tsx', {
     '@/lib/supabase/server': { createServiceClient: () => ({}) },
+    '@/components/AdminOperations': { AdminOperations: () => null },
     '@/lib/adminFacts': { loadAdminFacts: async () => { throw new Error('Could not load Fact Flow: database unavailable') } },
     './FactFlowAdmin': { FactFlowAdmin: () => assert.fail('must not render an empty list on error') }
   })

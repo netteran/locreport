@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { digestEmail } from '@/lib/email/templates'
+import { digestEmail, editedDigestEmail } from '@/lib/email/templates'
 import { digestFrom, getResend, SITE_URL } from '@/lib/email/send'
 import { currentPeriod } from '@/lib/email/period'
-import { buildIssue } from '@/lib/email/issue'
+import { resolveEdition } from '@/lib/email/edition'
+import type { Issue } from '@/lib/email/digest'
 
 export const maxDuration = 300
 
@@ -22,7 +23,7 @@ const MIN_RESEND_GAP_MS = 24 * 60 * 60 * 1000
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('Authorization')
-  const isCron = auth === `Bearer ${process.env.CRON_SECRET}`
+  const isCron = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
 
   if (!isCron) {
     const supabase = await createClient()
@@ -48,9 +49,13 @@ export async function POST(req: NextRequest) {
 
   const service = createServiceClient()
 
-  const { issue, error: issueError } = await buildIssue(service, periodStart, periodEnd)
+  let edition
+  try { edition = await resolveEdition(service, periodStart, periodEnd) }
+  catch (error) { return NextResponse.json({ error: (error as Error).message }, { status: 503 }) }
+  if (req.nextUrl.searchParams.has('revision') && req.nextUrl.searchParams.get('revision') !== edition.revision)
+    return NextResponse.json({ error: 'The saved edition changed. Reload and preview before sending.' }, { status: 409 })
+  const issue = edition.issue
 
-  if (issueError) return NextResponse.json({ error: issueError }, { status: 500 })
   if (!issue) {
     return NextResponse.json({
       ok: true,
@@ -64,7 +69,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Every subscriber gets the same issue; only the unsubscribe link differs.
-  const subject = issue.topStory ? `The Weekly: ${issue.topStory.title}` : 'The Weekly from LocReport'
+  const subject = edition.subject
 
   let subscribersQuery = service
     .from('subscribers')
@@ -106,7 +111,9 @@ export async function POST(req: NextRequest) {
       from: digestFrom(),
       to: sub.email,
       subject,
-      html: digestEmail({ periodLabel, ...issue, manageUrl }),
+      html: edition.bodyMarkdown !== null
+        ? editedDigestEmail({ editionDate: edition.editionDate, bodyMarkdown: edition.bodyMarkdown, manageUrl })
+        : digestEmail({ periodLabel, ...(issue as Issue), manageUrl }),
       headers: {
         'List-Unsubscribe': `<${unsubscribeUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
@@ -120,6 +127,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       dryRun: true,
+      revision: edition.revision,
       recipients: payloads.length,
       sent: 0,
       skipped,

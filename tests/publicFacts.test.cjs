@@ -88,6 +88,27 @@ test('only the absent new facts columns permit a legacy fallback', () => {
   ])
     assert.equal(schema.missingPublicationColumns(error), false)
 })
+test('direct article links and evidence associations are combined, deduplicated and ordered by publication date', async () => {
+  const old = { id: 'a', slug: 'older-analysis', title: 'Older analysis', published_at: '2026-11-10' }
+  const recent = { id: 'b', slug: 'recent-analysis', title: 'Recent analysis', published_at: '2026-11-17' }
+  const direct = { id: 'c', slug: 'manual-analysis', title: 'Manual analysis', published_at: '2026-11-16' }
+  const rows = {
+    facts: [{ id: 'one', article_id: 'b' }, { id: 'two', article_id: 'a' }, { id: 'three', article_id: 'c' }],
+    public_fact_sources: [],
+    fact_article_links: [{ fact_id: 'one', articles: [old, recent, recent] }, { fact_id: 'two', articles: null }],
+    articles: [direct]
+  }
+  const queried = []
+  const client = { from(table) {
+    const q = { select() { return q }, eq() { return q }, order() { return q }, limit() { return q },
+      in(column, ids) { if (table === 'articles') queried.push(ids); return q },
+      then(resolve, reject) { return Promise.resolve({ data: rows[table], error: null }).then(resolve, reject) }
+    }; return q
+  } }
+  const facts = await loadPublishedFacts(client)
+  assert.deepEqual(facts.map(f => f.analyses.map(a => a.slug)), [['recent-analysis', 'older-analysis'], ['older-analysis'], ['manual-analysis']])
+  assert.deepEqual(queried, [['c']], 'reuse already joined articles and fetch only missing direct links')
+})
 test('real database failures remain errors instead of becoming an empty or legacy stream', async () => {
   let calls = 0
   const client = {

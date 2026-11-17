@@ -115,7 +115,7 @@ const ids = [1, 2, 3].map(n => `70000000-0000-4000-8000-${String(n).padStart(12,
     // Resume already collected candidates without any collection request.
     reset()
     await page.goto(base + '/admin/candidates')
-    await page.getByRole('button', { name: 'Process facts and suggestions', exact: true }).click()
+    await page.getByRole('button', { name: 'Find related article suggestions', exact: true }).click()
     await page.getByText(complete).waitFor()
     assert.equal(calls.length, 3)
     assert.ok(calls.every(c => c.path === '/api/research/process'))

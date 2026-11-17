@@ -215,7 +215,7 @@ const candidates = ids.map((id, i) => ({
     generationCalls = 0
     savedBrief = null
     await page.goto(base + '/admin/candidates')
-    await page.getByRole('heading', { name: 'Source candidates', exact: true }).waitFor()
+    await page.getByRole('heading', { name: 'Articles creation', exact: true }).waitFor()
     await page.getByRole('checkbox', { name: 'Select Evidence source 1' }).check()
     await page.getByRole('checkbox', { name: 'Select Evidence source 2' }).check()
     await page.getByRole('button', { name: 'Combine selected' }).click()
@@ -239,7 +239,7 @@ const candidates = ids.map((id, i) => ({
     assert.equal(await page.locator('.digest-popup__overlay').count(), 0)
     await page.getByRole('button', { name: 'Approve & publish', exact: true }).waitFor()
     assert.equal(await page.locator('#edit-fact').count(), 0)
-    // Public wire entries use original sources, stable anchors, evidence and analysis links.
+    // Public wire entries lead to their published analysis and keep original attribution.
     await page.goto(base + '/fact-flow')
     await page
       .getByRole('link', { name: 'A sourced industry announcement.', exact: true })
@@ -248,13 +248,22 @@ const candidates = ids.map((id, i) => ({
       await page
         .getByRole('link', { name: 'A sourced industry announcement.', exact: true })
         .getAttribute('href'),
-      'https://example.test/announcement'
+      '/articles/combined-analysis'
     )
+    assert.equal(await page.locator('[id="10000000-0000-4000-8000-000000000001"]').getByRole('link', {name:'Source: Primary source ↗', exact:true}).getAttribute('href'), 'https://example.test/announcement')
     await page.getByText('2 supporting sources', { exact: true }).click()
     await page.getByRole('link', { name: 'Industry publication ↗', exact: true }).waitFor()
     await page
       .getByRole('link', { name: 'LocReport analysis: Combined analysis →', exact: true })
       .waitFor()
+    const rss = await context.request.get(base + '/fact-flow/feed.xml')
+    assert.equal(rss.status(), 200)
+    const xml = await rss.text()
+    assert.match(xml, /<link>https:\/\/locreport.com\/articles\/combined-analysis<\/link>/)
+    assert.match(xml, /<guid isPermaLink="false">https:\/\/locreport.com\/fact-flow#10000000-0000-4000-8000-000000000001<\/guid>/)
+    await page.goto(base + '/')
+    assert.equal(await page.getByRole('link', { name: 'A sourced industry announcement.', exact: true }).getAttribute('href'), '/articles/combined-analysis')
+    assert.equal(await page.getByRole('link', { name: 'Original source ↗', exact: true }).getAttribute('href'), 'https://example.test/announcement')
     assert.equal(errors.length, 0, errors.join('\n'))
     console.log(
       'Browser checks passed: single/multiple source selection, saved direction and experience, explicit generation, manual publication boundary, sourced Fact Flow.'

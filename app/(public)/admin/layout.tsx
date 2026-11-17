@@ -1,4 +1,5 @@
 import './admin.css'
+import { AdminAreaNav } from '@/components/AdminAreaNav'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
@@ -14,6 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="container admin-shell">
       <a href="#admin-page" className="admin-skip-link">Skip to page content</a>
       <main id="admin-content" className="admin-content">
+        <AdminAreaNav />
         <div id="admin-page" className="admin-page" tabIndex={-1}>{children}</div>
       </main>
     </div>

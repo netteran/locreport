@@ -12,6 +12,10 @@ export async function POST(req: NextRequest) {
   const slug = typeof body.slug === 'string' ? body.slug.trim() || null : null
 
   if (!content) return NextResponse.json({ error: 'content is required' }, { status: 400 })
+  if (source_url) {
+    try { const url = new URL(source_url); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error() }
+    catch { return NextResponse.json({ error: 'Use a valid http or https source URL' }, { status: 400 }) }
+  }
 
   let article_id: string | null = null
 

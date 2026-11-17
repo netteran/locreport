@@ -230,7 +230,7 @@ export default function SourcesPage() {
       </div>
 
       <div className="admin-table-wrap" style={{ border: '1px solid var(--border)' }}>
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse admin-sources-table">
           <thead>
             <tr style={{ background: 'var(--bg-secondary)', color: 'var(--muted)' }} className="text-left">
               <SortTh k="batch" label="Batch" className="w-10" />
@@ -251,10 +251,10 @@ export default function SourcesPage() {
                 <Fragment key={r.id}>
                   <tr style={{ borderTop: '1px solid var(--hairline, var(--border))', opacity: r.active ? 1 : 0.55 }}>
                     <td className="px-2 py-0.5 font-mono" style={{ color: 'var(--accent)' }}>{r.batch ?? '—'}</td>
-                    <td className="px-2 py-0.5 max-w-0 w-full">
-                      <div className="truncate" title={`${r.name}\n${r.url}`}>
+                    <td className="px-2 py-0.5 admin-source-cell">
+                      <div className="admin-source-name" title={`${r.name}\n${r.url}`}>
                         <span className="font-medium" style={{ color: 'var(--text)' }}>{r.name}</span>
-                        <span style={{ color: 'var(--muted)' }}> · {r.url.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                        <span style={{ color: 'var(--muted)' }}>{r.url}</span>
                       </div>
                     </td>
                     <td className="px-2 py-0.5" style={{ color: 'var(--muted)' }}>{isPodcast ? 'podcast' : 'feed'}</td>
@@ -262,10 +262,10 @@ export default function SourcesPage() {
                       const h = fetchHealth(r)
                       return <td className="px-2 py-0.5 whitespace-nowrap font-mono" style={{ color: TONE_COLOR[h.tone] }} title={h.title}>{h.label}</td>
                     })()}
-                    <td className="px-2 py-0.5 hidden md:table-cell max-w-[14rem] truncate" style={{ color: 'var(--muted)' }} title={(r.keywords ?? []).join(', ')}>
-                      {isPodcast
+                    <td className="px-2 py-0.5 hidden md:table-cell admin-keywords-cell" style={{ color: 'var(--muted)' }} title={(r.keywords ?? []).join(', ')}>
+                      <span className="admin-keywords-value">{isPodcast
                         ? (r.podcast_config?.ignore_before ? `new after ${r.podcast_config.ignore_before.slice(0, 10)}` : 'no baseline')
-                        : (r.keywords ?? []).join(', ')}
+                        : (r.keywords ?? []).join(', ')}</span>
                     </td>
                     <td className="px-2 py-0.5 text-right">
                       {r.recent_drafts > 0

@@ -116,7 +116,7 @@ export function ArticleList({ articles }: { articles: Row[] }) {
           </label>
           <div className="flex items-center gap-2 shrink-0">
             <Link
-              href={`/admin/articles/${a.id}`}
+              href={a.article_type === 'monthly-summary' ? `/admin/monthly/articles/${a.id}` : `/admin/articles/${a.id}`}
               className="text-sm px-3 py-1 rounded-lg transition-colors"
               style={{ background: 'var(--bg-secondary)', color: 'var(--muted)', border: '1px solid var(--border)' }}
             >

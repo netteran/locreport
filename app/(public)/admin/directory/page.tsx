@@ -219,13 +219,13 @@ export default function AdminDirectoryPage() {
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 gap-8">
+      <div className="admin-directory-stack">
         {/* Form */}
         <div>
           <h2 className="text-sm font-medium uppercase tracking-wide mb-4" style={{ color: 'var(--muted)' }}>
             {editingSlug ? `Editing: ${form.name}` : 'Add entry'}
           </h2>
-          <form onSubmit={submit} className="flex flex-col gap-3">
+          <form onSubmit={submit} className="admin-directory-form">
             <div className="grid grid-cols-[1fr_auto] gap-3 items-start">
               <div className="flex flex-col gap-3">
                 <Input

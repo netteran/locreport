@@ -17,11 +17,12 @@ function FactRow({ fact, onDeleted, onSaved, onLinked, publicationActions }: {
   fact: Fact
   publicationActions: ReactNode
   onDeleted: (id: string) => void
-  onSaved: (id: string, content: string) => void
+  onSaved: (id: string, content: string, source_url: string | null) => void
   onLinked: (id: string, article_id: string | null, slug: string | null) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(fact.content)
+  const [sourceDraft, setSourceDraft] = useState(fact.source_url || '')
   const [linkingArticle, setLinkingArticle] = useState(false)
   const [slugInput, setSlugInput] = useState(fact.articles?.[0]?.slug ?? '')
   const [confirming, setConfirming] = useState(false)
@@ -29,17 +30,17 @@ function FactRow({ fact, onDeleted, onSaved, onLinked, publicationActions }: {
   const [error, setError] = useState('')
 
   async function save() {
-    if (!draft.trim() || draft === fact.content) { setEditing(false); return }
+    if (!draft.trim() || (draft === fact.content && sourceDraft === (fact.source_url || ''))) { setEditing(false); return }
     setBusy(true)
     setError('')
     const res = await fetch(`/api/facts/${fact.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: draft.trim() }),
+      body: JSON.stringify({ content: draft.trim(), source_url: sourceDraft.trim() || null }),
     })
     setBusy(false)
-    if (!res.ok) { setError('Save failed'); return }
-    onSaved(fact.id, draft.trim())
+    if (!res.ok) { const data = await res.json().catch(() => ({})); setError(data.error || 'Save failed'); return }
+    onSaved(fact.id, draft.trim(), sourceDraft.trim() || null)
     setEditing(false)
   }
 
@@ -93,7 +94,7 @@ function FactRow({ fact, onDeleted, onSaved, onLinked, publicationActions }: {
     <div>
       {editing ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          <textarea
+          <label className="text-xs">Fact content<textarea aria-label="Fact content"
             value={draft}
             onChange={e => setDraft(e.target.value)}
             rows={3}
@@ -109,7 +110,8 @@ function FactRow({ fact, onDeleted, onSaved, onLinked, publicationActions }: {
               resize: 'vertical',
               fontFamily: 'var(--font-body)',
             }}
-          />
+          /></label>
+          <label className="text-xs">Original source URL<input aria-label="Original source URL" type="url" className="w-full border rounded px-3 py-2 mt-1" value={sourceDraft} onChange={e => setSourceDraft(e.target.value)} placeholder="https://…" /></label>
           {error && <p style={{ fontSize: '0.75rem', color: '#dc2626' }}>{error}</p>}
           <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             <button
@@ -120,7 +122,7 @@ function FactRow({ fact, onDeleted, onSaved, onLinked, publicationActions }: {
               {busy ? 'Saving…' : 'Save'}
             </button>
             <button
-              onClick={() => { setEditing(false); setDraft(fact.content); setError('') }}
+              onClick={() => { setEditing(false); setDraft(fact.content); setSourceDraft(fact.source_url || ''); setError('') }}
               disabled={busy}
               style={{ fontSize: '0.8rem', padding: '4px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}
             >
@@ -418,8 +420,8 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
     setFacts((f) => f.filter((x) => x.id !== id))
   }
 
-  function handleSaved(id: string, content: string) {
-    setFacts((f) => f.map((x) => (x.id === id ? { ...x, content } : x)))
+  function handleSaved(id: string, content: string, source_url: string | null) {
+    setFacts((f) => f.map((x) => (x.id === id ? { ...x, content, source_url } : x)))
   }
 
   function handleLinked(id: string, article_id: string | null, slug: string | null) {
@@ -445,7 +447,7 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
             margin: 0
           }}
         >
-          Fact Flow
+          Facts creation
         </h1>
         <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{facts.length} facts</span>
       </div>
