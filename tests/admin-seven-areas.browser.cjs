@@ -1,0 +1,102 @@
+const {chromium}=require('playwright'), assert=require('node:assert/strict'),fs=require('node:fs')
+const base=process.env.TEST_BASE_URL||'http://127.0.0.1:3000'
+;(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH,args:['--no-sandbox','--disable-dev-shm-usage']})
+ try {
+  const context=await browser.newContext({viewport:{width:1440,height:1100},reducedMotion:'reduce'})
+  await context.route('**/*',r=>['127.0.0.1','localhost'].includes(new URL(r.request().url()).hostname)?r.continue():r.abort())
+  const now=Math.floor(Date.now()/1000),user={id:'90000000-0000-4000-8000-000000000001',email:'editor@example.test',aud:'authenticated',role:'authenticated'}
+  const token=[Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url'),Buffer.from(JSON.stringify({sub:user.id,email:user.email,aud:user.aud,role:user.role,iat:now,exp:now+3600})).toString('base64url'),'fixture'].join('.')
+  await context.addCookies([{name:'sb-127-auth-token',url:base,value:'base64-'+Buffer.from(JSON.stringify({access_token:token,refresh_token:'fixture-refresh',expires_at:now+3600,expires_in:3600,token_type:'bearer',user})).toString('base64url')}])
+  const page=await context.newPage(), errors=[];page.on('pageerror',e=>errors.push({url:page.url(),message:e.message}));page.setDefaultTimeout(30000)
+  fs.mkdirSync('work/admin-preview',{recursive:true})
+  const names=['Dashboard','Articles creation','Facts creation','Weekly newsletter','Monthly brief','Directory','Prompts']
+  await page.goto(base+'/admin',{waitUntil:'networkidle'})
+  assert.deepEqual(await page.getByRole('navigation',{name:'Admin areas',exact:true}).locator('a').allTextContents(),names)
+  assert.equal(await page.locator('.admin-stat-grid').count(),0)
+  assert.equal(await page.locator('.admin-action').count(),4)
+  assert.equal(await page.locator('.admin-area-card').count(),6)
+  await page.getByRole('button',{name:'Toggle admin menu',exact:true}).click()
+  assert.deepEqual(await page.locator('.admin-menu-dropdown a[role="menuitem"]').allTextContents(),names)
+  await page.getByRole('button',{name:'Toggle admin menu',exact:true}).click()
+  await page.screenshot({path:'work/admin-preview/dashboard-seven.png',fullPage:true,animations:'disabled'})
+
+  await page.goto(base+'/admin/candidates',{waitUntil:'networkidle'})
+  await page.getByRole('heading',{name:'Articles creation',exact:true}).waitFor()
+  assert.equal(await page.getByRole('navigation',{name:'Article workflow',exact:true}).locator('details[open]').count(),0)
+  await page.getByText('Other options',{exact:true}).click()
+  await page.getByRole('navigation',{name:'Article workflow',exact:true}).getByRole('link',{name:'Compose',exact:true}).waitFor({state:'visible'})
+
+  const sourceUrl='https://publisher.example.test/very-long-source-path/industry-and-localization-technology/feed.xml'
+  await page.route('**/api/sources',r=>r.fulfill({json:[{id:'source',name:'A complete publisher name that must remain visible in the source column',url:sourceUrl,keywords:['translation','localization','enterprise','language technology','AI'],active:true,auto_publish:false,kind:'feed',recent_drafts:0,created_at:'2026-11-01T00:00:00Z'}]}))
+  await page.goto(base+'/admin/sources',{waitUntil:'networkidle'})
+  await page.getByText(sourceUrl,{exact:true}).waitFor()
+  assert.equal(await page.locator('.admin-source-name').evaluate(e=>getComputedStyle(e).whiteSpace),'normal')
+  assert.ok((await page.locator('.admin-keywords-value').boundingBox()).width<120)
+
+  const entry={id:'80000000-0000-4000-8000-000000000001',name:'Example company',slug:'example-company',category:'tms',website:'https://example.test',description:'A directory description.',long_description:'Longer company description.',founded:2020,hq:'Warsaw',address:'',type:'Private',tags:[],logo_url:null}
+  await page.route('**/api/directory',r=>r.fulfill({json:[entry]}))
+  await page.goto(base+'/admin/directory',{waitUntil:'networkidle'})
+  const form=await page.locator('.admin-directory-form').boundingBox(),stack=await page.locator('.admin-directory-stack').boundingBox()
+  assert.ok(Math.abs(form.width-stack.width)<2,'company editor uses the full available width')
+  await page.getByRole('button',{name:'Edit',exact:true}).click()
+  assert.equal(await page.getByPlaceholder('Company / tool name *',{exact:true}).inputValue(),entry.name)
+  await page.waitForFunction(()=>window.scrollY===0)
+  await page.screenshot({path:'work/admin-preview/directory-full-width.png',fullPage:true,animations:'disabled'})
+
+  await page.goto(base+'/admin/fact-flow',{waitUntil:'networkidle'})
+  await page.getByRole('button',{name:/^published/}).click()
+  const fact=page.locator('.fact-flow-card').first()
+  await fact.getByRole('button',{name:'Edit',exact:true}).click()
+  const reviewedFact='A reviewed sourced industry announcement '+Date.now()+'.',reviewedSource='https://publisher.example.test/corrected-source?review='+Date.now()
+  await fact.getByLabel('Fact content',{exact:true}).fill(reviewedFact)
+  await fact.getByLabel('Original source URL',{exact:true}).fill(reviewedSource)
+  await fact.getByRole('button',{name:'Save',exact:true}).click()
+  await fact.getByText(reviewedFact,{exact:true}).waitFor()
+  await page.reload({waitUntil:'networkidle'});await page.getByRole('button',{name:/^published/}).click()
+  assert.equal(await page.locator('.fact-flow-card').first().locator(`a[href="${reviewedSource}"]`).count(),1)
+
+  await page.route('**/api/digest/recipients',r=>r.fulfill({json:{subscribers:[{id:user.id,email:'reader@example.test'}]}}))
+  let checks=0
+  await page.route('**/api/digest/send*',r=>{assert.equal(new URL(r.request().url()).searchParams.get('dry'),'1','browser test must never send real email');checks++;return r.fulfill({json:{recipients:1,skipped:0,articles:1}})})
+  const unauthorized=await browser.newContext()
+  assert.equal((await unauthorized.request.get(base+'/api/digest/edition')).status(),401)
+  assert.equal((await unauthorized.request.put(base+'/api/digest/edition',{data:{}})).status(),401)
+  await unauthorized.close()
+  await page.goto(base+'/admin/weekly',{waitUntil:'networkidle'})
+  await page.getByLabel('Subject',{exact:true}).waitFor()
+  const subject='A completely edited weekly edition '+Date.now()
+  await page.getByLabel('Subject',{exact:true}).fill(subject)
+  const copy='## Reviewed top story\n\nEdited content beyond the introduction.\n\n- A custom fact and [updated source](https://publisher.example.test/new-link).\n- A second point.\n\n## Edited directory selection\n\nA company chosen by the editor.'
+  await page.getByLabel('Newsletter content',{exact:true}).fill(copy)
+  assert.equal(await page.getByRole('button',{name:'View saved preview',exact:true}).isDisabled(),true)
+  await page.getByRole('button',{name:'Save edition',exact:true}).click()
+  await page.getByText('Complete edition saved.',{exact:false}).waitFor()
+  await page.reload({waitUntil:'networkidle'})
+  assert.equal(await page.getByLabel('Subject',{exact:true}).inputValue(),subject)
+  assert.equal(await page.getByLabel('Newsletter content',{exact:true}).inputValue(),copy)
+  const popupPromise=page.waitForEvent('popup');await page.getByRole('button',{name:'View saved preview',exact:true}).click();const popup=await popupPromise
+  await popup.getByRole('heading',{name:'Reviewed top story',exact:true}).waitFor()
+  assert.equal(await popup.getByRole('link',{name:'updated source',exact:true}).getAttribute('href'),'https://publisher.example.test/new-link')
+  await popup.getByRole('link',{name:'Manage subscription',exact:true}).waitFor();await popup.close()
+  await page.getByRole('button',{name:'Check recipients',exact:true}).click();await page.getByRole('button',{name:'Confirm send',exact:true}).waitFor()
+  await page.getByLabel('Newsletter content',{exact:true}).fill(copy+'\n\nUnsaved change.')
+  assert.equal(await page.getByRole('button',{name:'Confirm send',exact:true}).count(),0)
+  assert.equal(await page.getByRole('button',{name:'View saved preview',exact:true}).isDisabled(),true)
+  assert.equal(checks,1)
+  await page.getByRole('button',{name:'Save edition',exact:true}).click();await page.getByText('Complete edition saved.',{exact:false}).waitFor()
+  await page.screenshot({path:'work/admin-preview/whole-weekly.png',fullPage:true,animations:'disabled'})
+  await page.setViewportSize({width:390,height:844})
+  for(const route of ['/admin','/admin/directory','/admin/weekly','/admin/monthly']) {
+    await page.goto(base+route,{waitUntil:'networkidle'})
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,route+' mobile overflow')
+    if(route==='/admin/directory') {
+      assert.ok((await page.getByPlaceholder('Company / tool name *',{exact:true}).boundingBox()).width>250,'mobile company fields stay readable beside the logo uploader')
+      await page.screenshot({path:'work/admin-preview/directory-mobile.png',fullPage:true,animations:'disabled'})
+    }
+  }
+  await page.screenshot({path:'work/admin-preview/monthly-mobile.png',fullPage:true,animations:'disabled'})
+  assert.deepEqual(errors,[])
+  console.log('Seven-area admin checks passed: compact daily dashboard, workflow navigation, full sources, full-width directory, persistent fact content/source editing, complete saved newsletter and preview, stale/dirty confirmation protection and mobile layouts. No email sent.')
+ } finally {await browser.close()}
+})().catch(e=>{console.error(e);process.exitCode=1})

@@ -187,7 +187,7 @@ export default function DraftsPage() {
               <div className="flex-1 flex items-start justify-between gap-4">
                 <div>
                   <Link
-                    href={`/admin/drafts/${draft.id}`}
+                    href={draft.article_type === 'monthly-summary' ? `/admin/monthly/drafts/${draft.id}` : `/admin/drafts/${draft.id}`}
                     className="font-medium hover:underline"
                     style={{ color: 'var(--text)' }}
                   >

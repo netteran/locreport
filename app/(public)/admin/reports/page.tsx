@@ -59,7 +59,7 @@ export default async function AdminReportsPage() {
               </p>
             </div>
             <Link
-              href={`/admin/articles/${m.id}`}
+              href={`/admin/monthly/articles/${m.id}`}
               className="text-sm px-3 py-1 rounded-lg shrink-0"
               style={{ background: 'var(--bg-secondary)', color: 'var(--muted)', border: '1px solid var(--border)' }}
             >

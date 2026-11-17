@@ -4,7 +4,7 @@ import { HomeFeedAd } from '@/components/HomeFeedAd'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { createPublicClient } from '@/lib/supabase/server'
-import {loadPublishedFacts} from '@/lib/publicFacts'
+import { loadPublishedFacts, httpUrl, factMainLink } from '@/lib/publicFacts'
 import { Article } from '@/lib/types'
 import { articleHref, safeImageUrl } from '@/lib/utils'
 import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
@@ -254,16 +254,16 @@ export default async function HomePage() {
               </div>
               <p className="sidebar-factflow__desc">Industry news, with original sources.</p>
               {latestFacts.map(fact => {
-                const slug = fact.analyses[0]?.slug
+                const main = factMainLink(fact)
+                const source = httpUrl(fact.source_url)
                 return (
                   <div key={fact.id} className="sidebar-factflow__item">
                     <span className="sidebar-factflow__time">{timeAgo(fact.published_at||fact.created_at)}</span>
-                    {fact.source_url ? <a href={fact.source_url} target="_blank" rel="noopener noreferrer" className="sidebar-factflow__content">{fact.content}</a> : slug ? (
-                      <Link href={articleHref(slug)} className="sidebar-factflow__content">{fact.content}</Link>
-                    ) : (
-                      <span className="sidebar-factflow__content">{fact.content}</span>
-                    )}
-                    {slug&&fact.source_url&&<Link className="text-xs underline" href={articleHref(slug)}>LocReport analysis →</Link>}
+                    {main ? main.external ? (
+                      <a href={main.href} target="_blank" rel="noopener noreferrer" className="sidebar-factflow__content">{fact.content}</a>
+                    ) : <Link href={main.href} className="sidebar-factflow__content">{fact.content}</Link>
+                      : <span className="sidebar-factflow__content">{fact.content}</span>}
+                    {main && !main.external && source && <a className="text-xs underline" href={source} target="_blank" rel="noopener noreferrer">Original source ↗</a>}
                   </div>
                 )
               })}

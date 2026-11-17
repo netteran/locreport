@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState, useRef } from 'react'
 import { ReadingProgress } from '@/components/ReadingProgress'
-import { ADMIN_GROUPS, activeAdminLink } from '@/lib/adminNav'
+import { ADMIN_LINKS, activeAdminLink } from '@/lib/adminNav'
 import { OPEN_DIGEST_EVENT } from '@/components/DigestPopup'
 
 const NAV_LINKS = [
@@ -30,9 +30,6 @@ export function Nav() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
-  // Drafts awaiting approval, shown as "Drafts (N)" in the Admin menu.
-  // null until the first fetch lands, so the label never shows a wrong 0.
-  const [pendingDrafts, setPendingDrafts] = useState<number | null>(null)
   // Whether the primary input can hover (mouse/trackpad) vs. touch-only.
   // Drives the Admin menu: hover-intent open/close on desktop, tap-to-toggle
   // on touch — checked by input capability, not viewport width, so it holds
@@ -152,16 +149,6 @@ export function Nav() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Loaded once the viewer is known to be an admin, then again every time the
-  // Admin menu opens, so approving drafts is reflected without a page reload.
-  const adminMenuOpen = isAdmin && openDropdown === ADMIN_MENU_KEY
-  useEffect(() => {
-    if (!isAdmin) return
-    fetch('/api/stats')
-      .then(r => r.json())
-      .then(({ drafts }) => { if (typeof drafts === 'number') setPendingDrafts(drafts) })
-      .catch(() => {})
-  }, [isAdmin, adminMenuOpen])
 
   function toggleTheme() {
     const next = theme === 'light' ? 'dark' : 'light'
@@ -350,23 +337,9 @@ export function Nav() {
               className={`admin-menu-dropdown${openDropdown === ADMIN_MENU_KEY ? ' is-open' : ''}`}
               role="menu"
             >
-              <li role="none">
-                <Link href="/admin" role="menuitem" aria-current={pathname === '/admin' ? 'page' : undefined} onClick={() => setOpenDropdown(null)}>Dashboard</Link>
-              </li>
-              {ADMIN_GROUPS.map(group => (
-                <li key={group.label} role="none" className="admin-menu-group">
-                  <span className="admin-menu-group__label" aria-hidden="true">{group.label}</span>
-                  <ul role="group" aria-label={group.label}>
-                    {group.links.map(({ href, label }) => (
-                      <li key={href} role="none">
-                        <Link href={href} role="menuitem" aria-current={pathname.startsWith('/admin') && activeAdminLink(pathname).href === href ? 'page' : undefined} onClick={() => setOpenDropdown(null)}>
-                          {href === '/admin/drafts' && pendingDrafts !== null ? `${label} (${pendingDrafts})` : label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
+              {ADMIN_LINKS.map(({href, label}) => <li key={href} role="none">
+                <Link href={href} role="menuitem" aria-current={pathname.startsWith('/admin') && activeAdminLink(pathname).href === href ? 'page' : undefined} onClick={() => setOpenDropdown(null)}>{label}</Link>
+              </li>)}
               <li role="none" className="admin-menu-divider">
                 <button
                   type="button"

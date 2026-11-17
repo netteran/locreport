@@ -1,4 +1,5 @@
 'use client'
+import { AdminOperations } from '@/components/AdminOperations'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -80,7 +81,7 @@ export default function CandidatesPage() {
   }
   return (
     <div className="w-full space-y-5">
-      <h1 className="text-2xl font-bold">Source candidates</h1>
+      <h1 className="text-2xl font-bold">Articles creation</h1>
       <p className="text-sm" style={{ color: 'var(--muted)' }}>
         Keep useful evidence here until it fits an article. Related sources can contribute to suggested
         articles, including several reports about the same event. Choose 1–8 sources when you are ready.
@@ -477,6 +478,7 @@ export default function CandidatesPage() {
           ))}
         </>
       )}
+      <details className="admin-maintenance"><summary>Article maintenance</summary><AdminOperations area="articles" /></details>
     </div>
   )
 }

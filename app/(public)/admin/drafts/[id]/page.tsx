@@ -161,7 +161,7 @@ export default function DraftReviewPage() {
       setLoading(false)
       return
     }
-    router.push('/admin/drafts')
+    router.push(draft?.article_type === 'monthly-summary' ? '/admin/monthly' : '/admin/drafts')
   }
 
   async function rerun() {

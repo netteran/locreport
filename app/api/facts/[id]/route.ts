@@ -4,62 +4,55 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { revalidateFactSurfaces } from '@/lib/revalidate'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireAdmin()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
-  const body = await req.json()
-  const content = typeof body.content === 'string' ? body.content.trim() : undefined
-  const hasArticleId = 'article_id' in body
-  const article_id = hasArticleId ? (body.article_id ?? null) : undefined
-
-  if (content === undefined && !hasArticleId && !('status' in body))
-    return NextResponse.json({ error: 'content or article_id is required' }, { status: 400 })
-  if (content !== undefined && !content)
-    return NextResponse.json({ error: 'content must not be empty' }, { status: 400 })
-
+  let body: Record<string, unknown>
+  try { body = await req.json(); if (!body || Array.isArray(body) || typeof body !== 'object') throw new Error() }
+  catch { return NextResponse.json({ error: 'Invalid fact update' }, { status: 400 }) }
   const patch: Record<string, unknown> = {}
-  if (content !== undefined) patch.content = content
-  if (hasArticleId) patch.article_id = article_id
-
+  if ('content' in body) {
+    if (typeof body.content !== 'string' || !body.content.trim()) return NextResponse.json({ error: 'Content must not be empty' }, { status: 400 })
+    patch.content = body.content.trim()
+  }
+  if ('source_url' in body) {
+    if (body.source_url !== null && typeof body.source_url !== 'string') return NextResponse.json({ error: 'Source URL must be text' }, { status: 400 })
+    const raw = typeof body.source_url === 'string' ? body.source_url.trim() : ''
+    if (raw) {
+      try { const url = new URL(raw); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error(); patch.source_url = url.href }
+      catch { return NextResponse.json({ error: 'Use a valid http or https source URL' }, { status: 400 }) }
+    } else patch.source_url = null
+  }
+  if ('article_id' in body) {
+    if (body.article_id !== null && (typeof body.article_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.article_id)))
+      return NextResponse.json({ error: 'Invalid article' }, { status: 400 })
+    patch.article_id = body.article_id
+  }
+  if ('status' in body) {
+    if (!['pending', 'published', 'rejected', 'withdrawn'].includes(String(body.status))) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    patch.status = body.status
+  }
+  if (!Object.keys(patch).length) return NextResponse.json({ error: 'No fact changes supplied' }, { status: 400 })
   const svc = createServiceClient()
   const schemaResponse = await requireResearchSchema(svc)
   if (schemaResponse) return schemaResponse
-  if ('status' in body) {
-    if (!['pending', 'published', 'rejected', 'withdrawn'].includes(body.status))
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
-    const { data: current, error: readError } = await svc
-      .from('facts')
-      .select('source_url,article_id,published_at')
-      .eq('id', id)
-      .single()
-    if (readError) return NextResponse.json({ error: readError.message }, { status: 404 })
-    if (body.status === 'published' && !current.source_url && !current.article_id)
-      return NextResponse.json(
-        { error: 'Add an original source before publishing' },
-        { status: 400 }
-      )
-    patch.status = body.status
-    if (body.status === 'published') {
-      patch.published_at = current.published_at || new Date().toISOString()
-      patch.review_reason = null
-    }
+  const { data: current, error: readError } = await svc.from('facts').select('source_url,article_id,published_at,status').eq('id', id).single()
+  if (readError || !current) return NextResponse.json({ error: readError?.message || 'Fact not found' }, { status: readError && readError.code !== 'PGRST116' ? 500 : 404 })
+  const effective = { ...current, ...patch }
+  if (effective.status === 'published' && !effective.source_url && !effective.article_id) {
+    const association = 'article_id' in patch ? { data: [], error: null } : await svc.from('fact_article_links').select('article_id').eq('fact_id', id).limit(1)
+    if (association.error) return NextResponse.json({ error: association.error.message }, { status: 500 })
+    if (!association.data?.length) return NextResponse.json({ error: 'A published fact needs an original source or published article' }, { status: 400 })
   }
+  if (patch.status === 'published') { patch.published_at = current.published_at || new Date().toISOString(); patch.review_reason = null }
   const { error } = await svc.from('facts').update(patch).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  if (hasArticleId && article_id) {
-    await svc
-      .from('fact_article_links')
-      .upsert({ fact_id: id, article_id }, { onConflict: 'fact_id,article_id' })
-  } else if (hasArticleId) {
-    await svc.from('fact_article_links').delete().eq('fact_id', id)
+  if ('article_id' in patch) {
+    const result = patch.article_id
+      ? await svc.from('fact_article_links').upsert({ fact_id: id, article_id: patch.article_id }, { onConflict: 'fact_id,article_id' })
+      : await svc.from('fact_article_links').delete().eq('fact_id', id)
+    if (result.error) { revalidateFactSurfaces(); return NextResponse.json({ error: 'Fact saved, but its article link could not be updated. Reload before retrying.' }, { status: 500 }) }
   }
-  // A patch can link, relink or unlink the fact, so either the old or the new
-  // state may have been public. Not worth a read to find out — this is a rare
-  // admin edit and revalidating just marks two cache entries stale.
   revalidateFactSurfaces()
-
   return NextResponse.json({ ok: true })
 }
 

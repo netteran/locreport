@@ -1,52 +1,35 @@
-# Editable opening note for The Weekly
+# Weekly newsletter
 
-The Weekly keeps its Friday schedule and rolling seven-day content window. Each issue includes the opening note, the top article, Company of the week, up to five Fact Flow items, a LocStock brief when there are significant moves, new directory entries and the remaining articles, including Monthly Briefings published during that week. Internal impact scores still help rank stories, but no score labels appear in the email. Signal movement tables and links to the retired public tracker have been removed; composing an issue no longer fetches four weeks of signal history. Existing sent HTML snapshots remain intact. The Monthly Briefing is an editorial publication with its own draft review; this change does not replace The Weekly with a monthly mailing.
+The Weekly lives at **Admin → Weekly newsletter**. Edit its subject and complete Markdown body, including the introduction, stories, facts, company selection, market summary and links. Headings, bold/italic text, lists, quotes and standalone images are supported. HTML is shown as text; links and images accept http/https destinations. The branded email frame and subscription-management footer are supplied automatically.
 
-In **Admin → Dashboard → Send The Weekly**, use **Opening note** to add a short personal introduction above the top story. The field is optional Markdown text, limited to 2,000 characters. Line breaks are preserved. Write headings on their own lines and separate paragraphs with a blank line. Supported formatting:
+1. Start with the automatically assembled issue or open the saved edition.
+2. Edit the subject and content, then **Save edition**.
+3. Open **View saved preview** to inspect exactly that saved content.
+4. Select all subscribers or one subscriber, then **Check recipients**.
+5. **Confirm send** only when the content and recipients are correct.
 
-- `# Heading`, `## Subheading`, through `###### Heading` (all six levels)
-- `**bold**` or `__bold__`
-- `*italics*` or `_italics_`
-- `[link text](https://example.com)` with HTTP or HTTPS destinations
-- Nested formatting, such as `[**bold link**](https://example.com)`
+Editing the content or changing recipients clears the send confirmation. Unsaved edits disable preview and sending. The server also checks the saved revision, so a preview from an older tab cannot silently send a changed edition. Conflicting saves require a reload. Refresh from latest content updates the working copy; it does not replace the saved edition until Save is chosen.
 
-For example:
+## Friday editions
 
-```markdown
-# This week in localization
+Editions are keyed by their Friday date in Europe/Warsaw, including DST. Saturday begins the next edition. A saved complete edition is used by both manual delivery and the existing Friday 13:00 schedule. It is frozen until edited again; later source/article changes do not rewrite it. Without a saved edition for that Friday, the existing automatic issue continues. A past edition is never reused for a new week.
 
-A short introduction with **bold text** and [a useful link](https://example.com).
+Targeted single-subscriber sends, the resend guard, unsubscribe headers and per-recipient manage links retain their existing behavior. `digest_sends` keeps the exact subject and rendered HTML of each delivered message, so editing a future edition does not alter sent history.
 
-## What to watch
+## Database and rollout
 
-Your second paragraph.
-```
+Apply `supabase/migrations/20261124_weekly_newsletter_editions.sql` before using the complete editor. The new table is private, has RLS enabled, and grants access only to the service role; the API additionally requires the admin session. The database enforces Friday dates, nonempty content, a 200-character subject and a 60,000-character body.
 
-Use **View sample** after saving to see the formatted email. Raw HTML and unsupported markup (including images) display as text. Unsafe or non-web link destinations render their label without a clickable link. Existing paragraphs are stored as before; no additional migration is needed for Markdown or heading support.
+Only a specifically missing editions table allows scheduled delivery to fall back to the prior automatic issue during rollout. Permission, connectivity and invalid-data errors stop delivery rather than omit saved edits. The legacy intro-note table/API is retained for compatibility and supplies the opening note when assembling a new automatic issue; a saved complete edition takes precedence.
 
-1. Check the Friday edition date shown next to the field.
-2. Edit the paragraph and choose **Save note**.
-3. Use **View sample** to inspect the actual newsletter. **Preview** still checks recipients and opens the existing send confirmation.
-4. Confirm a manual send if needed, or leave the saved paragraph for the scheduled Friday send.
+## Verification
 
-Saving never sends email. Unsaved edits disable sample/recipient previews and clear an earlier send confirmation. Clear the field and save to remove the paragraph. The saved paragraph is shared by sample rendering, manual sends and the scheduled send. Previously sent emails retain their original text in the existing HTML snapshots in Weekly history.
+`npm test` covers edition validation, week boundaries, private-table constraints, authentication, conflicting saves, preview/send consistency, cron behavior and fact-link editing. Rendering tests check safe Markdown and preserve the managed subscription footer. Delivery is mocked in tests.
 
-Monday through Friday use that Friday's edition in `Europe/Warsaw`; Saturday starts the next edition. Each edition has its own saved paragraph, so text is not automatically reused the following week. A page left open across the rollover must reload before saving. A manual send uses the edition currently shown by the editor; it still covers the existing rolling seven-day content window.
-
-## Deployment
-
-Apply `supabase/migrations/20261116_weekly_newsletter_notes.sql` through the normal Supabase migration process before using the field. The new table stores paragraphs by Friday edition date, enables RLS and grants access only to the server's service role. The note API separately requires an authenticated admin session.
-
-Before the migration is installed, the editor displays the migration requirement. Existing send and sample endpoints retain their original no-paragraph behavior when this specific table is absent. Other database read failures stop preview/send rather than silently dropping saved copy. This change does not alter the sending schedule, recipients, subject, resend guard or subscription preferences. Rollback can retain the new table and revert the application without deleting editorial copy.
-
-## Validation
-
-`npm test` includes the weekly-edition date rules, paragraph validation, authenticated note API, formatted HTML output, shared issue building and private-table permissions in PostgreSQL WASM.
-
-Run the isolated Supabase fixture and app using the setup in `docs/research-workflow.md`, then run:
+Use the isolated editorial fixture described in `docs/research-workflow.md`, then run:
 
 ```sh
-PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium node tests/weekly-note.browser.cjs
+TEST_BASE_URL=http://127.0.0.1:3000 PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium node tests/admin-seven-areas.browser.cjs
 ```
 
-This browser check exercises the real note API and sample renderer against the local fixture. Sending is intercepted; no email service or live database is used.
+The browser check edits a complete edition, saves/reloads it, inspects the real HTML preview and checks dirty-state/confirmation behavior. Send requests are intercepted and must be dry runs. Screenshots are saved under `work/admin-preview/`. The older admin-workspace and weekly-note browser script names remain compatibility entry points for this consolidated check.

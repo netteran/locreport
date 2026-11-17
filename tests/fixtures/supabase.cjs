@@ -159,6 +159,8 @@ function selectEditorialArticles(url) {
 
 function createFixtureServer(schema = 'research', requests = []) {
   const newsletterNotes = new Map()
+  const newsletterEditions = new Map()
+  const factRows = [publicFact, independentFact, privateFact].map(f => ({...f}))
   return http.createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1')
     requests.push({
@@ -169,6 +171,16 @@ function createFixtureServer(schema = 'research', requests = []) {
     let rows = []
     let total
     if (url.pathname === '/auth/v1/user') return reply(admin)
+    if (url.pathname === '/rest/v1/weekly_newsletter_editions') {
+      if (schema === 'legacy') return reply({code:'42P01',message:'weekly_newsletter_editions does not exist'},404)
+      if (req.method === 'POST') {
+        let body = ''; req.on('data', c => {body += c}); req.on('end', () => {
+          const row = JSON.parse(body); newsletterEditions.set(row.edition_date,row); reply(null)
+        }); return
+      }
+      const date = (url.searchParams.get('edition_date') || '').replace(/^eq\./,'')
+      rows = newsletterEditions.has(date) ? [newsletterEditions.get(date)] : []
+    }
     if (url.pathname === '/rest/v1/weekly_newsletter_notes') {
       if (req.method === 'POST') {
         let body = ''
@@ -185,6 +197,14 @@ function createFixtureServer(schema = 'research', requests = []) {
       rows = note ? [note] : []
     }
     if (url.pathname === '/rest/v1/facts') {
+      const id = (url.searchParams.get('id') || '').replace(/^eq\./,'')
+      if (req.method === 'PATCH') {
+        let body = ''; req.on('data', c => {body += c}); req.on('end', () => {
+          const row = factRows.find(f => f.id === id); if(row) Object.assign(row,JSON.parse(body)); reply(null)
+        }); return
+      }
+      if (id) { rows = factRows.filter(f => f.id === id); return reply(req.headers.accept?.includes('vnd.pgrst.object') ? rows[0] || null : rows) }
+
       if (schema === 'legacy') {
         const column =
           (url.searchParams.get('select') || '')
@@ -199,7 +219,7 @@ function createFixtureServer(schema = 'research', requests = []) {
           .filter((f) => f.article_id)
           .map(({ event_id, status, published_at, ...legacy }) => legacy)
       } else if (req.headers.apikey === 'fixture-service') {
-        rows = [publicFact, independentFact, privateFact]
+        rows = factRows.filter(f => !url.searchParams.has('status') || f.status === url.searchParams.get('status').slice(3))
       } else {
         if (
           url.searchParams.get('status') !== 'eq.published' &&
@@ -209,7 +229,7 @@ function createFixtureServer(schema = 'research', requests = []) {
         rows =
           url.searchParams.get('limit') === '0'
             ? []
-            : [publicFact, independentFact, privateFact].filter((f) => f.status === 'published')
+            : factRows.filter((f) => f.status === 'published')
       }
     }
     if (url.pathname === '/rest/v1/public_fact_sources') {
@@ -236,6 +256,7 @@ function createFixtureServer(schema = 'research', requests = []) {
       rows = [
         {
           fact_id: factId,
+          article_id: articleId,
           articles: { id: articleId, slug: 'combined-analysis', title: 'Combined analysis' }
         }
       ]

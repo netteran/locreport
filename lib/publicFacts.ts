@@ -27,6 +27,14 @@ export function httpUrl(value: string | null | undefined) {
   }
 }
 
+/** Published analysis takes precedence; original attribution is kept separately. */
+export function factMainLink(fact: Pick<PublishedFact, 'analyses' | 'source_url'>): { href: string; external: boolean } | null {
+  const analysis = fact.analyses.find(a => a?.slug)
+  if (analysis) return { href: `/articles/${analysis.slug.split('/').pop()}`, external: false }
+  const source = httpUrl(fact.source_url)
+  return source ? { href: source, external: true } : null
+}
+
 export async function loadPublishedFacts(
   client: SupabaseClient,
   limit = 120
@@ -50,16 +58,22 @@ export async function loadPublishedFacts(
       .from('public_fact_sources')
       .select('fact_id,source_url,source_name,title')
       .in('fact_id', ids),
-    client.from('fact_article_links').select('fact_id,articles(id,slug,title)').in('fact_id', ids)
+    client.from('fact_article_links').select('fact_id,articles(id,slug,title,published_at)').in('fact_id', ids)
   ])
   if (sources.error || links.error) throw new Error(sources.error?.message || links.error?.message)
-  return result.data.map((f) => ({
-    ...f,
-    sources: (sources.data || []).filter((s) => s.fact_id === f.id),
-    analyses: (links.data || [])
-      .filter((l) => l.fact_id === f.id)
-      .flatMap((l) => l.articles as unknown as { id: string; slug: string; title: string }[])
-  }))
+  // Manual and older facts may have a direct article_id without an association row.
+  const linkedIds = new Set((links.data || []).flatMap(l => l.articles ? (Array.isArray(l.articles) ? l.articles : [l.articles]) : []).map(a => a.id))
+  const missingIds = [...new Set(result.data.map(f => f.article_id).filter(id => id && !linkedIds.has(id)))] as string[]
+  const direct = missingIds.length ? await client.from('articles').select('id,slug,title,published_at').in('id', missingIds) : { data: [], error: null }
+  if (direct.error) throw new Error(`Fact Flow article links: ${direct.error.message}`)
+  const articleMap = new Map([...(links.data || []).flatMap(l => l.articles ? (Array.isArray(l.articles) ? l.articles : [l.articles]) : []), ...(direct.data || [])].map(a => [a.id, a]))
+  return result.data.map(f => {
+    const related = (links.data || []).filter(l => l.fact_id === f.id).flatMap(l => l.articles ? (Array.isArray(l.articles) ? l.articles : [l.articles]) : [])
+    if (f.article_id && articleMap.has(f.article_id)) related.push(articleMap.get(f.article_id)!)
+    const analyses = [...new Map(related.filter(a => a?.slug).map(a => [a.id,a])).values()]
+      .sort((a,b) => (b.published_at || '').localeCompare(a.published_at || '') || a.id.localeCompare(b.id))
+    return { ...f, sources: (sources.data || []).filter(s => s.fact_id === f.id), analyses }
+  })
 }
 
 /** The old schema publishes facts only when article_id is set. Never expose parked facts. */

@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server'
+import { AdminOperations } from '@/components/AdminOperations'
 import { FactFlowAdmin } from './FactFlowAdmin'
 import { loadAdminFacts } from '@/lib/adminFacts'
 
@@ -7,7 +8,7 @@ export const dynamic = 'force-dynamic'
 export default async function AdminFactFlowPage() {
   try {
     const facts = await loadAdminFacts(createServiceClient())
-    return <FactFlowAdmin initialFacts={facts} />
+    return <><FactFlowAdmin initialFacts={facts} /><details className="admin-maintenance"><summary>Fact Flow maintenance</summary><AdminOperations area="facts" /></details></>
   } catch (error) {
     return <div>
       <h1 className="text-2xl font-bold mb-4">Fact Flow</h1>

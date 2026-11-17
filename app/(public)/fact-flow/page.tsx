@@ -1,5 +1,5 @@
 import { createPublicClient } from '@/lib/supabase/server'
-import { loadPublishedFacts, httpUrl, type PublishedFact } from '@/lib/publicFacts'
+import { loadPublishedFacts, httpUrl, factMainLink, type PublishedFact } from '@/lib/publicFacts'
 import { articleHref } from '@/lib/utils'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -147,6 +147,7 @@ export default async function FactFlowPage() {
               <div className="ff-stream">
                 {items.map(fact => {
                   const sourceUrl = httpUrl(fact.source_url)
+                  const main = factMainLink(fact)
                   return (
                     <div key={fact.id} id={fact.id} className="ff-bubble" style={{scrollMarginTop:100}}>
                       <div className="ff-bubble-body">
@@ -155,7 +156,7 @@ export default async function FactFlowPage() {
                           <time className="ff-time" dateTime={fact.published_at} title={formatDate(fact.published_at)}>
                             {timeAgo(fact.published_at)}
                           </time>
-                          {sourceUrl ? <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="ff-content-link">{fact.content}</a> : <span className="ff-content">{fact.content}</span>}
+                          {main ? main.external ? <a href={main.href} target="_blank" rel="noopener noreferrer" className="ff-content-link">{fact.content}</a> : <Link href={main.href} className="ff-content-link">{fact.content}</Link> : <span className="ff-content">{fact.content}</span>}
                           <div className="flex gap-3 flex-wrap mt-2 text-xs" style={{color:'var(--muted)'}}>
                             {sourceUrl&&<a href={sourceUrl} target="_blank" rel="noopener noreferrer">Source: {fact.source_name||'Original reporting'} ↗</a>}
                             <a href={`#${fact.id}`}>Permalink</a>

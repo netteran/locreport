@@ -282,3 +282,42 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, facts,
     LocReport · locreport.com`
   return shell(body, footer)
 }
+
+/** Complete editable editions use the same email frame and safe Markdown subset. */
+export function editedDigestEmail({ editionDate, bodyMarkdown, manageUrl }: { editionDate: string; bodyMarkdown: string; manageUrl: string }): string {
+  const p = (s: string) => `<p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:${BRAND.text};">${s}</p>`
+  function blocks(tokens: Token[]): string {
+    return tokens.map(token => {
+      switch (token.type) {
+        case 'space': return ''
+        case 'heading': {
+          const level = Math.max(1, Math.min(6, token.depth))
+          return `<h${level} style="margin:24px 0 12px;font-size:${level <= 2 ? 21 : 17}px;line-height:1.3;color:${BRAND.text};">${renderWeeklyNote(token.text)}</h${level}>`
+        }
+        case 'text': return p(renderWeeklyNote(token.text))
+        case 'paragraph': {
+          const image = token.tokens?.length === 1 && token.tokens[0].type === 'image' ? token.tokens[0] : null
+          if (image) {
+            try {
+              const url = new URL(image.href)
+              if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password)
+                return `<p><img src="${escapeHtml(url.href)}" alt="${escapeHtml(image.text)}" width="120" style="max-width:120px;height:auto;border:0;"></p>`
+            } catch { /* Unsupported image destinations remain plain text. */ }
+          }
+          return p(renderWeeklyNote(token.text))
+        }
+        case 'list': {
+          const tag = token.ordered ? 'ol' : 'ul'
+          const start = token.ordered && token.start ? ` start="${Number(token.start)}"` : ''
+          return `<${tag}${start} style="padding-left:24px;margin:12px 0 20px;font-size:14px;line-height:1.7;">${token.items.map((item: { tokens: Token[] }) => `<li style="margin:8px 0;">${blocks(item.tokens)}</li>`).join('')}</${tag}>`
+        }
+        case 'blockquote': return `<blockquote style="margin:20px 0;padding-left:16px;border-left:2px solid ${BRAND.accent};">${blocks(token.tokens || [])}</blockquote>`
+        case 'hr': return RULE
+        default: return p(escapeHtml(token.raw))
+      }
+    }).join('')
+  }
+  const date = new Date(`${editionDate}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Warsaw' })
+  return shell(`${eyebrow('The Weekly', BRAND.accent)}${p(`Edition ${escapeHtml(date)}`)}${blocks(Lexer.lex(bodyMarkdown, { gfm: true }))}`,
+    `You're receiving The Weekly from LocReport.<br><a href="${escapeHtml(manageUrl)}" style="color:${BRAND.muted};">Manage subscription</a><br>LocReport · locreport.com`)
+}

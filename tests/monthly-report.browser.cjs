@@ -22,6 +22,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
       name: 'sb-127-auth-token', url: base,
       value: 'base64-' + Buffer.from(JSON.stringify({ access_token: token, refresh_token: 'fixture-refresh', expires_at: now + 3600, expires_in: 3600, token_type: 'bearer', user })).toString('base64url')
     }])
+    fs.mkdirSync('work/admin-preview', {recursive:true})
     const page = await context.newPage()
     page.setDefaultTimeout(120000)
 
@@ -45,7 +46,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
       }
       return r.fulfill({json:{...draft,fact:null}});
     });
-    await page.goto(base+'/admin',{timeout:120000});
+    await page.goto(base+'/admin/monthly',{timeout:120000});
     const row=page.locator('.admin-action').filter({has:page.getByRole('button',{name:'Generate monthly briefing',exact:true})});
     await row.getByLabel('Briefing start date').fill('2026-11-01');
     await row.getByLabel('Briefing end date').fill('2026-11-15');
@@ -56,6 +57,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     assert.deepEqual(generations[0],{force:false,start_date:'2026-11-01',end_date:'2026-11-15'});
     await review.click();
     await page.getByLabel('Title',{exact:true}).waitFor();
+    assert.equal(await page.getByRole('navigation',{name:'Admin areas',exact:true}).getByRole('link',{name:'Monthly brief',exact:true}).getAttribute('aria-current'),'page');
     assert.equal(await page.getByRole('button',{name:'Re-run',exact:true}).count(),0);
     await page.getByText('Sources assessed for this briefing',{exact:true}).click();
     await page.getByRole('link',{name:'Pricing announcement',exact:true}).waitFor();
@@ -66,7 +68,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     assert.equal(approvals.length,0);
     await page.screenshot({path:'work/admin-preview/monthly-draft-review.png',fullPage:true});
     await page.getByRole('button',{name:'Approve & publish',exact:true}).click();
-    await page.waitForURL(base+'/admin/drafts');
+    await page.waitForURL(base+'/admin/monthly');
     assert.equal(approvals.length,1);assert.equal(approvals[0].title,'Reviewed October briefing');
     assert.match(approvals[0].content,/Reviewed/);
     assert.deepEqual(errors,[]);

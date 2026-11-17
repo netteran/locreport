@@ -29,12 +29,21 @@ export async function loadAdminFacts(client: SupabaseClient): Promise<AdminFact[
     throw new Error(`Could not load Fact Flow: ${error.message}${migration ? ` Apply Supabase migration ${RESEARCH_MIGRATION}.` : ''}`)
   }
   const facts = data ?? []
-  const ids = [...new Set(facts.map(f => f.article_id).filter(Boolean))] as string[]
-  const byId = new Map<string, { slug: string }>()
+  if (!facts.length) return []
+  const links = await client.from('fact_article_links').select('fact_id,article_id').in('fact_id', facts.map(f => f.id))
+  if (links.error) throw new Error(`Could not load Fact Flow article links: ${links.error.message}`)
+  const ids = [...new Set([...facts.map(f => f.article_id), ...(links.data || []).map(l => l.article_id)].filter(Boolean))] as string[]
+  const byId = new Map<string, { slug: string; published_at?: string }>()
   if (ids.length) {
-    const articles = await client.from('articles').select('id,slug').in('id', ids)
+    const articles = await client.from('articles').select('id,slug,published_at').in('id', ids)
     if (articles.error) throw new Error(`Could not load Fact Flow article links: ${articles.error.message}`)
-    for (const article of articles.data ?? []) byId.set(article.id, { slug: article.slug })
+    for (const article of articles.data ?? []) byId.set(article.id, article)
   }
-  return facts.map(f => ({ ...f, articles: byId.has(f.article_id) ? [byId.get(f.article_id)!] : null }))
+  return facts.map(f => {
+    const associated = (links.data || []).filter(l => l.fact_id === f.id).map(l => l.article_id)
+      .sort((a,b) => (byId.get(b)?.published_at || '').localeCompare(byId.get(a)?.published_at || ''))
+    const articleIds = [...new Set([f.article_id, ...associated].filter(Boolean))]
+    const articles = articleIds.flatMap(id => byId.has(id) ? [{ slug: byId.get(id)!.slug }] : [])
+    return { ...f, articles: articles.length ? articles : null }
+  })
 }
