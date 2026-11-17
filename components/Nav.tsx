@@ -9,20 +9,8 @@ import { ADMIN_GROUPS, activeAdminLink } from '@/lib/adminNav'
 import { OPEN_DIGEST_EVENT } from '@/components/DigestPopup'
 
 const NAV_LINKS = [
-  { href: '/articles', label: 'All articles' },
+  { href: '/articles', label: 'Articles' },
   { href: '/fact-flow', label: 'Fact Flow', live: true },
-  {
-    href: '/intelligence', label: 'Intelligence', dropdown: [
-      { href: '/intelligence/signals', label: 'Signals tracker' },
-      { href: '/intelligence/high-impact', label: 'High impact articles' },
-    ]
-  },
-  {
-    href: '/reports', label: 'Reports', dropdown: [
-      { href: '/reports/2026-annual-global-market-report', label: '2026 Annual Report' },
-      { href: '/reports/monthly', label: 'Monthly reports' },
-    ]
-  },
   {
     href: '/compass', label: 'Compass', dropdown: [
       { href: '/compass/locstock', label: 'LocStock' },

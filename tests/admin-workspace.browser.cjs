@@ -53,7 +53,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     assert.equal(await page.getByRole('menuitem', { name: 'Log out', includeHidden: true }).count(), 1)
     assert.equal(writes.length, 0, 'opening the overview must not run operations')
 
-    const monthly = page.locator('.admin-action').filter({ has: page.getByRole('button', { name: 'Generate monthly report', exact: true }) })
+    const monthly = page.locator('.admin-action').filter({ has: page.getByRole('button', { name: 'Generate monthly briefing', exact: true }) })
     await monthly.getByRole('button', { name: 'Run', exact: true }).click()
     await monthly.getByRole('button', { name: 'Confirm', exact: true }).waitFor()
     await monthly.getByRole('button', { name: 'Cancel', exact: true }).click()

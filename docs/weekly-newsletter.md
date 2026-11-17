@@ -1,5 +1,7 @@
 # Editable opening note for The Weekly
 
+The Weekly keeps its Friday schedule and rolling seven-day content window. Each issue includes the opening note, the top article, Company of the week, up to five Fact Flow items, a LocStock brief when there are significant moves, new directory entries and the remaining articles, including Monthly Briefings published during that week. Internal impact scores still help rank stories, but no score labels appear in the email. Signal movement tables and links to the retired public tracker have been removed; composing an issue no longer fetches four weeks of signal history. Existing sent HTML snapshots remain intact. The Monthly Briefing is an editorial publication with its own draft review; this change does not replace The Weekly with a monthly mailing.
+
 In **Admin → Dashboard → Send The Weekly**, use **Opening note** to add a short personal introduction above the top story. The field is optional Markdown text, limited to 2,000 characters. Line breaks are preserved. Write headings on their own lines and separate paragraphs with a blank line. Supported formatting:
 
 - `# Heading`, `## Subheading`, through `###### Heading` (all six levels)

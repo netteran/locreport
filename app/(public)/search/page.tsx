@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createPublicClient } from '@/lib/supabase/server'
-import { SIGNALS } from '@/lib/signals'
 import { articleHref } from '@/lib/utils'
+import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import { embedText } from '@/lib/embeddings'
 import { SearchRefine } from './SearchRefine'
 
@@ -17,10 +18,11 @@ export const metadata: Metadata = {
 }
 
 const STATIC_PAGES = [
-  { title: '2026 Annual Global Market Report', href: '/reports/2026-annual-global-market-report', section: 'Reports', excerpt: 'Data-rich strategic brief covering market evolution, AI disruption, and competitive dynamics.' },
+  { title: 'Monthly Briefing', href: '/reports/monthly', section: 'Briefings', excerpt: 'What mattered in localization and language services, its practical implications and what to watch next.' },
+  { title: 'Fact Flow', href: '/fact-flow', section: 'News', excerpt: 'The latest localization and language-services news with links to original sources.' },
+  { title: '2026 Annual Global Market Report', href: '/reports/2026-annual-global-market-report', section: 'Report archive', excerpt: 'Archived annual analysis of market evolution, AI disruption, and competitive dynamics.' },
   { title: 'LocStock — Localization Market Index', href: '/compass/locstock', section: 'Compass', excerpt: 'Live equity overview of 39 publicly traded companies in language services and AI translation.' },
   { title: 'Compass — Industry Tools', href: '/compass', section: 'Compass', excerpt: 'Market intelligence tools: LocStock, industry directory, LLM pricing tracker.' },
-  { title: 'Intelligence Overview', href: '/intelligence', section: 'Intelligence', excerpt: 'High-impact signals, trends and analysis for the localization industry.' },
   { title: 'Industry Directory', href: '/compass/directory', section: 'Compass', excerpt: 'Directory of companies in language services, translation technology, and localization.' },
   { title: 'LLM Pricing Tracker', href: '/compass/llm-pricing', section: 'Compass', excerpt: 'Comparative pricing for large language models used in translation and localization.' },
 ]
@@ -33,8 +35,9 @@ interface ArticleResult {
   publisher: string | null
   article_type: string | null
   published_at: string
-  impact_score: number | null
 }
+
+type BriefingResult = Pick<ArticleResult, 'id' | 'title' | 'slug' | 'published_at'> & BriefingCoverage
 
 /**
  * Hybrid semantic + keyword search with graceful degradation:
@@ -54,7 +57,7 @@ async function searchArticles(
       match_count: 24,
     })
     if (!error && data) {
-      return { results: (data as ArticleResult[]).filter(a => a.article_type !== 'monthly-summary').slice(0, 20), mode: 'hybrid' }
+      return { results: (data as ArticleResult[]).slice(0, 20), mode: 'hybrid' }
     }
   } catch (err) {
     console.error('hybrid search failed, falling back to keyword search', err)
@@ -65,15 +68,14 @@ async function searchArticles(
     match_count: 24,
   })
   if (!keywordError && keywordData) {
-    return { results: (keywordData as ArticleResult[]).filter(a => a.article_type !== 'monthly-summary').slice(0, 20), mode: 'keyword' }
+    return { results: (keywordData as ArticleResult[]).slice(0, 20), mode: 'keyword' }
   }
 
   // Legacy path for environments where the search migration hasn't run.
   const sanitized = query.replace(/[,%().]/g, ' ').trim()
   const { data } = await supabase
     .from('articles')
-    .select('id, title, slug, excerpt, publisher, article_type, published_at, impact_score')
-    .neq('article_type', 'monthly-summary')
+    .select('id, title, slug, excerpt, publisher, article_type, published_at')
     .or(`title.ilike.%${sanitized}%,excerpt.ilike.%${sanitized}%,publisher.ilike.%${sanitized}%`)
     .order('published_at', { ascending: false })
     .limit(20)
@@ -86,10 +88,8 @@ function highlight(text: string, q: string): string {
   return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>')
 }
 
-const IMPACT_LABEL: Record<number, string> = { 2: 'Notable', 3: 'Significant', 4: 'Major', 5: 'Disruptive' }
-
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Warsaw' })
 }
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
@@ -99,15 +99,15 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const supabase = createPublicClient()
 
   // Sidebar data — always fetched
-  const { data: monthlyReports } = await supabase
+  const { data: monthlyReports } = await withOptionalBriefingCoverage(coverageColumns => supabase
     .from('articles')
-    .select('id, title, slug, published_at')
+    .select('id, title, slug, published_at' + coverageColumns)
     .eq('article_type', 'monthly-summary')
     .order('published_at', { ascending: false })
     .limit(1)
+    .returns<BriefingResult[]>())
 
   const latestMonthly = monthlyReports?.[0] ?? null
-  const activeSignals = SIGNALS.filter(s => s.current_status === 'supported' || s.current_status === 'emerging').slice(0, 6)
 
   if (!query) {
     return (
@@ -118,7 +118,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             <h1 className="search-heading">Search</h1>
             <p className="search-subtitle">Search by topic, company, or concept — results are ranked by meaning, not just keyword matches.</p>
           </div>
-          <SearchSidebar latestMonthly={latestMonthly} activeSignals={activeSignals} />
+          <SearchSidebar latestMonthly={latestMonthly} />
         </div>
       </div>
     )
@@ -127,20 +127,13 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const qLower = query.toLowerCase()
   const { results: articles, mode } = await searchArticles(supabase, query)
 
-  // Signals (static)
-  const signals = SIGNALS.filter(s =>
-    s.title.toLowerCase().includes(qLower) ||
-    s.description.toLowerCase().includes(qLower) ||
-    s.keywords.some(k => k.toLowerCase().includes(qLower))
-  )
-
   // Static pages
   const pages = STATIC_PAGES.filter(p =>
     p.title.toLowerCase().includes(qLower) ||
     p.excerpt.toLowerCase().includes(qLower)
   )
 
-  const total = articles.length + signals.length + pages.length
+  const total = articles.length + pages.length
 
   return (
     <div className="container search-page">
@@ -168,32 +161,15 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             </Section>
           )}
 
-          {signals.length > 0 && (
-            <Section label="Signals" count={signals.length}>
-              {signals.map(s => (
-                <ResultRow key={s.id} href={`/intelligence/signals/${s.id}`} section="Intelligence"
-                  title={<span dangerouslySetInnerHTML={{ __html: highlight(s.title, query) }} />}
-                  excerpt={<span dangerouslySetInnerHTML={{ __html: highlight(s.description, query) }} />}
-                  meta={<span className="search-result__meta-text">{s.current_status} · {s.category}</span>}
-                />
-              ))}
-            </Section>
-          )}
-
           {articles.length > 0 && (
             <Section label="Articles" count={articles.length}>
               {articles.map(a => (
-                <ResultRow key={a.id} href={articleHref(a.slug)} section={a.publisher ?? 'Article'}
+                <ResultRow key={a.id} href={articleHref(a.slug)} section={a.article_type === 'monthly-summary' ? 'Monthly Briefing' : a.publisher ?? 'Article'}
                   title={<span dangerouslySetInnerHTML={{ __html: highlight(a.title, query) }} />}
                   excerpt={a.excerpt ? <span dangerouslySetInnerHTML={{ __html: highlight(a.excerpt, query) }} /> : null}
                   meta={
                     <span className="search-result__meta-text search-result__meta-text--row">
                       {fmtDate(a.published_at)}
-                      {a.impact_score && a.impact_score >= 2 && (
-                        <span className={`search-result__impact search-result__impact--${a.impact_score}`}>
-                          {IMPACT_LABEL[a.impact_score]}
-                        </span>
-                      )}
                     </span>
                   }
                 />
@@ -208,52 +184,44 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           )}
         </div>
 
-        <SearchSidebar latestMonthly={latestMonthly} activeSignals={activeSignals} />
+        <SearchSidebar latestMonthly={latestMonthly} />
       </div>
     </div>
   )
 }
 
-function SearchSidebar({ latestMonthly, activeSignals }: {
-  latestMonthly: { title: string; slug: string; published_at: string } | null
-  activeSignals: typeof SIGNALS
+function SearchSidebar({ latestMonthly }: {
+  latestMonthly: BriefingResult | null
 }) {
+  const coverage = latestMonthly ? briefingCoverageLabel(latestMonthly) : null
   return (
     <aside className="post-sidebar search-sidebar">
       {latestMonthly && (
         <div className="post-sidebar-widget">
-          <p className="post-sidebar-widget__title">Latest Monthly Report</p>
+          <p className="post-sidebar-widget__title">Latest Monthly Briefing</p>
           <Link href={articleHref(latestMonthly.slug)} className="search-sidebar__link">
             <p className="search-sidebar__link-title">{latestMonthly.title}</p>
             <p className="search-sidebar__link-sub">
-              {new Date(latestMonthly.published_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+              {coverage && <>Coverage: {coverage}<br /></>}
+              Published {fmtDate(latestMonthly.published_at)}
             </p>
           </Link>
         </div>
       )}
 
       <div className="post-sidebar-widget">
-        <p className="post-sidebar-widget__title">Annual Report</p>
-        <Link href="/reports/2026-annual-global-market-report" className="search-sidebar__link">
-          <p className="search-sidebar__link-title">2026 Annual Global Market Report</p>
-          <p className="search-sidebar__link-sub">Localization &amp; Translation Industry</p>
+        <p className="post-sidebar-widget__title">Monthly Briefing</p>
+        <Link href="/reports/monthly" className="search-sidebar__link">
+          <p className="search-sidebar__link-title">Browse all briefings</p>
+          <p className="search-sidebar__link-sub">The developments that mattered and what to watch next.</p>
         </Link>
       </div>
 
       <div className="post-sidebar-widget">
-        <p className="post-sidebar-widget__title">Active Signals</p>
-        <ul className="search-sidebar__list">
-          {activeSignals.map(s => (
-            <li key={s.id}>
-              <Link href={`/intelligence/signals/${s.id}`} className="search-sidebar__signal">
-                {s.title}
-              </Link>
-              <span className="search-sidebar__signal-status">{s.current_status}</span>
-            </li>
-          ))}
-        </ul>
-        <Link href="/intelligence/signals" className="search-sidebar__more">
-          All signals →
+        <p className="post-sidebar-widget__title">Fact Flow</p>
+        <Link href="/fact-flow" className="search-sidebar__link">
+          <p className="search-sidebar__link-title">Follow the latest industry news</p>
+          <p className="search-sidebar__link-sub">Reported developments with links to original sources.</p>
         </Link>
       </div>
     </aside>

@@ -145,21 +145,21 @@ export default function AdminDashboard() {
     if (data.existing_draft_id) {
       setMonthlyDraftId(data.existing_draft_id)
       setMonthlyRunning(false)
-      flash('monthly', 'A monthly report draft is already awaiting review.', 'error')
+      flash('monthly', 'A monthly briefing draft is already awaiting review.', 'error')
       return
     }
     if (res.ok) setMonthlyDraftId(data.draft_id)
     if (res.status === 409 && !force) {
-      // Report already exists — ask to force
+      // Briefing already exists — ask to force
       setMonthlyRunning(false)
       setConfirm('monthly-force')
-      flash('monthly', `A monthly report for this period already exists${data.existing_id ? ` (ID: ${data.existing_id})` : ''}.`, 'error')
+      flash('monthly', `A monthly briefing for this period already exists${data.existing_id ? ` (ID: ${data.existing_id})` : ''}.`, 'error')
       return
     }
     flash(
       'monthly',
       res.ok
-        ? `Monthly report draft saved: "${data.title}" — ${data.article_count} analyses, ${data.fact_count ?? 0} facts and ${data.source_count ?? 0} sources assessed.`
+        ? `Monthly briefing draft saved: "${data.title}" — ${data.article_count} analyses, ${data.fact_count ?? 0} facts and ${data.source_count ?? 0} sources assessed.`
         : (data.error ?? 'Generation failed.'),
       res.ok ? 'ok' : 'error',
     )
@@ -405,9 +405,9 @@ export default function AdminDashboard() {
           </ActionRow>
 
           <ActionRow
-            title="Generate monthly report"
+            title="Generate monthly briefing"
             summary="Create a draft briefing for review before publication."
-            description={`Assesses published analyses, Fact Flow and collected source evidence from the selected dates (inclusive, Europe/Warsaw), comparing with the previous briefing. Saves a pending draft briefing focused on supported shifts, practical consequences and questions to watch. Once approved, it is listed under Reports → Monthly. A thin month produces a shorter update. Review it under Drafts, then choose Approve & publish to make it live. If a report already exists for the period you’ll be asked before another draft is created.`}
+            description={`Assesses published analyses, Fact Flow and collected source evidence from the selected dates (inclusive, Europe/Warsaw), comparing with the previous briefing. Saves a pending draft focused on supported shifts, practical consequences and questions to watch. Once approved, it is listed under Monthly Briefing. A thin month produces a shorter update. Review it under Drafts, then choose Approve & publish to make it live. If a briefing already exists for the period you’ll be asked before another draft is created.`}
             controls={
               <Button
                 size="sm"
@@ -420,11 +420,11 @@ export default function AdminDashboard() {
             }
           >
             <div className="flex flex-wrap gap-3 mt-3">
-              <label className="text-sm">Report start date
+              <label className="text-sm">Briefing start date
                 <input type="date" className="block border rounded px-2 py-1 mt-1" value={reportStart} max={reportEnd || undefined}
                   disabled={monthlyRunning} onChange={e => { setReportStart(e.target.value); setConfirm(null); setMonthlyDraftId(null); clearFlash() }} />
               </label>
-              <label className="text-sm">Report end date
+              <label className="text-sm">Briefing end date
                 <input type="date" className="block border rounded px-2 py-1 mt-1" value={reportEnd} min={reportStart || undefined}
                   disabled={monthlyRunning} onChange={e => { setReportEnd(e.target.value); setConfirm(null); setMonthlyDraftId(null); clearFlash() }} />
               </label>
@@ -433,7 +433,7 @@ export default function AdminDashboard() {
             {invalidReportRange && <p role="alert" className="text-sm mt-2">Choose a start date and an end date on or after it.</p>}
             {confirm === 'monthly' && (
               <ActionPanel
-                text={<>Generate a monthly report draft for <strong>{reportLabel}</strong> from published analysis, Fact Flow and collected source evidence, compared with the previous briefing?</>}
+                text={<>Generate a monthly briefing draft for <strong>{reportLabel}</strong> from published analysis, Fact Flow and collected source evidence, compared with the previous briefing?</>}
                 actions={
                   <>
                     <Button size="sm" onClick={() => runMonthly(false)} disabled={monthlyRunning}>Confirm</Button>
@@ -445,7 +445,7 @@ export default function AdminDashboard() {
             {confirm === 'monthly-force' && (
               <ActionPanel
                 tone="warn"
-                text={<>A report for <strong>{reportLabel}</strong> already exists. Generate a new draft for review?</>}
+                text={<>A briefing for <strong>{reportLabel}</strong> already exists. Generate a new draft for review?</>}
                 actions={
                   <>
                     <Button size="sm" onClick={() => runMonthly(true)} disabled={monthlyRunning}>Yes, regenerate</Button>
@@ -455,13 +455,13 @@ export default function AdminDashboard() {
               />
             )}
             {status('monthly')}
-            {monthlyDraftId && <Link href={`/admin/drafts/${monthlyDraftId}`} className="text-sm underline" style={{ color: 'var(--accent)' }}>Review monthly report draft →</Link>}
+            {monthlyDraftId && <Link href={`/admin/drafts/${monthlyDraftId}`} className="text-sm underline" style={{ color: 'var(--accent)' }}>Review monthly briefing draft →</Link>}
           </ActionRow>
 
           <ActionRow
             title="Send The Weekly"
             summary="Preview your newsletter, choose recipients and confirm delivery."
-            description="Composes this week's issue of The Weekly — one issue, identical for every confirmed subscriber, covering the last 7 days: the top story, a Company of the week from the tech directory (a different one each week), how every one of the 13 signals moved against its 4-week average, five Fact Flow facts, a LocStock brief and new directory companies (each only when there is something to report), then every other article — and sends it through Resend. Subscribers have no preferences; the footer has a single Manage subscription link, where unsubscribing takes a confirmation. Pick All subscribers or one address from the dropdown — a single-recipient send skips the resend guard and doesn't mark them as sent, so it never stops Friday's scheduled issue reaching them. Preview only counts recipients; View sample opens the exact issue in a new tab. Nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
+            description="Composes this week's issue of The Weekly — one issue, identical for every confirmed subscriber, covering the last 7 days: the top story, a Company of the week from the tech directory (a different one each week), five Fact Flow facts, a LocStock brief and new directory companies (each only when there is something to report), then every other article — and sends it through Resend. Subscribers have no preferences; the footer has a single Manage subscription link, where unsubscribing takes a confirmation. Pick All subscribers or one address from the dropdown — a single-recipient send skips the resend guard and doesn't mark them as sent, so it never stops Friday's scheduled issue reaching them. Preview only counts recipients; View sample opens the exact issue in a new tab. Nothing is sent until you confirm. Anyone already sent within the period is skipped, so a manual run is safe to repeat. Scheduled automatically every Friday at 1pm Central European time."
             controls={
               <>
                 <select
@@ -561,7 +561,7 @@ export default function AdminDashboard() {
             title="Backfill Fact Flow"
             summary="Add missing facts from previously published articles."
             controlsClass="admin-action__controls--input"
-            description="Every article published from now on gets its one Fact Flow fact automatically, on approval. This fills gaps left behind: enter a slug — the part of a URL after /articles/ — to give one article its fact, or run Backfill all to walk every article that still has none, newest first. Facts are dated to their article’s publication date, so backfilling slots them into the stream in order instead of piling old news at the top. Monthly reports are excluded. An article that already has a fact is never touched."
+            description="Single-source articles get their one Fact Flow fact automatically on approval. This fills gaps left behind: enter a slug — the part of a URL after /articles/ — to give one article its fact, or run Backfill all to walk every eligible article that still has none, newest first. Facts are dated to their article’s publication date, so backfilling slots them into the stream in order instead of piling old news at the top. Backfill all excludes monthly briefings. An article that already has a fact is never touched."
             controls={
               <>
                 <input

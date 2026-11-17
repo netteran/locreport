@@ -26,10 +26,14 @@ export default async function AnnualReport2026() {
       <nav style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 'var(--space-5)', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
         <Link href="/" style={{ color: 'var(--muted)' }}>Home</Link>
         <span>›</span>
-        <Link href="/reports" style={{ color: 'var(--muted)' }}>Reports</Link>
+        <Link href="/reports" style={{ color: 'var(--muted)' }}>Briefings &amp; archive</Link>
         <span>›</span>
         <span style={{ color: 'var(--text)' }}>2026 Annual Global Market Report</span>
       </nav>
+
+      <p className="all-articles-subtitle">
+        From the report archive · Published April 2026. For current coverage, read the <Link href="/reports/monthly">Monthly Briefing</Link>.
+      </p>
 
       {image && (
         <figure className="post-hero report-hero">

@@ -1,5 +1,7 @@
 # Signal Momentum & Signal Intelligence — Portable Spec
 
+> Historical reference: the public Intelligence dashboard and Signals Tracker have been retired. Their URLs lead to a retirement notice, and new newsletter issues omit coverage-momentum tables. This document describes the former implementation. The signal taxonomy remains in use internally for article classification, topic filters and related reading.
+
 A self-contained description of how LocReport computes and presents signal momentum and
 the intelligence dashboard, written so the system can be rebuilt in another repository
 without reading the original source. Stack assumptions: Next.js App Router (Server

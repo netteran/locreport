@@ -4,41 +4,38 @@ import { ANNUAL_REPORTS, annualReportPath } from '@/lib/reports'
 import { getReportImage } from '@/lib/reportImage'
 import { articleHref, safeImageUrl } from '@/lib/utils'
 import { AnnualImageForm } from './AnnualImageForm'
+import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
+import type { Article } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
+
+type ReportImageRow = Pick<Article, 'id' | 'title' | 'slug' | 'published_at' | 'image_url'> & BriefingCoverage
 
 // One place for report lead images. Annual reports are static pages, so their
 // image is edited inline here; monthly reports are articles and link to the
 // article editor, which has the same image field.
 export default async function AdminReportsPage() {
   const annual = await Promise.all(ANNUAL_REPORTS.map(async r => ({ ...r, image: await getReportImage(r.slug) })))
-  const { data: monthly } = await createServiceClient()
+  const service = createServiceClient()
+  const { data: monthly } = await withOptionalBriefingCoverage(coverageColumns => service
     .from('articles')
-    .select('id, title, slug, published_at, image_url')
+    .select('id, title, slug, published_at, image_url' + coverageColumns)
     .eq('article_type', 'monthly-summary')
     .order('published_at', { ascending: false })
+    .returns<ReportImageRow[]>()
+  )
 
   return (
     <div className="max-w-[760px]">
-      <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--text)' }}>Reports</h1>
+      <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--text)' }}>Briefings &amp; report archive</h1>
       <p className="text-sm mb-8" style={{ color: 'var(--muted)' }}>
-        A report&rsquo;s lead image is shown at the top of the report, on its card in the reports listing, and as its social-media thumbnail.
+        Manage lead images for monthly briefings and archived reports. Images appear on the publication, its listing card and social-media previews.
       </p>
 
-      <h2 className="text-lg font-semibold mb-3" style={{ color: 'var(--text)' }}>Annual</h2>
-      {annual.map(r => (
-        <div key={r.slug} className="py-4 mb-6" style={{ borderTop: '1px solid var(--border)' }}>
-          <p className="font-medium text-sm mb-3" style={{ color: 'var(--text)' }}>
-            <Link href={annualReportPath(r.slug)} target="_blank" className="hover:underline">{r.title}</Link>
-            <span style={{ color: 'var(--muted)' }}> · {r.date}</span>
-          </p>
-          <AnnualImageForm slug={r.slug} initialUrl={r.image?.url ?? ''} initialAlt={r.image?.alt ?? ''} />
-        </div>
-      ))}
-
-      <h2 className="text-lg font-semibold mb-3" style={{ color: 'var(--text)' }}>Monthly</h2>
+      <h2 className="text-lg font-semibold mb-3" style={{ color: 'var(--text)' }}>Monthly Briefing</h2>
       {(monthly ?? []).length === 0 && (
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>No monthly reports yet.</p>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>No monthly briefings yet.</p>
       )}
       {(monthly ?? []).map(m => {
         const image = safeImageUrl(m.image_url)
@@ -57,7 +54,8 @@ export default async function AdminReportsPage() {
                 <Link href={articleHref(m.slug)} target="_blank" className="hover:underline">{m.title}</Link>
               </p>
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                {new Date(m.published_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                {briefingCoverageLabel(m) ? `Coverage: ${briefingCoverageLabel(m)} · ` : ''}
+                Published {new Date(m.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Europe/Warsaw' })}
               </p>
             </div>
             <Link
@@ -70,6 +68,17 @@ export default async function AdminReportsPage() {
           </div>
         )
       })}
+
+      <h2 className="text-lg font-semibold mb-3 mt-8" style={{ color: 'var(--text)' }}>Annual report archive</h2>
+      {annual.map(r => (
+        <div key={r.slug} className="py-4 mb-6" style={{ borderTop: '1px solid var(--border)' }}>
+          <p className="font-medium text-sm mb-3" style={{ color: 'var(--text)' }}>
+            <Link href={annualReportPath(r.slug)} target="_blank" className="hover:underline">{r.title}</Link>
+            <span style={{ color: 'var(--muted)' }}> · {r.date}</span>
+          </p>
+          <AnnualImageForm slug={r.slug} initialUrl={r.image?.url ?? ''} initialAlt={r.image?.alt ?? ''} />
+        </div>
+      ))}
     </div>
   )
 }

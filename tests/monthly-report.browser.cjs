@@ -46,12 +46,12 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
       return r.fulfill({json:{...draft,fact:null}});
     });
     await page.goto(base+'/admin',{timeout:120000});
-    const row=page.locator('.admin-action').filter({has:page.getByRole('button',{name:'Generate monthly report',exact:true})});
-    await row.getByLabel('Report start date').fill('2026-11-01');
-    await row.getByLabel('Report end date').fill('2026-11-15');
+    const row=page.locator('.admin-action').filter({has:page.getByRole('button',{name:'Generate monthly briefing',exact:true})});
+    await row.getByLabel('Briefing start date').fill('2026-11-01');
+    await row.getByLabel('Briefing end date').fill('2026-11-15');
     await row.getByRole('button',{name:'Run',exact:true}).click();
     await row.getByRole('button',{name:'Confirm',exact:true}).click();
-    const review=page.getByRole('link',{name:'Review monthly report draft →'});await review.waitFor();
+    const review=page.getByRole('link',{name:'Review monthly briefing draft →'});await review.waitFor();
     assert.equal(generations.length,1);assert.equal(approvals.length,0);
     assert.deepEqual(generations[0],{force:false,start_date:'2026-11-01',end_date:'2026-11-15'});
     await review.click();
@@ -70,6 +70,6 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     assert.equal(approvals.length,1);assert.equal(approvals[0].title,'Reviewed October briefing');
     assert.match(approvals[0].content,/Reviewed/);
     assert.deepEqual(errors,[]);
-    console.log('Monthly report generation → draft review → save → explicit approval verified; no live report generated or published.');
+    console.log('Monthly briefing generation → draft review → save → explicit approval verified; no live briefing generated or published.');
   } finally {await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)})

@@ -2,7 +2,6 @@ import { MetadataRoute } from 'next'
 import { createPublicClient } from '@/lib/supabase/server'
 import { required } from '@/lib/supabase/required'
 import { fetchDirectoryEntries } from '@/lib/directory'
-import { SIGNALS } from '@/lib/signals'
 import { articleHref } from '@/lib/utils'
 
 const BASE_URL = 'https://locreport.com'
@@ -15,12 +14,9 @@ export const revalidate = 3600
 const PAGE_SIZE = 1000
 
 const STATIC_PAGES: MetadataRoute.Sitemap = [
-  { url: BASE_URL, changeFrequency: 'daily', priority: 1.0 },
-  { url: `${BASE_URL}/articles`, changeFrequency: 'daily', priority: 0.9 },
+  { url: BASE_URL, changeFrequency: 'weekly', priority: 1.0 },
+  { url: `${BASE_URL}/articles`, changeFrequency: 'weekly', priority: 0.9 },
   { url: `${BASE_URL}/fact-flow`, changeFrequency: 'daily', priority: 0.8 },
-  { url: `${BASE_URL}/intelligence`, changeFrequency: 'daily', priority: 0.8 },
-  { url: `${BASE_URL}/intelligence/signals`, changeFrequency: 'weekly', priority: 0.7 },
-  { url: `${BASE_URL}/intelligence/high-impact`, changeFrequency: 'daily', priority: 0.7 },
   { url: `${BASE_URL}/reports`, changeFrequency: 'monthly', priority: 0.7 },
   { url: `${BASE_URL}/reports/2026-annual-global-market-report`, changeFrequency: 'yearly', priority: 0.6 },
   { url: `${BASE_URL}/reports/monthly`, changeFrequency: 'monthly', priority: 0.6 },
@@ -76,17 +72,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   }
 
-  const signalUrls: MetadataRoute.Sitemap = SIGNALS.map((s) => ({
-    url: `${BASE_URL}/intelligence/signals/${s.id}`,
-    changeFrequency: 'weekly',
-    priority: 0.6,
-  }))
-
   const directoryUrls: MetadataRoute.Sitemap = directory.map((e) => ({
     url: `${BASE_URL}/compass/directory/${e.slug}`,
     changeFrequency: 'monthly',
     priority: 0.5,
   }))
 
-  return [...STATIC_PAGES, ...signalUrls, ...directoryUrls, ...articleUrls]
+  return [...STATIC_PAGES, ...directoryUrls, ...articleUrls]
 }

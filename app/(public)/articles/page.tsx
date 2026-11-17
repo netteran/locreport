@@ -5,23 +5,23 @@ import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { articleHref, safeImageUrl } from '@/lib/utils'
 import { getTopics, topicOrFilter, TOPIC_IDS } from '@/lib/topics'
+import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import ArticlesFilter, { FilterState } from './ArticlesFilter'
 
 export const metadata: Metadata = {
   title: 'All Articles',
-  description: 'Browse all localization industry articles by topic — quality, operations, governance, market dynamics, and strategy.',
+  description: 'Browse LocReport reporting, analysis and monthly briefings by topic — quality, operations, governance, market dynamics, and strategy.',
   alternates: { canonical: '/articles' },
 }
 
 const PAGE_SIZE = 30
 
 const CATEGORY_LABEL: Record<string, string> = {
-  industry: 'Current news',
-  'monthly-summary': 'Monthly report',
-  annual: 'Annual report',
+  industry: 'Analysis',
+  'monthly-summary': 'Monthly Briefing',
+  annual: 'Archived annual report',
 }
-
-const IMPACT_LABEL: Record<number, string> = { 2: 'Notable', 3: 'Significant', 4: 'Major', 5: 'Disruptive' }
 
 interface FeedRow {
   id: string
@@ -34,6 +34,7 @@ interface FeedRow {
   published_at: string
   topics: string[]
   image_url: string | null
+  coverage: string | null
 }
 
 const STATIC_REPORTS: FeedRow[] = [
@@ -48,6 +49,7 @@ const STATIC_REPORTS: FeedRow[] = [
     published_at: '2026-04-01T00:00:00.000Z',
     topics: [],
     image_url: null,
+    coverage: null,
   },
 ]
 
@@ -92,27 +94,29 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   const f = parseFilters(await searchParams)
   const supabase = createPublicClient()
 
-  let query = supabase
-    .from('articles')
-    .select('id, title, slug, excerpt, author, article_type, impact_score, signal_ids, published_at, image_url', { count: 'exact' })
-
-  if (f.impact !== 'all') query = query.gte('impact_score', parseInt(f.impact, 10))
-  if (f.category !== 'all') query = query.eq('article_type', f.category)
-  if (f.from) query = query.gte('published_at', `${f.from}T00:00:00Z`)
-  if (f.to) query = query.lte('published_at', `${f.to}T23:59:59Z`)
-  if (f.topic !== 'all') query = query.or(topicOrFilter(f.topic))
-
-  if (f.sort === 'impact') {
-    query = query
-      .order('impact_score', { ascending: false, nullsFirst: false })
-      .order('published_at', { ascending: false })
-  } else {
-    query = query.order('published_at', { ascending: f.sort === 'oldest' })
-  }
-
   const fromIdx = (f.page - 1) * PAGE_SIZE
   const [listing, { count: totalCount }] = await Promise.all([
-    query.range(fromIdx, fromIdx + PAGE_SIZE - 1),
+    withOptionalBriefingCoverage(coverageColumns => {
+      let query = supabase
+        .from('articles')
+        .select('id, title, slug, excerpt, author, article_type, impact_score, signal_ids, published_at, image_url' + coverageColumns, { count: 'exact' })
+
+      if (f.impact !== 'all') query = query.gte('impact_score', parseInt(f.impact, 10))
+      if (f.category !== 'all') query = query.eq('article_type', f.category)
+      if (f.from) query = query.gte('published_at', `${f.from}T00:00:00Z`)
+      if (f.to) query = query.lte('published_at', `${f.to}T23:59:59Z`)
+      if (f.topic !== 'all') query = query.or(topicOrFilter(f.topic))
+
+      if (f.sort === 'impact') {
+        query = query
+          .order('impact_score', { ascending: false, nullsFirst: false })
+          .order('published_at', { ascending: false })
+      } else {
+        query = query.order('published_at', { ascending: f.sort === 'oldest' })
+      }
+
+      return query.range(fromIdx, fromIdx + PAGE_SIZE - 1).returns<(Article & BriefingCoverage)[]>()
+    }),
     supabase.from('articles').select('id', { count: 'exact', head: true }),
   ])
 
@@ -124,7 +128,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   }
   const { data, count } = listing
 
-  let rows: FeedRow[] = ((data as Article[]) ?? []).map(a => ({
+  let rows: FeedRow[] = ((data as (Article & BriefingCoverage)[]) ?? []).map(a => ({
     id: a.id,
     title: a.title,
     href: articleHref(a.slug),
@@ -135,6 +139,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
     published_at: a.published_at,
     topics: getTopics(a),
     image_url: safeImageUrl(a.image_url),
+    coverage: a.article_type === 'monthly-summary' ? briefingCoverageLabel(a) : null,
   }))
 
   const staticMatches = STATIC_REPORTS.filter(r => staticReportMatches(r, f))
@@ -157,7 +162,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
     <div className="container" style={{ paddingBottom: 'var(--space-12)' }}>
       <section className="all-articles-hero">
         <h1>All articles</h1>
-        <p className="all-articles-subtitle">{archiveTotal} articles across the localization intelligence archive.</p>
+        <p className="all-articles-subtitle">{archiveTotal} articles, briefings and archived reports on the localization industry.</p>
       </section>
 
       <Suspense>
@@ -173,7 +178,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
           )}
           {rows.map(article => {
             const dateDisplay = new Date(article.published_at).toLocaleDateString('en-US', {
-              month: 'short', day: 'numeric', year: 'numeric',
+              month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Europe/Warsaw',
             })
             return (
               <Link key={article.id} href={article.href} className="article-card">
@@ -198,12 +203,8 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                   )}
                 </div>
                 <div className="article-card-meta">
-                  <time className="article-card-date">{dateDisplay}</time>
-                  {article.impact_score && article.impact_score >= 2 && (
-                    <span className={`article-card-impact article-card-impact--${article.impact_score}`}>
-                      {IMPACT_LABEL[article.impact_score]}
-                    </span>
-                  )}
+                  {article.coverage && <span className="article-card-date">Coverage: {article.coverage}</span>}
+                  <time className="article-card-date" dateTime={article.published_at}>{article.article_type === 'monthly-summary' ? 'Published ' : ''}{dateDisplay}</time>
                   {article.author && (
                     <span className="article-card-source">{article.author}</span>
                   )}

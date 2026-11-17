@@ -3,11 +3,7 @@
 // no DB, no Resend — so it can be exercised on its own. lib/email/issue.ts
 // does the fetching.
 //
-// Every subscriber receives the same issue. There are no per-subscriber
-// preferences any more: the signal picker, the summary toggle and the impact
-// floor were removed so nobody silently misses part of the week.
-import { SIGNALS } from '@/lib/signals'
-import { signalShortLabel } from '@/lib/intelligence'
+// Every subscriber receives the same issue, with no per-subscriber filters.
 import { LOCSTOCK_COMPANIES } from '@/lib/data/locstock'
 import { DIRECTORY_CATEGORIES, type DirectoryEntry } from '@/lib/data/directory'
 import { articleHref, splitSentences } from '@/lib/utils'
@@ -17,7 +13,6 @@ import type {
   DigestDirectoryEntry,
   DigestFact,
   DigestMarket,
-  DigestSignalMove,
 } from '@/lib/email/templates'
 import { SITE_URL } from '@/lib/email/send'
 
@@ -27,13 +22,10 @@ export interface DigestSourceArticle {
   slug: string
   excerpt: string | null
   impact_score: number | null
-  signal_ids: string[] | null
   business_implications: string[] | null
   published_at: string
 }
 
-/** Weeks of history a signal's movement is measured against. */
-export const SIGNAL_BASELINE_WEEKS = 4
 /** Articles listed in "Everything else" before it hands off to the site. */
 const MORE_LIMIT = 40
 /** Facts carried in the Fact Flow block. */
@@ -50,52 +42,12 @@ export function toDigestArticle(a: DigestSourceArticle): DigestArticle {
     title: a.title,
     url: `${SITE_URL}${articleHref(a.slug)}`,
     excerpt: a.excerpt,
-    impact_score: a.impact_score,
     business_implications: a.business_implications,
   }
 }
 
 function byImpact(a: DigestSourceArticle, b: DigestSourceArticle) {
   return (b.impact_score ?? 0) - (a.impact_score ?? 0) || b.published_at.localeCompare(a.published_at)
-}
-
-// How each of the 13 signals moved this week against its average over the
-// previous SIGNAL_BASELINE_WEEKS weeks. Every signal gets a row, so a signal
-// that went quiet is reported as plainly as one that surged.
-export function computeSignalMoves(
-  period: DigestSourceArticle[],
-  prior: Pick<DigestSourceArticle, 'signal_ids'>[],
-  topStoryId: string | null
-): DigestSignalMove[] {
-  const moves = SIGNALS.map(s => {
-    const tagged = period.filter(a => (a.signal_ids ?? []).includes(s.id)).sort(byImpact)
-    const priorCount = prior.filter(a => (a.signal_ids ?? []).includes(s.id)).length
-    const priorAvg = priorCount / SIGNAL_BASELINE_WEEKS
-    const count = tagged.length
-
-    let trend: DigestSignalMove['trend']
-    if (count === 0) trend = 'quiet'
-    else if (priorCount === 0) trend = 'new'
-    else if (count >= priorAvg * 1.5 && count - priorAvg >= 1) trend = 'up'
-    else if (count <= priorAvg * 0.5 && priorAvg - count >= 1) trend = 'down'
-    else trend = 'steady'
-
-    // Lead with something the reader hasn't just seen as the top story, when
-    // the signal has anything else to offer.
-    const lead = tagged.find(a => a.id !== topStoryId) ?? tagged[0] ?? null
-
-    return {
-      id: s.id,
-      label: signalShortLabel(s.id),
-      url: `${SITE_URL}/intelligence/signals/${s.id}`,
-      count,
-      priorAvg: Math.round(priorAvg * 10) / 10,
-      trend,
-      wasActive: priorAvg >= 1,
-      lead: lead ? toDigestArticle(lead) : null,
-    }
-  })
-  return moves.sort((a, b) => b.count - a.count || b.priorAvg - a.priorAvg)
 }
 
 interface QuoteRow {
@@ -211,7 +163,6 @@ export function pickCompanyOfWeek(entries: DirectoryEntry[], periodEnd: Date): D
 
 export interface IssueInput {
   articles: DigestSourceArticle[]
-  priorArticles: Pick<DigestSourceArticle, 'signal_ids'>[]
   facts: { id?: string; content: string; article_id: string | null }[]
   market: DigestMarket | null
   company: DigestCompany | null
@@ -225,7 +176,6 @@ export interface Issue {
   storyCount: number
   topStory: DigestArticle | null
   company: DigestCompany | null
-  signalMoves: DigestSignalMove[]
   facts: DigestFact[]
   market: DigestMarket | null
   directory: DigestDirectoryEntry[]
@@ -235,10 +185,9 @@ export interface Issue {
   articleIds: string[]
 }
 
-export function composeIssue({ articles, priorArticles, facts, market, company, directory }: IssueInput): Issue {
+export function composeIssue({ articles, facts, market, company, directory }: IssueInput): Issue {
   const ranked = [...articles].sort(byImpact)
   const top = ranked[0] ?? null
-  const signalMoves = computeSignalMoves(ranked, priorArticles, top?.id ?? null)
 
   const digestFacts: DigestFact[] = facts.slice(0,FACT_LIMIT).map(f=>({
     content:f.content,url:f.id?`${SITE_URL}/fact-flow#${f.id}`:`${SITE_URL}/fact-flow`,
@@ -249,14 +198,12 @@ export function composeIssue({ articles, priorArticles, facts, market, company, 
 
   const linked = new Set<string>()
   if (top) linked.add(top.id)
-  for (const m of signalMoves) if (m.lead) linked.add(m.lead.id)
   for (const a of more) linked.add(a.id)
 
   return {
     storyCount: ranked.length,
     topStory: top ? toDigestArticle(top) : null,
     company,
-    signalMoves,
     facts: digestFacts,
     market,
     directory: directory.map(d => ({

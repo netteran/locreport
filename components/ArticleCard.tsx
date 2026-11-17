@@ -1,17 +1,18 @@
 import Link from 'next/link'
 import { Article } from '@/lib/types'
 import { articleHref, extractTeaser, safeImageUrl } from '@/lib/utils'
+import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
 
-const IMPACT_LABEL: Record<number, string> = { 1: 'Routine', 2: 'Notable', 3: 'Significant', 4: 'Major', 5: 'Disruptive' }
 const CATEGORY_LABEL: Record<string, string> = {
-  industry: 'Current news',
-  'monthly-summary': 'Monthly report',
+  industry: 'Analysis',
+  'monthly-summary': 'Monthly Briefing',
 }
 
-export function ArticleCard({ article, featured }: { article: Article; featured?: boolean }) {
+export function ArticleCard({ article, featured }: { article: Article & BriefingCoverage; featured?: boolean }) {
   const date = new Date(article.published_at).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
+    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Europe/Warsaw',
   })
+  const coverage = article.article_type === 'monthly-summary' ? briefingCoverageLabel(article) : null
   const thumb = safeImageUrl(article.image_url)
 
   if (featured) {
@@ -25,10 +26,8 @@ export function ArticleCard({ article, featured }: { article: Article; featured?
         )}
         <div className="article-row__header">
           <span className="article-row__badge article-row__badge--latest">Latest</span>
-          {article.impact_score && (
-            <span className={`impact-badge impact-badge--${article.impact_score}`}>{IMPACT_LABEL[article.impact_score]}</span>
-          )}
-          <span className="article-row__date">{date}</span>
+          {coverage && <span className="article-row__date">Coverage: {coverage}</span>}
+          <span className="article-row__date">{article.article_type === 'monthly-summary' ? 'Published ' : ''}{date}</span>
         </div>
         <h2 className="article-row__title"><Link href={articleHref(article.slug)}>{article.title}</Link></h2>
         <p className="article-row__excerpt">{article.excerpt || extractTeaser(article.content)}</p>
@@ -47,10 +46,8 @@ export function ArticleCard({ article, featured }: { article: Article; featured?
     <article className={`article-row${thumb ? ' article-row--with-thumb' : ''}`}>
       <div className="article-row__main">
         <div className="article-row__header">
-          <span className="article-row__date">{date}</span>
-          {article.impact_score && article.impact_score >= 3 && (
-            <span className={`impact-dot impact-dot--${article.impact_score}`} title={`Impact: ${IMPACT_LABEL[article.impact_score]}`} />
-          )}
+          {coverage && <span className="article-row__date">Coverage: {coverage}</span>}
+          <span className="article-row__date">{article.article_type === 'monthly-summary' ? 'Published ' : ''}{date}</span>
         </div>
         <h2 className="article-row__title"><Link href={articleHref(article.slug)}>{article.title}</Link></h2>
         <p className="article-row__excerpt">{article.excerpt || extractTeaser(article.content)}</p>

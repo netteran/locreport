@@ -3,14 +3,19 @@ import Link from 'next/link'
 import { createPublicClient } from '@/lib/supabase/server'
 import { required } from '@/lib/supabase/required'
 import { articleHref, safeImageUrl } from '@/lib/utils'
+import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
+import type { Article } from '@/lib/types'
 
 export const metadata: Metadata = {
-  title: 'Monthly Reports',
+  title: 'Monthly Briefing',
   description: 'Monthly industry briefings connecting language-services evidence, meaningful shifts, practical consequences and questions to watch.',
   alternates: { canonical: '/reports/monthly' },
 }
 
 export const revalidate = 3600
+
+type BriefingListRow = Pick<Article, 'id' | 'title' | 'slug' | 'excerpt' | 'published_at' | 'image_url' | 'image_alt'> & BriefingCoverage
 
 function getTopicChips(title: string, excerpt: string): string[] {
   const text = `${title} ${excerpt}`.toLowerCase()
@@ -24,22 +29,28 @@ function getTopicChips(title: string, excerpt: string): string[] {
 
 export default async function MonthlyReportsPage() {
   const supabase = createPublicClient()
-  const result = await supabase
+  const result = await withOptionalBriefingCoverage(coverageColumns => supabase
     .from('articles')
-    .select('id, title, slug, excerpt, published_at, signal_ids, image_url, image_alt')
+    .select('id, title, slug, excerpt, published_at, image_url, image_alt' + coverageColumns)
     .eq('article_type', 'monthly-summary')
     .order('published_at', { ascending: false })
+    .returns<BriefingListRow[]>()
+  )
 
-  const posts = required(result, 'monthly reports') ?? []
+  const posts = required(result, 'monthly briefings') ?? []
   const latest = posts[0]
   const latestImage = latest ? safeImageUrl(latest.image_url) : null
   const archive = posts.slice(1)
 
   return (
     <div className="container" style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-12)' }}>
+      <section className="all-articles-hero">
+        <h1>Monthly Briefing</h1>
+        <p className="all-articles-subtitle">An editorial assessment of what changed, why it matters, and what to watch next, drawing on our reporting, Fact Flow and collected source evidence.</p>
+      </section>
 
       {posts.length === 0 ? (
-        <p style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No monthly reports have been published yet.</p>
+        <p style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No monthly briefings have been published yet.</p>
       ) : (
         <>
           {/* Featured — latest report */}
@@ -52,24 +63,17 @@ export default async function MonthlyReportsPage() {
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
               </svg>
-              Latest Report
+              Latest Briefing
             </div>
             <h2 className="mr-featured-title">
               <Link href={articleHref(latest.slug)}>{latest.title}</Link>
             </h2>
             <p className="mr-featured-meta">
-              {new Date(latest.published_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              {''}
+              {briefingCoverageLabel(latest) ? `Coverage: ${briefingCoverageLabel(latest)} · ` : ''}
+              Published {new Date(latest.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Europe/Warsaw' })}
             </p>
             {latest.excerpt && <p className="mr-featured-excerpt">{latest.excerpt}</p>}
-            {latest.signal_ids?.length > 0 && (
-              <div className="mr-featured-signals">
-                {latest.signal_ids.slice(0, 3).map((sig: string) => (
-                  <span key={sig} className="mr-signal-chip">{sig.replace(/-/g, ' ')}</span>
-                ))}
-              </div>
-            )}
-            <Link href={articleHref(latest.slug)} className="mr-featured-cta">Read Full Report →</Link>
+            <Link href={articleHref(latest.slug)} className="mr-featured-cta">Read briefing →</Link>
           </div>
 
           {/* Archive */}
@@ -90,19 +94,20 @@ export default async function MonthlyReportsPage() {
                       )}
                       <div className="mr-card-top">
                         <span className="mr-card-date">
-                          {new Date(post.published_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                          {briefingCoverageLabel(post) ? `Coverage: ${briefingCoverageLabel(post)}` : 'Monthly Briefing'}
                         </span>
                       </div>
                       <h3 className="mr-card-title">
                         <Link href={articleHref(post.slug)}>{post.title}</Link>
                       </h3>
+                      <p className="mr-card-date">Published {new Date(post.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Europe/Warsaw' })}</p>
                       {post.excerpt && <p className="mr-card-excerpt">{post.excerpt}</p>}
                       {chips.length > 0 && (
                         <div className="mr-card-topics">
                           {chips.map(t => <span key={t} className="mr-topic-chip">{t}</span>)}
                         </div>
                       )}
-                      <Link href={articleHref(post.slug)} className="mr-card-link">Read report →</Link>
+                      <Link href={articleHref(post.slug)} className="mr-card-link">Read briefing →</Link>
                     </article>
                   )
                 })}

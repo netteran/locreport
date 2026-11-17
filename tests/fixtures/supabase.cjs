@@ -1,4 +1,4 @@
-// Isolated HTTP fixture. Neither schema mode forwards requests to a real project.
+// Isolated HTTP fixture. No mode forwards requests to a real project.
 const http = require('node:http')
 const factId = '10000000-0000-4000-8000-000000000001'
 const articleId = '20000000-0000-4000-8000-000000000001'
@@ -35,6 +35,85 @@ const privateFact = {
   article_id: null
 }
 
+// Optional populated mode for public editorial browser checks. Default research
+// and legacy fixtures remain deliberately sparse for their existing callers.
+const editorialArticles = [
+  ...[
+    ['Newest authored analysis', 'newest-authored-analysis', '2026-11-16', 1],
+    ['Combined analysis', 'combined-analysis', '2026-11-15', 2],
+    ['A buyer workflow decision', 'buyer-workflow-decision', '2026-11-13', 3],
+    ['Language technology in practice', 'language-technology-in-practice', '2026-11-11', 4],
+    ['Older high-impact analysis', 'older-high-impact-analysis', '2026-11-08', 5],
+  ].map(([title, slug, day, impact_score], index) => ({
+    id: index === 1 ? articleId : `20000000-0000-4000-8000-${String(index + 10).padStart(12, '0')}`,
+    title,
+    slug,
+    excerpt: 'Editorial perspective grounded in multiple industry sources.',
+    content: 'A practical editorial analysis of language services.\n\nThe evidence informs a buyer decision.',
+    article_type: 'industry',
+    author: 'LocReport Editorial',
+    publisher: 'LocReport',
+    source_url: null,
+    image_url: null,
+    image_alt: null,
+    signal_ids: ['quality-gap-closure'],
+    impact_score,
+    time_horizon: '6months',
+    affected_segments: ['Buyers'],
+    business_implications: ['Evaluate evidence before changing a workflow.'],
+    tags: ['localization'],
+    published_at: `${day}T10:00:00Z`,
+    updated_at: `${day}T10:00:00Z`,
+    embedding: null,
+  })),
+  {
+    id: '20000000-0000-4000-8000-000000000020',
+    title: 'October: the evidence behind buyer decisions',
+    slug: 'october-buyer-decisions-briefing',
+    excerpt: 'What mattered in October, its implications and the questions to watch.',
+    content: 'An October assessment.\n\nThe evidence informs a buyer decision.',
+    article_type: 'monthly-summary',
+    monthly_period: '2026-10',
+    report_start_date: '2026-10-01',
+    report_end_date: '2026-10-31',
+    author: 'LocReport Editorial',
+    publisher: 'LocReport',
+    source_url: null,
+    image_url: null,
+    image_alt: null,
+    signal_ids: ['quality-gap-closure'],
+    impact_score: 5,
+    business_implications: [],
+    affected_segments: [],
+    tags: [],
+    published_at: '2026-11-17T10:00:00Z',
+    updated_at: '2026-11-17T10:00:00Z',
+  },
+]
+
+function selectEditorialArticles(url) {
+  let rows = [...editorialArticles]
+  for (const key of ['id', 'slug', 'article_type', 'published_at']) {
+    const filter = url.searchParams.get(key)
+    if (!filter) continue
+    if (filter.startsWith('eq.')) rows = rows.filter(row => row[key] === filter.slice(3))
+    if (filter.startsWith('neq.')) rows = rows.filter(row => row[key] !== filter.slice(4))
+    if (filter.startsWith('gte.')) rows = rows.filter(row => row[key] >= filter.slice(4))
+    if (filter.startsWith('lt.')) rows = rows.filter(row => row[key] < filter.slice(3))
+    if (filter.startsWith('in.(')) {
+      const values = filter.slice(4, -1).split(',')
+      rows = rows.filter(row => values.includes(row[key]))
+    }
+  }
+  const order = url.searchParams.get('order') || 'published_at.desc'
+  const [column, direction] = order.split('.')
+  rows.sort((a, b) => String(a[column] ?? '').localeCompare(String(b[column] ?? '')) * (direction === 'asc' ? 1 : -1))
+  const total = rows.length
+  const offset = Number(url.searchParams.get('offset') || 0)
+  const limit = Number(url.searchParams.get('limit') || total)
+  return { rows: rows.slice(offset, offset + limit), total }
+}
+
 function createFixtureServer(schema = 'research', requests = []) {
   const newsletterNotes = new Map()
   return http.createServer((req, res) => {
@@ -45,6 +124,7 @@ function createFixtureServer(schema = 'research', requests = []) {
       query: Object.fromEntries(url.searchParams)
     })
     let rows = []
+    let total
     if (url.pathname === '/auth/v1/user') return reply(admin)
     if (url.pathname === '/rest/v1/weekly_newsletter_notes') {
       if (req.method === 'POST') {
@@ -118,20 +198,41 @@ function createFixtureServer(schema = 'research', requests = []) {
       ]
     }
     if (url.pathname === '/rest/v1/articles') {
-      rows =
-        schema === 'legacy' && url.searchParams.has('id')
-          ? [{ id: articleId, slug: 'combined-analysis', title: 'Combined analysis' }]
-          : []
+      if (schema === 'legacy') {
+        const column = (url.searchParams.get('select') || '').split(',').map(value => value.trim())
+          .find(value => ['monthly_period', 'report_start_date', 'report_end_date'].includes(value))
+        if (column) return reply({ code: '42703', message: `column articles.${column} does not exist` }, 400)
+      }
+      if (schema === 'editorial') {
+        const result = selectEditorialArticles(url)
+        rows = result.rows
+        total = result.total
+      } else {
+        rows =
+          schema === 'legacy' && url.searchParams.has('id')
+            ? [{ id: articleId, slug: 'combined-analysis', title: 'Combined analysis' }]
+            : []
+      }
+    }
+    if (schema === 'editorial' && url.pathname === '/rest/v1/rpc/keyword_search_articles') {
+      let body = ''
+      req.on('data', chunk => { body += chunk })
+      req.on('end', () => {
+        const query = String(JSON.parse(body).query_text || '').toLowerCase()
+        rows = editorialArticles.filter(row => `${row.title} ${row.excerpt}`.toLowerCase().includes(query))
+        reply(rows)
+      })
+      return
     }
     if (req.method === 'HEAD') {
-      res.writeHead(200, { 'Content-Range': '0-0/0' })
+      res.writeHead(200, { 'Content-Range': `0-0/${total ?? 0}` })
       return res.end()
     }
     return reply(req.headers.accept?.includes('vnd.pgrst.object') ? rows[0] || null : rows)
     function reply(data, status = 200) {
       res.writeHead(status, {
         'Content-Type': 'application/json',
-        'Content-Range': `0-${Math.max(0, rows.length - 1)}/${rows.length}`
+        'Content-Range': `0-${Math.max(0, rows.length - 1)}/${total ?? rows.length}`
       })
       res.end(JSON.stringify(data))
     }

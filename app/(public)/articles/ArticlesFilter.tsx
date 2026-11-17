@@ -89,21 +89,12 @@ export default function ArticlesFilter({ filters, shownCount, totalCount }: {
             </select>
           </div>
           <div className="filter-group">
-            <label className="filter-label" htmlFor="impact-select">Impact</label>
-            <select className="filter-select" id="impact-select" value={filters.impact} onChange={e => setParam('impact', e.target.value)}>
-              <option value="all">All levels</option>
-              <option value="4">Major+</option>
-              <option value="3">Significant+</option>
-              <option value="2">Notable+</option>
-            </select>
-          </div>
-          <div className="filter-group">
             <label className="filter-label" htmlFor="category-filter">Category</label>
             <select className="filter-select" id="category-filter" value={filters.category} onChange={e => setParam('category', e.target.value)}>
               <option value="all">All categories</option>
-              <option value="industry">Current news</option>
-              <option value="monthly-summary">Monthly reports</option>
-              <option value="annual">Annual reports</option>
+              <option value="industry">Analysis</option>
+              <option value="monthly-summary">Monthly Briefing</option>
+              <option value="annual">Archived annual reports</option>
             </select>
           </div>
           <div className="filter-group">
@@ -119,7 +110,7 @@ export default function ArticlesFilter({ filters, shownCount, totalCount }: {
             <select className="filter-select" id="sort-select" value={filters.sort} onChange={e => setParam('sort', e.target.value, 'date')}>
               <option value="date">Newest first</option>
               <option value="oldest">Oldest first</option>
-              <option value="impact">Highest impact</option>
+              {filters.sort === 'impact' && <option value="impact">Legacy order</option>}
             </select>
           </div>
         </div>
