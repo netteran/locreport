@@ -33,23 +33,24 @@ export async function loadEdition(service: SupabaseClient, date: string, allowMi
 }
 function plain(value: string | null | undefined) { return (value || '').replace(/([\\`*_{}\[\]<>!#|])/g, '\\$1') }
 function link(label: string, url: string) { return `[${plain(label)}](${url.replace(/\(/g, '%28').replace(/\)/g, '%29')})` }
+function signedPercent(value: number) { return `${value > 0 ? '+' : ''}${value.toFixed(1)}%` }
 export function issueMarkdown(issue: Issue): string {
   const sections: string[] = []
   if (issue.editorNote) sections.push(issue.editorNote)
   if (issue.topStory) {
     const a = issue.topStory
-    sections.push(`## Top story\n\n${link(a.title, a.url)}${a.excerpt ? `\n\n${plain(a.excerpt)}` : ''}${a.business_implications?.length ? '\n\n' + a.business_implications.map(p => `- ${plain(p)}`).join('\n') : ''}`)
+    sections.push(`## Top story\n\n${link(a.title, a.url)}${a.excerpt ? `\n\n${plain(a.excerpt)}` : ''}${a.business_implications?.length ? '\n\n**Why it matters**\n\n' + a.business_implications.map(p => `- ${plain(p)}`).join('\n') : ''}\n\n${link('Read the story →', a.url)}`)
   }
   if (issue.company) {
     const c = issue.company
-    sections.push(`## Company of the week\n\n${link(c.name, c.url)}${c.logoUrl ? `\n\n![${plain(c.name)}](${c.logoUrl})` : ''}\n\n${[c.category, c.hq, c.founded].filter(Boolean).map(v => plain(String(v))).join(' · ')}\n\n${plain(c.blurb)}`)
+    sections.push(`## Company of the week\n\n${link(c.name, c.url)}${c.logoUrl ? `\n\n![${plain(c.name)}](${c.logoUrl})` : ''}\n\n${[c.category, c.hq, c.founded ? `est. ${c.founded}` : null].filter(Boolean).map(v => plain(String(v))).join(' · ')}\n\n${plain(c.blurb)}\n\n${link('See the profile on LocReport →', c.url)}`)
   }
   if (issue.facts.length) sections.push('## Fact Flow\n\n' + issue.facts.map(f => `- ${link(f.content, f.url)}`).join('\n'))
   if (issue.market) {
     const m = issue.market
-    sections.push(`## LocStock\n\n${link('Market overview', m.url)}\n\nAverage movement: ${m.avgPct.toFixed(1)}% across ${m.tracked} tracked companies.\n\n${m.movers.map(v => `- ${plain(v.name)} (${plain(v.symbol)}): ${v.pct.toFixed(1)}%`).join('\n')}`)
+    sections.push(`## LocStock\n\nThe ${m.tracked} companies we track moved **${signedPercent(m.avgPct)}** on average this week. Biggest moves:\n\n${m.movers.map(v => `- **${plain(v.symbol)}** ${plain(v.name)} **${signedPercent(v.pct)}**`).join('\n')}\n\n${link('Open LocStock →', m.url)}`)
   }
-  if (issue.directory.length) sections.push('## New in the directory\n\n' + issue.directory.map(c => `${link(c.name, c.url)}\n\n${plain(c.description)}`).join('\n\n'))
+  if (issue.directory.length) sections.push('## New in the directory\n\n' + issue.directory.map(c => `${link(c.name, c.url)}${c.category ? ` · ${plain(c.category)}` : ''}\n\n${plain(c.description)}`).join('\n\n'))
   if (issue.more.length) sections.push('## More from LocReport\n\n' + issue.more.map(a => `- ${link(a.title, a.url)}`).join('\n'))
   if (issue.moreCount) sections.push(link(`Browse ${issue.moreCount} more articles`, `${SITE_URL}/articles`))
   return sections.join('\n\n')
