@@ -8,6 +8,7 @@ function load(file,deps={}) {
  const m={exports:{}}; new Function('exports','require','module',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText)(m.exports,id=>deps[id]||require(id),m);return m.exports
 }
 const weekly=load('lib/email/weeklyNote.ts')
+const editionCompany=load('lib/email/editionCompany.ts')
 let generated=0
 const generatedIssue={storyCount:1,articleIds:['article'],editorNote:'Opening',topStory:{id:'article',title:'A story',url:'https://locreport.com/articles/story',excerpt:'A useful summary.'},company:null,market:null,directory:[],facts:[{content:'A fact',url:'https://example.test/fact'}],more:[],moreCount:0}
 const edition=load('lib/email/edition.ts',{
@@ -41,7 +42,7 @@ test('saved editions bypass changing live content, never leak into another week,
 })
 test('edition API authenticates, rejects stale weeks/conflicting edits and saves complete copy',async()=>{
  const f=db();let admin=false
- const api=load('app/api/digest/edition/route.ts',{'@/lib/adminAuth':{requireAdmin:async()=>admin?{}:null},'@/lib/supabase/server':{createServiceClient:()=>f.service},'@/lib/email/period':{currentPeriod:()=>({periodStart:new Date(),periodEnd:new Date()})},'@/lib/email/weeklyNote':weekly,'@/lib/email/issue':{buildIssue:async()=>({issue:generatedIssue})},'@/lib/email/edition':{...edition,linkedArticleIds:async()=>[]}})
+ const api=load('app/api/digest/edition/route.ts',{'@/lib/adminAuth':{requireAdmin:async()=>admin?{}:null},'@/lib/supabase/server':{createServiceClient:()=>f.service},'@/lib/email/period':{currentPeriod:()=>({periodStart:new Date(),periodEnd:new Date()})},'@/lib/email/weeklyNote':weekly,'@/lib/email/issue':{buildIssue:async()=>({issue:generatedIssue})},'@/lib/email/edition':{...edition,linkedArticleIds:async()=>[]},'@/lib/email/editionCompany':editionCompany})
  const get=()=>api.GET(new NextRequest('http://localhost/api/digest/edition'))
  const put=body=>api.PUT(new NextRequest('http://localhost/api/digest/edition',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}))
  assert.equal((await get()).status,401);assert.equal((await put({})).status,401);admin=true

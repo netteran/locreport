@@ -5,6 +5,8 @@ import { currentPeriod } from '@/lib/email/period'
 import { buildIssue } from '@/lib/email/issue'
 import { weeklyEditionDate } from '@/lib/email/weeklyNote'
 import { loadEdition, normalizeEdition, issueMarkdown, editionRevision, linkedArticleIds, missingEditions, EDITION_MIGRATION } from '@/lib/email/edition'
+import { editionCompanySlug } from '@/lib/email/editionCompany'
+import { randomUUID } from 'node:crypto'
 
 export async function GET(req: NextRequest) {
   if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -13,9 +15,14 @@ export async function GET(req: NextRequest) {
     const { periodStart, periodEnd } = currentPeriod()
     const editionDate = weeklyEditionDate(periodEnd)
     const saved = await loadEdition(service, editionDate)
-    if (saved && req.nextUrl.searchParams.get('refresh') !== '1') return NextResponse.json({ editionDate,
+    const refresh = req.nextUrl.searchParams.get('refresh') === '1'
+    if (saved && !refresh) return NextResponse.json({ editionDate,
       subject: saved.subject, body_markdown: saved.body_markdown, saved: true, revision: editionRevision(saved, editionDate) }, { headers: { 'Cache-Control': 'no-store' } })
-    const { issue, error } = await buildIssue(service, periodStart, periodEnd)
+    const excluded = req.nextUrl.searchParams.get('exclude_company')
+    const excludeSlug = excluded && /^[a-z0-9_-]{1,200}$/i.test(excluded)
+      ? excluded : editionCompanySlug(saved?.body_markdown || '')
+    const { issue, error } = await buildIssue(service, periodStart, periodEnd,
+      refresh ? { seed: randomUUID(), excludeSlug } : undefined)
     if (error) throw new Error(error)
     return NextResponse.json({ editionDate, subject: issue?.topStory ? `The Weekly: ${issue.topStory.title}` : 'The Weekly from LocReport',
       body_markdown: issue ? issueMarkdown(issue) : '', saved: false, revision: saved ? editionRevision(saved, editionDate) : null }, { headers: { 'Cache-Control': 'no-store' } })
