@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { editionCompanySlug } from '@/lib/email/editionCompany'
 
 type Copy = { editionDate: string; subject: string; body_markdown: string; saved: boolean; revision: string | null }
 type Recipients = { recipients: number; skipped: number; articles: number }
@@ -22,7 +23,13 @@ export function WeeklyEditionEditor() {
     if (refresh && dirty && !window.confirm('Replace unsaved edits with the latest collected content? The saved edition will stay unchanged until you save again.')) return
     setBusy(true); setError(''); setConfirmation(null); setMessage('')
     try {
-      const r = await fetch(`/api/digest/edition${refresh ? '?refresh=1' : ''}`, { cache: 'no-store' })
+      const query = new URLSearchParams()
+      if (refresh) {
+        query.set('refresh', '1')
+        const company = editionCompanySlug(copy?.body_markdown || '')
+        if (company) query.set('exclude_company', company)
+      }
+      const r = await fetch(`/api/digest/edition${query.size ? '?' + query : ''}`, { cache: 'no-store' })
       const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Could not load edition')
       setCopy(d); setSavedText(d.saved ? text(d) : '')
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
@@ -68,6 +75,7 @@ export function WeeklyEditionEditor() {
     {!copy ? <p role="status">{busy ? 'Loading edition…' : 'The edition is unavailable.'}</p> : <>
       <div className="admin-weekly-actions"><strong>Edition {copy.editionDate}</strong><span role="status">{dirty ? 'Unsaved edition' : 'Saved edition'}</span>
         <Button variant="ghost" disabled={busy} onClick={() => load(true)}>Refresh from latest content</Button></div>
+      <p className="text-xs" style={{ color: 'var(--muted)' }}>Refresh reloads the latest content and picks another directory company when available. Save the edition to update its preview and send.</p>
       <label>Subject<input aria-label="Subject" value={copy.subject} maxLength={200} disabled={busy} onChange={e => edit('subject', e.target.value)} /></label>
       <label>Newsletter content<textarea aria-label="Newsletter content" value={copy.body_markdown} maxLength={60000} disabled={busy} onChange={e => edit('body_markdown', e.target.value)} /></label>
       <div className="admin-weekly-actions">

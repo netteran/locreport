@@ -143,13 +143,30 @@ function companyBlurb(entry: DirectoryEntry): string {
 // they aren't language companies and don't belong in this slot.
 const NOT_FEATURED_CATEGORIES = new Set(['tech-platform', 'bpo'])
 
-export function pickCompanyOfWeek(entries: DirectoryEntry[], periodEnd: Date): DigestCompany | null {
+export interface CompanySelection { seed: string; excludeSlug?: string | null }
+
+function preferCompanyLogos(entries: DirectoryEntry[]) {
+  const withLogo = entries.filter(e => emailSafeLogo(e.logo_url))
+  return withLogo.length ? withLogo : entries
+}
+
+function seededCompany(pool: DirectoryEntry[], seed: string) {
+  return pool.reduce((best, e) => (hash(`${e.slug}:${seed}`) < hash(`${best.slug}:${seed}`) ? e : best))
+}
+
+export function pickCompanyOfWeek(entries: DirectoryEntry[], periodEnd: Date, selection?: CompanySelection): DigestCompany | null {
   const described = entries.filter(e => e.slug && (e.long_description || e.description) && !NOT_FEATURED_CATEGORIES.has(e.category))
   if (described.length === 0) return null
-  const withLogo = described.filter(e => emailSafeLogo(e.logo_url))
-  const pool = withLogo.length > 0 ? withLogo : described
+  let pool = preferCompanyLogos(described)
   const week = isoWeekKey(periodEnd)
-  const pick = pool.reduce((best, e) => (hash(`${e.slug}:${week}`) < hash(`${best.slug}:${week}`) ? e : best))
+  if (selection) {
+    // An explicit refresh excludes the working copy's company. Without one,
+    // exclude the automatic weekly pick. A single eligible entry can stay.
+    const previousSlug = selection.excludeSlug || seededCompany(pool, week).slug
+    const alternatives = described.filter(e => e.slug !== previousSlug)
+    if (alternatives.length) pool = preferCompanyLogos(alternatives)
+  }
+  const pick = seededCompany(pool, selection?.seed || week)
   return {
     name: pick.name,
     url: `${SITE_URL}/compass/directory/${pick.slug}`,

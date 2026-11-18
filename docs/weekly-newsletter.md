@@ -12,6 +12,8 @@ Saved editions retain the newsletter's styled sections: Top story gets its headl
 
 Editing the content or changing recipients clears the send confirmation. Unsaved edits disable preview and sending. The server also checks the saved revision, so a preview from an older tab cannot silently send a changed edition. Conflicting saves require a reload. Refresh from latest content updates the working copy; it does not replace the saved edition until Save is chosen.
 
+An explicit refresh also draws another eligible **Company of the week**, excluding the company linked in the working copy's standard company section. This also works for repeated refreshes before saving and for an editor-selected profile. The directory's language-company filters still apply; email-compatible logos are preferred among the alternatives. If only one company qualifies, it stays selected. Opening or reloading an unsaved automatic issue keeps its stable weekly selection; saved editions, previews and delivery keep the reviewed selection until a refreshed edition is saved. No database migration is needed for company refresh.
+
 ## Friday editions
 
 Editions are keyed by their Friday date in Europe/Warsaw, including DST. Saturday begins the next edition. A saved complete edition is used by both manual delivery and the existing Friday 13:00 schedule. It is frozen until edited again; later source/article changes do not rewrite it. Without a saved edition for that Friday, the existing automatic issue continues. A past edition is never reused for a new week.
@@ -37,3 +39,5 @@ TEST_BASE_URL=http://127.0.0.1:3000 PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium
 The browser check edits a complete edition, saves/reloads it, inspects the real HTML preview and checks dirty-state/confirmation behavior. Send requests are intercepted and must be dry runs. Screenshots are saved under `work/admin-preview/`. The older admin-workspace and weekly-note browser script names remain compatibility entry points for this consolidated check.
 
 `PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium node tests/weekly-formatting.browser.cjs` compares the styled saved document with the automatic newsletter and checks the story, company card, facts, links and mobile widths. Add `TEST_BASE_URL` for the isolated app to verify persistence and the real saved-preview route too. Screenshots go to `work/weekly-preview/`; the check never calls delivery.
+
+`TEST_BASE_URL=http://127.0.0.1:3000 PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium node tests/newsletter-company.browser.cjs` checks repeated company refreshes against the real local edition routes, including unsaved/manual selections, saved-copy preservation, send-confirmation reset, save/reload and the matching preview. Delivery is intercepted; no email is sent.

@@ -6,6 +6,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { DIRECTORY } from '@/lib/data/directory'
 import { fetchDirectoryEntries } from '@/lib/directory'
 import { composeIssue, pickCompanyOfWeek, summarizeMarket, DigestSourceArticle, Issue } from '@/lib/email/digest'
+import type { CompanySelection } from '@/lib/email/digest'
 import { loadWeeklyNote } from '@/lib/email/weeklyNote'
 import { fetchPeriodArticles } from '@/lib/email/period'
 
@@ -14,7 +15,8 @@ type Service = ReturnType<typeof createServiceClient>
 export async function buildIssue(
   service: Service,
   periodStart: Date,
-  periodEnd: Date
+  periodEnd: Date,
+  companySelection?: CompanySelection
 ): Promise<{ issue: Issue | null; error?: string }> {
   let editorNote: string
   try {
@@ -49,7 +51,7 @@ export async function buildIssue(
     articles: (articles ?? []) as DigestSourceArticle[],
     facts: facts.data ?? [],
     market: quotes.data ? summarizeMarket(quotes.data, periodStart, periodEnd) : null,
-    company: pickCompanyOfWeek(allCompanies, periodEnd),
+    company: pickCompanyOfWeek(allCompanies, periodEnd, companySelection),
     directory: newCompanies,
   })
   return { issue: { ...issue, editorNote } }
