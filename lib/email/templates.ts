@@ -27,7 +27,7 @@ function escapeHtml(s: string): string {
 }
 
 /** Inline Markdown only: emit our own tags and never pass through source HTML. */
-export function renderWeeklyNote(markdown: string): string {
+function inlineMarkdown(markdown: string, { linkStyle = `color:${BRAND.accent};text-decoration:underline;`, linkArrow = false, financial = false } = {}): string {
   function render(tokens: Token[], insideLink = false): string {
     return tokens.map(token => {
       switch (token.type) {
@@ -40,8 +40,8 @@ export function renderWeeklyNote(markdown: string): string {
           if (insideLink) return label
           let url: URL
           try { url = new URL(token.href) } catch { return label }
-          if (!['https:', 'http:'].includes(url.protocol)) return label
-          return `<a href="${escapeHtml(url.href)}" style="color:${BRAND.accent};text-decoration:underline;">${label}</a>`
+          if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return label
+          return `<a href="${escapeHtml(url.href)}" style="${linkStyle}">${label}${linkArrow ? ` <span aria-hidden="true" style="color:${BRAND.accent};font-weight:600;">→</span>` : ''}</a>`
         }
         case 'escape':
           return escapeHtml(token.raw.slice(1))
@@ -49,11 +49,17 @@ export function renderWeeklyNote(markdown: string): string {
           // Token text is already entity-escaped by marked. Escape the raw
           // source instead to preserve literal ampersands and existing copy.
           // HTML, images and other unsupported markup remain visible text.
-          return escapeHtml(token.raw)
+          return financial && token.type === 'text'
+            ? escapeHtml(token.raw).replace(/[+−-]?\d+(?:\.\d+)?%/g, value => `<span style="color:${Number(value.replace('%', '').replace('−', '-')) < 0 ? '#B3261E' : '#1E7F4F'};font-weight:600;">${value}</span>`)
+            : escapeHtml(token.raw)
       }
     }).join('')
   }
   return render(Lexer.lexInline(markdown.trim(), { gfm: true }))
+}
+
+export function renderWeeklyNote(markdown: string): string {
+  return inlineMarkdown(markdown)
 }
 
 /** Render note blocks without allowing source HTML or unsupported block tags. */
@@ -77,17 +83,18 @@ export function renderWeeklyNoteContent(markdown: string): string {
 function shell(bodyHtml: string, footerHtml: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>@media only screen and (max-width:480px){.newsletter-header,.newsletter-content{padding:24px 20px!important;}}</style></head>
 <body style="margin:0;padding:0;background:${BRAND.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${BRAND.text};">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.bg};padding:24px 0;">
     <tr><td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${BRAND.surface};border-radius:12px;border:1px solid ${BRAND.border};overflow:hidden;">
-        <tr><td style="padding:28px 32px 20px;border-bottom:1px solid ${BRAND.border};">
+        <tr><td class="newsletter-header" style="padding:28px 32px 20px;border-bottom:1px solid ${BRAND.border};">
           <a href="https://locreport.com" style="text-decoration:none;">
             <img src="${LOGO_URL}" alt="LocReport" width="128" height="34" style="display:block;height:34px;width:auto;border:0;outline:none;text-decoration:none;">
           </a>
         </td></tr>
-        <tr><td style="padding:28px 32px;">
+        <tr><td class="newsletter-content" style="padding:28px 32px;overflow-wrap:break-word;word-wrap:break-word;">
           ${bodyHtml}
         </td></tr>
       </table>
@@ -283,41 +290,109 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, facts,
   return shell(body, footer)
 }
 
-/** Complete editable editions use the same email frame and safe Markdown subset. */
+type NewsletterSection = 'story' | 'company' | 'facts' | 'market' | 'directory' | 'more' | 'custom'
+const SECTION_TYPES: Record<string, NewsletterSection> = {
+  'top story': 'story',
+  'company of the week': 'company',
+  'fact flow': 'facts',
+  'fact flow · the week in five facts': 'facts',
+  'locstock': 'market',
+  'locstock brief': 'market',
+  'new in the directory': 'directory',
+  'more from locreport': 'more',
+  'everything else this week': 'more',
+}
+const TITLE_LINK = `color:${BRAND.text};text-decoration:none;`
+const CTA_LINK = `color:${BRAND.accent};text-decoration:none;font-weight:600;`
+const MORE_LINK = `color:${BRAND.text};text-decoration:underline;text-decoration-color:${BRAND.border};`
+
+function standaloneImage(token: Token) {
+  const image = token.type === 'paragraph' && token.tokens?.length === 1 && token.tokens[0].type === 'image' ? token.tokens[0] : null
+  if (!image) return null
+  try {
+    const url = new URL(image.href)
+    if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password) return { url: url.href, alt: image.text }
+  } catch { /* Unsupported destinations remain escaped text. */ }
+  return null
+}
+
+/** Style the saved document itself; never regenerate or replace an editor's copy. */
 export function editedDigestEmail({ editionDate, bodyMarkdown, manageUrl }: { editionDate: string; bodyMarkdown: string; manageUrl: string }): string {
-  const p = (s: string) => `<p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:${BRAND.text};">${s}</p>`
-  function blocks(tokens: Token[]): string {
+  const p = (s: string, style = '') => `<p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:${BRAND.text};${style}">${s}</p>`
+  function blocks(tokens: Token[], section: NewsletterSection = 'custom', nested = false): string {
+    let titleSeen = false
     return tokens.map(token => {
       switch (token.type) {
         case 'space': return ''
         case 'heading': {
           const level = Math.max(1, Math.min(6, token.depth))
-          return `<h${level} style="margin:24px 0 12px;font-size:${level <= 2 ? 21 : 17}px;line-height:1.3;color:${BRAND.text};">${renderWeeklyNote(token.text)}</h${level}>`
+          return `<h${level} style="margin:20px 0 10px;font-size:${[24, 21, 18, 16, 15, 14][level - 1]}px;line-height:1.3;font-weight:700;letter-spacing:-0.01em;color:${BRAND.text};">${renderWeeklyNote(token.text)}</h${level}>`
         }
-        case 'text': return p(renderWeeklyNote(token.text))
+        case 'text':
         case 'paragraph': {
-          const image = token.tokens?.length === 1 && token.tokens[0].type === 'image' ? token.tokens[0] : null
+          const inlineTokens: Token[] | undefined = 'tokens' in token ? token.tokens : undefined
+          const image = standaloneImage(token)
           if (image) {
-            try {
-              const url = new URL(image.href)
-              if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password)
-                return `<p><img src="${escapeHtml(url.href)}" alt="${escapeHtml(image.text)}" width="120" style="max-width:120px;height:auto;border:0;"></p>`
-            } catch { /* Unsupported image destinations remain plain text. */ }
+            return `<p style="margin:12px 0;"><img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt)}" width="120" style="display:block;max-width:120px;height:auto;border:0;"></p>`
           }
-          return p(renderWeeklyNote(token.text))
+          const singleLink = inlineTokens?.length === 1 && inlineTokens[0].type === 'link'
+          if (!nested && singleLink && section === 'story' && !titleSeen) {
+            titleSeen = true
+            return `<h2 style="margin:0 0 8px;font-size:19px;line-height:1.3;letter-spacing:-0.01em;font-weight:700;">${inlineMarkdown(token.text, { linkStyle: TITLE_LINK })}</h2>`
+          }
+          if (!nested && inlineTokens?.[0]?.type === 'link' && section === 'directory') return p(inlineMarkdown(token.text, { linkStyle: TITLE_LINK }), 'margin-bottom:4px;font-weight:600;')
+          if (singleLink && nested && section === 'facts') return p(inlineMarkdown(token.text, { linkStyle: TITLE_LINK, linkArrow: true }), 'margin:0;font-size:13px;')
+          if (singleLink && nested && section === 'more') return p(inlineMarkdown(token.text, { linkStyle: MORE_LINK }), 'margin:0;font-size:13px;')
+          if (singleLink && !nested && ['story', 'company', 'market', 'more'].includes(section)) return p(inlineMarkdown(token.text, { linkStyle: CTA_LINK }), 'font-size:13px;')
+          if (!nested && section === 'story' && inlineTokens?.length === 1 && inlineTokens[0].type === 'strong') return p(renderWeeklyNote(token.text), 'margin:12px 0 4px;font-size:12px;')
+          const muted = !nested && ['story', 'directory'].includes(section)
+          return p(inlineMarkdown(token.text, { financial: section === 'market' }), `${nested ? 'margin:0 0 4px;font-size:13px;' : ''}${muted || (nested && section === 'story') ? `color:${BRAND.muted};` : ''}`)
         }
         case 'list': {
           const tag = token.ordered ? 'ol' : 'ul'
           const start = token.ordered && token.start ? ` start="${Number(token.start)}"` : ''
-          return `<${tag}${start} style="padding-left:24px;margin:12px 0 20px;font-size:14px;line-height:1.7;">${token.items.map((item: { tokens: Token[] }) => `<li style="margin:8px 0;">${blocks(item.tokens)}</li>`).join('')}</${tag}>`
+          const callouts = !nested && !token.ordered && section === 'facts'
+          const compact = !nested && !token.ordered && ['market', 'more'].includes(section)
+          const itemStyle = callouts ? `margin:0 0 12px;padding-left:12px;border-left:2px solid ${BRAND.accent};` : `margin:0 0 ${compact ? 8 : 6}px;`
+          return `<${tag}${start} style="${callouts || compact ? 'list-style:none;padding:0;' : 'padding-left:22px;'}margin:8px 0 16px;font-size:13px;line-height:1.6;">${token.items.map((item: { tokens: Token[] }) => `<li style="${itemStyle}">${blocks(item.tokens, section, true)}</li>`).join('')}</${tag}>`
         }
-        case 'blockquote': return `<blockquote style="margin:20px 0;padding-left:16px;border-left:2px solid ${BRAND.accent};">${blocks(token.tokens || [])}</blockquote>`
+        case 'blockquote': return `<blockquote style="margin:16px 0;padding:4px 0 4px 16px;border-left:2px solid ${BRAND.accent};">${blocks(token.tokens || [], section, true)}</blockquote>`
         case 'hr': return RULE
         default: return p(escapeHtml(token.raw))
       }
     }).join('')
   }
+
+  function companyCard(tokens: Token[]) {
+    const content = tokens.filter(token => token.type !== 'space')
+    const title = content[0]
+    const image = content[1] && standaloneImage(content[1])
+    // Generated editions put the company name first and its optional logo next.
+    // Freely authored sections still get the card without imposing this shape.
+    const hasTitle = title?.type === 'paragraph' && title.tokens?.length === 1 && title.tokens[0].type === 'link'
+    let bodyStart = hasTitle ? (image ? 2 : 1) : 0
+    const next = content[bodyStart]
+    const metadata = hasTitle && next?.type === 'paragraph' && next.text.includes(' · ') ? next : null
+    if (metadata) bodyStart++
+    const header = hasTitle ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;table-layout:fixed;"><tr>
+      ${image ? `<td valign="middle" width="64" style="width:64px;padding-right:14px;"><img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt)}" width="56" height="56" style="display:block;width:56px;height:56px;object-fit:contain;box-sizing:border-box;background:${BRAND.surface};border:1px solid ${BRAND.border};border-radius:8px;padding:4px;"></td>` : ''}
+      <td valign="middle" style="overflow-wrap:break-word;">${p(inlineMarkdown(title.text, { linkStyle: TITLE_LINK }), 'margin:0;font-size:17px;font-weight:700;line-height:1.3;')}${metadata ? p(renderWeeklyNote(metadata.text), `margin:2px 0 0;font-size:12px;color:${BRAND.muted};`) : ''}</td></tr></table>` : ''
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.bg};border:1px solid ${BRAND.border};border-radius:10px;table-layout:fixed;"><tr><td style="padding:18px;">${header}${blocks(content.slice(bodyStart), 'company')}</td></tr></table>`
+  }
+
+  const sections: { heading?: Token & { type: 'heading'; text: string; depth: number }; tokens: Token[] }[] = [{ tokens: [] }]
+  for (const token of Lexer.lex(bodyMarkdown, { gfm: true })) {
+    if (token.type === 'heading' && token.depth === 2) sections.push({ heading: { ...token, type: 'heading', text: token.text, depth: token.depth }, tokens: [] })
+    else sections[sections.length - 1].tokens.push(token)
+  }
+  const content = sections.map(({ heading, tokens }) => {
+    if (!heading) return tokens.length ? `<div style="margin:0 0 24px;">${blocks(tokens)}</div>` : ''
+    const kind = SECTION_TYPES[heading.text.trim().toLowerCase()] || 'custom'
+    const label = kind === 'custom' ? blocks([heading]) : eyebrow(heading.text, kind === 'story' ? BRAND.gold : kind === 'company' ? BRAND.accent : BRAND.muted)
+    // Section containers and rules preserve the original newsletter's visual rhythm.
+    return `<div data-newsletter-section="${kind}">${label}${kind === 'company' ? companyCard(tokens) : blocks(tokens, kind)}</div>${kind === 'more' ? '' : RULE}`
+  }).join('')
   const date = new Date(`${editionDate}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Warsaw' })
-  return shell(`${eyebrow('The Weekly', BRAND.accent)}${p(`Edition ${escapeHtml(date)}`)}${blocks(Lexer.lex(bodyMarkdown, { gfm: true }))}`,
+  return shell(`<p style="margin:0 0 16px;font-size:13px;color:${BRAND.muted};">The Weekly · ${escapeHtml(date)}</p>${content}`,
     `You're receiving The Weekly from LocReport.<br><a href="${escapeHtml(manageUrl)}" style="color:${BRAND.muted};">Manage subscription</a><br>LocReport · locreport.com`)
 }
