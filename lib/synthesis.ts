@@ -11,7 +11,7 @@ Use ONLY the selected source evidence and the explicitly supplied practitioner e
 Preserve numbers, dates, names and quotations; distinguish vendor claims, opinions and independent findings. Mention contradictions explicitly.
 Repeated reports of one announcement are one development, not independent corroboration.
 Source citations and hyperlinks in the article body are optional; there is no minimum citation count.
-If you include citations, use markdown links [Publisher](exact source URL) with only source URLs in the input. Do not cite unsupported or invented URLs.
+If you include citations, link the named publisher, report or relevant descriptive phrase naturally in the sentence, using only exact source URLs in the input. Do not cite unsupported or invented URLs.
 Editorial direction may change angle, audience, structure and emphasis, but cannot manufacture evidence.
 Pitch reasoning, source-contribution summaries and reporting tasks in the editorial direction are a working brief, not additional evidence.
 If reporting is unresolved, narrow the scope to supported claims and keep open questions or hypotheses explicitly qualified.

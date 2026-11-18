@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { marked } from 'marked'
+import { CitationWordingNote } from '@/components/CitationWordingNote'
 
 interface ArticleEditorProps {
   initialContent?: string
@@ -46,6 +47,7 @@ export function ArticleEditor({ initialContent = '', onPublish, onSaveDraft, loa
         />
       )}
 
+      <CitationWordingNote content={content} />
       <div className="flex gap-3">
         <Button onClick={() => onPublish(content)} disabled={loading}>
           {loading ? 'Publishing…' : 'Publish now'}

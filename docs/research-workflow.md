@@ -148,6 +148,14 @@ Generation receives an explicit approved URL list alongside the evidence. Citati
 
 A citation validation failure triggers one repair request using the original evidence and approved URLs. The repair must remove unsupported claims rather than invent or substitute unrelated sources. The repaired report is validated again before any draft is inserted; a second failure reports unsupported URLs and saves nothing. Draft approval uses the same validation against the frozen evidence URL list. No database migration is required for this repair.
 
+### Natural source-link wording
+
+Article and monthly briefing generation append shared link-wording guidance after saved house prompts. Link the publisher, named report or relevant words within the sentence, such as `the [supplier pricing report](approved-url)`, rather than adding `([source](approved-url))`. Attribution must come from the supplied evidence. Body links remain optional for articles; monthly evidence-link requirements still apply. Compose, article re-runs and podcast write-ups receive the same guidance.
+
+Source-based articles receive at most one extra wording request when the Markdown contains generic anchors, numbered citations or bare URLs. Monthly briefings share their existing one-repair budget between URL validation and wording. A wording-only repair must preserve every unique link destination; a failed or malformed cosmetic retry retains the completed first version. Unsupported monthly URLs still fail validation after the allowed repair.
+
+Draft review and the article editor show a non-blocking note for unclear anchors, including in existing publications. The note disappears as the editor improves the linked wording; opening an old article does not rewrite it. Human review and explicit publication remain required. No setting reset, database migration or archive rewrite is needed. `tests/citationStyle.test.cjs` checks parsing and destination preservation; `tests/monthly-report.browser.cjs` checks advisory guidance, inline preview links and saved Markdown in draft, article and briefing editors using intercepted writes.
+
 ### Public editorial structure
 
 The public navigation is Articles, Fact Flow and Compass. The homepage lists authored industry analyses in publication order rather than by daily batches or impact ranking. Monthly Briefings retain `/reports/monthly` and the stored `monthly-summary` type; their cards show the actual coverage period separately from the Warsaw publication date. The existing annual report remains available in the report archive without a commitment to future annual editions.

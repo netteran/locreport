@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
-import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, todayLine } from '@/lib/prompts'
+import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, CITATION_STYLE_GUIDANCE, todayLine } from '@/lib/prompts'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import { isYouTubeUrl, parsePodcastConfig, writePodcastArticle, type PodcastConfig } from '@/lib/podcast'
 import { draftSourceName, sourceNameLine } from '@/lib/sourceName'
@@ -158,6 +158,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         ...(instruction
           ? [{ role: 'system' as const, content: buildInstructionMessage(instruction) }]
           : []),
+        { role: 'system' as const, content: CITATION_STYLE_GUIDANCE },
         { role: 'user' as const, content: generateInput },
       ],
     })
