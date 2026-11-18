@@ -12,6 +12,7 @@ function load(file, dependencies = {}) {
 }
 const monthly = load('lib/monthlyBriefing.ts')
 const prompts = load('lib/prompts.ts')
+const citationStyle = load('lib/citationStyle.ts')
 const source = { id: 'candidate', title: 'Supplier changes pricing', source_url: 'https://publisher.test/pricing', source_name: 'Publisher',
   source_published_at: '2026-10-15', created_at: '2026-10-15', extracted_facts: 'The supplier announced a pricing change.', quality: 'snippet', event_id: 'event-1', review_reason: null }
 function database({ articles = [], facts = [], sources = [source], undated = [], previous = [], duplicate = [], draftDuplicate = [], errorTable = null, savedPrompt = null } = {}) {
@@ -91,10 +92,13 @@ function generator(db, { authorized = true, content = '# Monthly briefing\n\nThe
   const route = load('app/api/monthly-report/route.ts', {
     '@/lib/supabase/server': { createClient: async () => ({ auth: { getUser: async () => ({ data: { user: authorized ? { email: 'editor@test' } : null } }) } }), createServiceClient: () => db },
     '@/lib/openai': { getOpenAI: () => ({ chat: { completions: { create: async input => {
-      modelCalls.push(input); return { choices: [{ finish_reason: finish, message: { content: Array.isArray(content) ? content[Math.min(modelCalls.length - 1, content.length - 1)] : content } }] }
+      modelCalls.push(input)
+      const output = Array.isArray(content) ? content[Math.min(modelCalls.length - 1, content.length - 1)] : content
+      if (output instanceof Error) throw output
+      return { choices: [{ finish_reason: finish, message: { content: output } }] }
     } } } }) },
     '@/lib/slugify': { slugify: () => 'monthly-briefing', uniqueSlug: async value => value },
-    '@/lib/prompts': prompts, '@/lib/monthlyBriefing': monthly,
+    '@/lib/prompts': prompts, '@/lib/monthlyBriefing': monthly, '@/lib/citationStyle': citationStyle,
     '@/lib/embeddings': { embedAndStoreArticle: async () => {} }, '@/lib/revalidate': { revalidateArticleSurfaces: () => {} }
   })
   return { run: body => route.POST(new NextRequest('http://localhost/api/monthly-report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })), modelCalls }
@@ -110,6 +114,7 @@ test('report generation uses the wider evidence pool and the saved monthly promp
   assert.equal(data.article_count, 0)
   assert.equal(data.source_count, 1)
   assert.match(f.modelCalls[0].messages[0].content, /^Custom monthly house style/)
+  assert.match(f.modelCalls[0].messages[0].content, /SOURCE LINK WORDING/)
   assert.match(f.modelCalls[0].messages[1].content, /source_evidence/)
   assert.ok(f.modelCalls[0].max_tokens >= 4000)
   assert.equal(data.status, 'pending')
@@ -119,6 +124,7 @@ test('report generation uses the wider evidence pool and the saved monthly promp
   assert.equal(db.inserts[0].status, 'pending')
   assert.ok(db.inserts[0].monthly_period)
   assert.deepEqual(JSON.parse(db.inserts[0].extracted_facts).allowed_urls, [source.source_url])
+  assert.equal(f.modelCalls.length, 1, 'descriptive links need no extra generation')
 })
 
 test('unauthorized, duplicate, empty evidence, truncated and unsupported reports never publish', async t => {
@@ -309,4 +315,48 @@ test('failed citation repair never saves a draft and reports the unsupported URL
   assert.match((await res.json()).error, /https:\/\/invented.test/)
   assert.equal(f.modelCalls.length, 2)
   assert.equal(db.inserts.length, 0)
+})
+
+test('monthly generation improves vague wording within its single repair budget', async t => {
+  const old = process.env.ADMIN_EMAIL; process.env.ADMIN_EMAIL = 'editor@test'
+  t.after(() => { if (old === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = old })
+  const db = database(), f = generator(db, { content: [
+    '# Briefing\nCosts changed ([source](https://publisher.test/pricing)).',
+    '# Briefing\nThe [supplier pricing announcement](https://publisher.test/pricing) changes buyer costs.'
+  ] })
+  assert.equal((await f.run()).status, 200)
+  assert.equal(f.modelCalls.length, 2)
+  assert.match(f.modelCalls[1].messages.at(-1).content, /Improve only the source-link wording/)
+  assert.match(db.inserts[0].content, /\[supplier pricing announcement\]/)
+  assert.deepEqual(citationStyle.unclearCitations(db.inserts[0].content), [])
+  assert.deepEqual(db.insertTables, ['drafts'])
+})
+
+test('monthly wording problems remain editable when a cosmetic retry fails or changes sources', async t => {
+  const old = process.env.ADMIN_EMAIL; process.env.ADMIN_EMAIL = 'editor@test'
+  t.after(() => { if (old === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = old })
+  const first = '# Briefing\nCosts changed ([source](https://publisher.test/pricing)).'
+  for (const retry of [first, new Error('Model unavailable'), '# Briefing\n[report](https://invented.test)',
+    '# Briefing\nNo links.', 'No title. [report](https://publisher.test/pricing)']) {
+    const db = database(), f = generator(db, { content: [first, retry] })
+    assert.equal((await f.run()).status, 200)
+    assert.equal(f.modelCalls.length, 2)
+    assert.equal(db.inserts[0].content, first)
+    assert.equal(db.inserts[0].status, 'pending')
+  }
+})
+
+test('unsupported and vague citations get one coherent repair without preserving unsupported URLs', async t => {
+  const old = process.env.ADMIN_EMAIL; process.env.ADMIN_EMAIL = 'editor@test'
+  t.after(() => { if (old === undefined) delete process.env.ADMIN_EMAIL; else process.env.ADMIN_EMAIL = old })
+  const db = database(), f = generator(db, { content: [
+    '# Briefing\n[source](https://invented.test)', '# Briefing\n[source](https://publisher.test/pricing)'
+  ] })
+  assert.equal((await f.run()).status, 200)
+  assert.equal(f.modelCalls.length, 2, 'URL repair and style share one extra call')
+  const repair = f.modelCalls[1].messages.at(-1).content
+  assert.match(repair, /Unsupported URLs/)
+  assert.match(repair, /SOURCE LINK WORDING/)
+  assert.ok(!repair.includes('Preserve the title, factual claims, numbers and all link destinations'))
+  assert.equal(citationStyle.unclearCitations(db.inserts[0].content).length, 1, 'remaining style issue is editable')
 })

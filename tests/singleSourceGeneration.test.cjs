@@ -16,6 +16,8 @@ const schema = load('lib/researchSchema.ts')
 const synthesis = load('lib/synthesis.ts')
 const citations = load('lib/eventMatching.ts')
 const brief = load('lib/compositionBrief.ts')
+const citationStyle = load('lib/citationStyle.ts')
+const prompts = load('lib/prompts.ts')
 const compId = '40000000-0000-4000-8000-000000000001'
 const draftId = '50000000-0000-4000-8000-000000000001'
 const candidateId = '30000000-0000-4000-8000-000000000001'
@@ -24,7 +26,7 @@ const request = body => new NextRequest(`http://localhost/api/compositions/${com
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
 })
 
-function generation({ cite = true, authorized = true, sourceCount = 1, title = 'Editor title', angle = 'Explain buyer implications' } = {}) {
+function generation({ cite = true, authorized = true, sourceCount = 1, title = 'Editor title', angle = 'Explain buyer implications', contents, savedPrompt } = {}) {
   const calls = [], updates = [], modelCalls = []
   const composition = {
     id: compId, status: 'editing', title, angle,
@@ -47,7 +49,7 @@ function generation({ cite = true, authorized = true, sourceCount = 1, title = '
         select(value) { columns = value; return q }, eq() { return q },
         update(value) { updates.push({ table, value }); return q },
         async single() { return { data: columns.startsWith('status,') ? { status: 'editing' } : composition, error: null } },
-        async maybeSingle() { return { data: null, error: null } },
+        async maybeSingle() { return { data: savedPrompt ? { value: savedPrompt } : null, error: null } },
         then(resolve, reject) { return Promise.resolve({ data: null, error: null }).then(resolve, reject) }
       }
       return q
@@ -64,11 +66,14 @@ function generation({ cite = true, authorized = true, sourceCount = 1, title = '
     '@/lib/research': { checked: result => { if (result.error) throw new Error(result.error.message); return result.data } },
     '@/lib/synthesis': synthesis,
     '@/lib/eventMatching': citations,
+    '@/lib/citationStyle': citationStyle,
+    '@/lib/prompts': prompts,
     '@/lib/slugify': { slugify: title => title.toLowerCase().replaceAll(' ', '-'), uniqueSlug: async slug => slug },
     '@/lib/openai': { getOpenAI: () => ({ chat: { completions: { create: async input => {
       modelCalls.push(input)
       return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
-        title: 'Focused analysis', content: '# Focused analysis\n\n' + 'An evidence-based practical implication. '.repeat(20) + (cite ? `[Publisher](${url})` : '')
+        title: 'Focused analysis', content: contents ? contents[Math.min(modelCalls.length - 1, contents.length - 1)]
+          : '# Focused analysis\n\n' + 'An evidence-based practical implication. '.repeat(20) + (cite ? `[Publisher](${url})` : '')
       }) } }] }
     } } } }) }
   })
@@ -122,6 +127,41 @@ test('single-source generation retains the authenticated editor boundary', async
   assert.equal(response.status, 401)
   assert.equal(calls.length, 0)
   assert.equal(modelCalls.length, 0)
+})
+
+test('vague source wording gets one repair after saved house style and keeps the editor title and evidence', async () => {
+  const body = '# Model title\n\n' + 'Reported costs raise a buyer question. '.repeat(20)
+  const { route, calls, modelCalls } = generation({ savedPrompt: 'Saved editorial style', contents: [
+    `${body}([source](${url})).`, `${body}The [publisher announcement](${url}) sets out the change.`
+  ] })
+  assert.equal((await route.POST(request({}), { params: Promise.resolve({ id: compId }) })).status, 200)
+  assert.equal(modelCalls.length, 2)
+  const policy = modelCalls[0].messages[0].content
+  assert.ok(policy.indexOf('SOURCE LINK WORDING') > policy.indexOf('Saved editorial style'))
+  assert.match(modelCalls[1].messages.at(-1).content, /Improve only the source-link wording/)
+  assert.match(modelCalls[1].messages.at(-2).content, /\[source\]/)
+  assert.equal(calls[1].params.p_title, 'Editor title')
+  assert.match(calls[1].params.p_content, /\[publisher announcement\]/)
+  assert.deepEqual(calls[1].params.p_urls, [url])
+  assert.deepEqual(calls.map(c => c.name), ['claim_composition_generation', 'finish_composition_generation'])
+})
+
+test('style repair cannot repoint a citation and does not bypass article URL validation', async () => {
+  const body = '# Article\n\n' + 'A practical implication. '.repeat(30)
+  for (const firstUrl of [url, 'https://invented.test']) {
+    const first = `${body}[source](${firstUrl})`
+    const { route, calls, modelCalls } = generation({ contents: [first, `${body}[report](https://unrelated.test)`] })
+    const response = await route.POST(request({}), { params: Promise.resolve({ id: compId }) })
+    assert.equal(modelCalls.length, 2)
+    if (firstUrl === url) {
+      assert.equal(response.status, 200)
+      assert.match(calls[1].params.p_content, /\[source\]/)
+      assert.ok(calls[1].params.p_content.includes(url))
+    } else {
+      assert.equal(response.status, 500)
+      assert.equal(calls.length, 1, 'unsupported citations must not create a draft')
+    }
+  }
 })
 
 test('investigation reasoning and reporting gaps reach generation without becoming source evidence', async () => {

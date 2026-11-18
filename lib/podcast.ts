@@ -3,7 +3,7 @@ import { FileState, MediaResolution, ThinkingLevel, createPartFromUri, type Part
 import type { createServiceClient } from '@/lib/supabase/server'
 import { fetchFeed } from '@/lib/rss'
 import { getGemini } from '@/lib/gemini'
-import { DEFAULT_PODCAST_EXTRACTOR_PROMPT, DEFAULT_PODCAST_PROMPT, todayLine } from '@/lib/prompts'
+import { DEFAULT_PODCAST_EXTRACTOR_PROMPT, DEFAULT_PODCAST_PROMPT, CITATION_STYLE_GUIDANCE, todayLine } from '@/lib/prompts'
 import { DEFAULT_PODCAST_MODEL, type PodcastConfig } from '@/lib/podcastConfig'
 
 /**
@@ -349,7 +349,7 @@ export async function writePodcastArticle(
     res = await getGemini().models.generateContent({
       model: config.model ?? DEFAULT_PODCAST_MODEL,
       contents: input,
-      config: { systemInstruction, abortSignal: AbortSignal.timeout(GEMINI_CALL_TIMEOUT_MS) },
+      config: { systemInstruction: `${systemInstruction}\n\n${CITATION_STYLE_GUIDANCE}`, abortSignal: AbortSignal.timeout(GEMINI_CALL_TIMEOUT_MS) },
     })
   } catch (err) {
     throw timeoutError(err, 'the write-up')

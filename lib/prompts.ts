@@ -130,6 +130,14 @@ OUTPUT SCHEMA — emit only these blocks. Omit any header that has no data.
 
 If the provided text is mostly cookie/privacy/legal notices rather than article content, respond with exactly: UNUSABLE_CONTENT`
 
+export const CITATION_STYLE_GUIDANCE = `SOURCE LINK WORDING
+Keep source links part of the argument, placed on the words that identify the publisher, author, named report or specific development being discussed.
+For example, write "TAUS's [pricing report](exact supplied URL) highlights..." or "As [our October briefing](exact supplied internal URL) explained...", only when those names and documents are in the input.
+Prefer linking relevant words already in the sentence. Do not tack on parenthetical "source" links, bare URLs, numbered references or generic anchors such as "source", "here", "link" or "read more".
+Keep links short and descriptive; do not link an entire paragraph or repeatedly introduce every claim with "according to". Cite a document where its evidence is discussed, rather than attaching it to an unrelated sentence.
+Use only the exact supplied destinations. Never invent attribution or treat a feed/aggregator label as the original publisher; use an accurately described report or development if the original publisher is unknown.
+Avoid repeating the same URL in one paragraph. Articles may omit body links when they do not help; monthly briefings retain their evidence-link requirements.`
+
 export const DEFAULT_INDUSTRY_PROMPT = `You are a senior editorial writer for LocReport, a professional news platform covering the language services and localization industry. Your readers are localization managers, language technology leaders, translators, and enterprise language buyers.
 
 TITLE REQUIREMENT — output first, before any body text:

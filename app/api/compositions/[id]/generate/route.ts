@@ -8,6 +8,8 @@ import { getOpenAI } from '@/lib/openai'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import type { Composition } from '@/lib/researchTypes'
 import { randomUUID } from 'node:crypto'
+import { CITATION_STYLE_GUIDANCE } from '@/lib/prompts'
+import { writeWithNaturalLinks } from '@/lib/citationStyle'
 
 export const maxDuration = 300
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -54,29 +56,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const custom = checked(
       await service.from('settings').select('value').eq('key', 'prompt_synthesis').maybeSingle()
     )
-    const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
-      response_format: { type: 'json_object' },
-      max_tokens: 6500,
-      messages: [
-        {
-          role: 'system',
-          content:
-            DEFAULT_SYNTHESIS_PROMPT +
-            (custom?.value ? `\nAdditional house style:\n${custom.value}` : '')
-        },
-        { role: 'user', content: JSON.stringify(input) }
-      ]
-    })
-    if (completion.choices[0]?.finish_reason === 'length')
-      throw new Error('Article was truncated; shorten the requested scope and try again')
-    const output = JSON.parse(completion.choices[0]?.message.content || '{}')
-    if (
-      typeof output.content !== 'string' ||
-      typeof output.title !== 'string' ||
-      output.content.length < 500
-    )
-      throw new Error('Generation did not return a complete article')
+    const output = await writeWithNaturalLinks<{ title: string; content: string }>(async repair => {
+      const completion = await getOpenAI().chat.completions.create({
+        model: 'gpt-4o',
+        response_format: { type: 'json_object' },
+        max_tokens: 6500,
+        messages: [
+          {
+            role: 'system',
+            content:
+              DEFAULT_SYNTHESIS_PROMPT +
+              (custom?.value ? `\nAdditional house style:\n${custom.value}` : '') + `\n\n${CITATION_STYLE_GUIDANCE}`
+          },
+          { role: 'user', content: JSON.stringify(input) },
+          ...(repair ? [{ role: 'assistant' as const, content: JSON.stringify(repair.previous) }, { role: 'user' as const, content: repair.instruction }] : [])
+        ]
+      })
+      if (completion.choices[0]?.finish_reason === 'length')
+        throw new Error('Article was truncated; shorten the requested scope and try again')
+      const generated = JSON.parse(completion.choices[0]?.message.content || '{}')
+      if (
+        typeof generated.content !== 'string' ||
+        typeof generated.title !== 'string' ||
+        generated.content.length < 500
+      )
+        throw new Error('Generation did not return a complete article')
+      return generated as { title: string; content: string }
+    }, result => result.content)
     // The editor's title is authoritative; the model supplies one only for an empty brief.
     const title = composition.title.trim() || output.title.trim()
     const content = /^#\s+.+$/m.test(output.content)

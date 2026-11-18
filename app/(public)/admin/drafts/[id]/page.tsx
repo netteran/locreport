@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { CitationWordingNote } from '@/components/CitationWordingNote'
 
 // The draft's Fact Flow fact, as returned alongside the draft by GET/PATCH
 // /api/drafts/[id] (see lib/factFlow.ts findDraftFact). Not part of the Draft
@@ -423,6 +424,7 @@ export default function DraftReviewPage() {
         />
       )}
 
+      <CitationWordingNote content={content} />
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
       {rerunNote && !rerunning && !error && (
