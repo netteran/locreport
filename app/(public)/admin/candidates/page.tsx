@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import type { SourceCandidate, StoryGroup, Composition } from '@/lib/researchTypes'
 import { filterCandidates, publisherName } from '@/lib/candidateFilters'
 import { ResearchProcessButton } from '@/components/ResearchProcessButton'
+import { pitchEditorialDirection } from '@/lib/compositionBrief'
 
 type Event = { id: string; headline: string; stage: string; review_required: boolean }
 export default function CandidatesPage() {
@@ -320,13 +321,14 @@ export default function CandidatesPage() {
         <>
           <ResearchProcessButton label="Refresh suggestions" disabled={busy} onDone={load} />
           <p className="text-sm" style={{ color: 'var(--muted)' }}>Editorial pitches look for tensions, consequences and unexpected connections, then face an evidence critique. Recent coverage helps avoid repetition. Refresh considers up to 60 available processed sources, with no age cutoff.</p>
+          <p className="text-xs" style={{ color: 'var(--muted)' }}>The queues describe evidence readiness, not the quality or depth of an idea. Both can become an article brief.</p>
           <div className="flex flex-wrap gap-2" aria-label="Editorial pitch queues">
             <Button variant={pitchQueue === 'ready' ? 'primary' : 'secondary'} onClick={() => setPitchQueue('ready')}>Ready to develop</Button>
             <Button variant={pitchQueue === 'investigate' ? 'primary' : 'secondary'} onClick={() => setPitchQueue('investigate')}>Worth investigating</Button>
           </div>
           <p className="text-xs" style={{ color: 'var(--muted)' }}>{pitchQueue === 'ready'
             ? 'Evidence-backed pitches for your review. Choosing one opens source selection and direction; it does not generate or publish an article.'
-            : 'Reporting leads with unproven premises or missing evidence. Gather the listed evidence before developing an article.'}</p>
+            : 'Promising angles with reporting gaps. Start a brief with the full reasoning and reporting tasks, then add evidence or narrow the article to what the sources support.'}</p>
           {data.groups.filter(g => (g.pitch?.stage || 'ready') === pitchQueue)
             .sort((a, b) => (b.pitch?.score || 0) - (a.pitch?.score || 0)).map((g) => {
             const candidates = g.candidate_ids
@@ -374,22 +376,20 @@ export default function CandidatesPage() {
                   </ul>
                   {candidates.length !== g.candidate_ids.length && <p className="text-xs" style={{ color: 'var(--muted)' }}>Some supporting sources are no longer available. Refresh suggestions to reassess this pitch before developing it.</p>}
                   <div className="flex flex-wrap gap-3">
-                    {g.pitch?.stage !== 'investigate' && <Button
+                    <Button
                       disabled={busy || candidates.length !== g.candidate_ids.length}
                       onClick={() =>
                         run(() =>
                           combine(
                             candidates.map((c) => c.id),
                             g.title,
-                            g.pitch ? [g.question, `Reader and decision: ${g.pitch.audience}`,
-                              `Editorial contribution: ${g.pitch.originality}`,
-                              `Test this counterargument: ${g.pitch.counterargument}`].join('\n\n') : g.question
+                            pitchEditorialDirection(g, candidates)
                           )
                         )
                       }
                     >
                       Choose sources & direction
-                    </Button>}
+                    </Button>
                     <Button
                       variant="ghost"
                       disabled={busy}

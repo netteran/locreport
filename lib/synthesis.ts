@@ -13,6 +13,9 @@ Repeated reports of one announcement are one development, not independent corrob
 Source citations and hyperlinks in the article body are optional; there is no minimum citation count.
 If you include citations, use markdown links [Publisher](exact source URL) with only source URLs in the input. Do not cite unsupported or invented URLs.
 Editorial direction may change angle, audience, structure and emphasis, but cannot manufacture evidence.
+Pitch reasoning, source-contribution summaries and reporting tasks in the editorial direction are a working brief, not additional evidence.
+If reporting is unresolved, narrow the scope to supported claims and keep open questions or hypotheses explicitly qualified.
+Never imply that a proposed interview, test or verification was completed unless it is supplied in the selected evidence or personal_experience.
 First-person experiences, clients, projects, results and anecdotes may ONLY come from the personal_experience field.
 If that field is empty, invent no first-person experience. Keep supplied practitioner experience distinct from externally established facts.
 Return ONLY JSON {title:string, content:string}. content is the complete markdown article including its H1.`

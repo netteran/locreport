@@ -1,6 +1,7 @@
 // Run against the isolated app/fixture described in docs/research-workflow.md.
 const { chromium } = require('playwright')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
 const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
 const ids = ['30000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002']
 const compId = '40000000-0000-4000-8000-000000000001',
@@ -24,6 +25,21 @@ const candidates = ids.map((id, i) => ({
   reserved_by: null,
   created_at: '2026-11-13T09:05:00Z'
 }))
+const readyPitch = {
+  id: 'ready-pitch', title: 'What enterprise buyers should verify', question: 'How should buyers evaluate the new workflow?',
+  rationale: 'Connect the launch with an immediate buyer decision.', candidate_ids: ids,
+  pitch: { stage: 'ready', why_now: 'A supplier announced a new workflow.', audience: 'Buyers evaluating a pilot.',
+    originality: 'Compare operational responsibilities with the launch promise.', counterargument: 'The workflow may already handle common exceptions.',
+    missing_evidence: [], source_contributions: ids.map((candidate_id, i) => ({ candidate_id, contribution: 'Documents workflow evidence ' + (i + 1) })),
+    scores: { reader_value: 4, originality: 4, evidence: 4 }, score: 80 }
+}
+const investigationPitch = { ...readyPitch, id: 'investigation-pitch', title: 'Who carries the hidden cost of language AI?',
+  question: 'Could lower unit prices increase operating costs?', rationale: 'The sources suggest a richer question about the work between a model and a dependable service.',
+  pitch: { ...readyPitch.pitch, stage: 'investigate', why_now: 'Pricing and workflow announcements create a useful tension.',
+    originality: 'Connect headline savings with evaluation work and exception handling.',
+    missing_evidence: ['Compare actual evaluation costs with a buyer.', 'Find evidence that could disprove the cost-shifting premise.'],
+    scores: { reader_value: 5, originality: 5, evidence: 2 }, score: 85 }
+}
 ;(async () => {
   const browser = await chromium.launch({
     headless: true,
@@ -32,6 +48,7 @@ const candidates = ids.map((id, i) => ({
   })
   try {
     const context = await browser.newContext()
+    await context.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort())
     const page = await context.newPage()
     const errors = []
     page.on('pageerror', (e) => errors.push(e.message))
@@ -143,7 +160,7 @@ const candidates = ids.map((id, i) => ({
       route.fulfill({
         json: {
           candidates,
-          groups: [
+          groups: [readyPitch, investigationPitch, { ...investigationPitch, id: 'stale-pitch', title: 'A pitch with unavailable evidence', candidate_ids: [ids[0], 'missing-source'] },
             {
               id: 'group',
               title: 'A coherent article',
@@ -158,14 +175,19 @@ const candidates = ids.map((id, i) => ({
       })
     )
     await page.route('**/api/compositions', (route) => {
-      const selected = route.request().postDataJSON().candidate_ids
+      const body = route.request().postDataJSON(), selected = body.candidate_ids
+      Object.assign(composition, { title: body.title || '', angle: body.angle || '', personal_experience: '', draft_id: null, status: 'editing' })
       composition.composition_sources = candidates.filter(c => selected.includes(c.id)).map((snapshot, i) => ({
         candidate_id: snapshot.id, snapshot, covered: false, position: i
       }))
       return route.fulfill({ status: 201, json: { id: compId } })
     })
     await page.route(`**/api/compositions/${compId}`, async (route) => {
-      if (route.request().method() === 'PATCH') savedBrief = route.request().postDataJSON()
+      if (route.request().method() === 'PATCH') {
+        savedBrief = route.request().postDataJSON()
+        Object.assign(composition, savedBrief)
+        composition.composition_sources = savedBrief.candidate_ids.map(candidate_id => ({ candidate_id, snapshot: candidates.find(c => c.id === candidate_id), covered: false, position: savedBrief.candidate_ids.indexOf(candidate_id) }))
+      }
       await route.fulfill({ json: composition })
     })
     await page.route(`**/api/compositions/${compId}/generate`, (route) => {
@@ -176,8 +198,8 @@ const candidates = ids.map((id, i) => ({
       route.fulfill({
         json: {
           id: draftId,
-          title: 'Combined analysis',
-          content: '# Combined analysis\n\nA sourced article.',
+          title: composition.title || 'Combined analysis',
+          content: '# ' + (composition.title || 'Combined analysis') + '\n\nA sourced article.',
           source_url: null,
           status: 'pending',
           composition_id: compId,
@@ -239,6 +261,43 @@ const candidates = ids.map((id, i) => ({
     assert.equal(await page.locator('.digest-popup__overlay').count(), 0)
     await page.getByRole('button', { name: 'Approve & publish', exact: true }).waitFor()
     assert.equal(await page.locator('#edit-fact').count(), 0)
+    // Either queue opens the complete saved brief and requires an explicit draft action.
+    fs.mkdirSync('work/investigation-preview', { recursive: true })
+    for (const pitch of [readyPitch, investigationPitch]) {
+      generationCalls = 0
+      await page.goto(base + '/admin/candidates')
+      await page.getByRole('button', { name: 'Suggested articles', exact: true }).click()
+      if (pitch.pitch.stage === 'investigate') await page.getByRole('button', { name: 'Worth investigating', exact: true }).click()
+      const card = page.locator('section').filter({ has: page.getByRole('heading', { name: pitch.title, exact: true }) })
+      if (pitch.pitch.stage === 'investigate') {
+        const stale = page.locator('section').filter({ has: page.getByRole('heading', { name: 'A pitch with unavailable evidence', exact: true }) })
+        assert.equal(await stale.getByRole('button', { name: 'Choose sources & direction', exact: true }).isDisabled(), true)
+        await page.screenshot({ path: 'work/investigation-preview/suggested-investigations.png', fullPage: true })
+      }
+      await card.getByRole('button', { name: 'Choose sources & direction', exact: true }).click()
+      await page.getByRole('heading', { name: 'Create article', exact: true }).waitFor()
+      assert.equal(generationCalls, 0)
+      const direction = page.getByLabel('Central question and editorial direction')
+      const original = await direction.inputValue()
+      for (const text of [pitch.question, pitch.rationale, pitch.pitch.why_now, pitch.pitch.audience, pitch.pitch.originality, pitch.pitch.counterargument, ...pitch.pitch.missing_evidence, ...pitch.pitch.source_contributions.map(s => s.contribution)]) assert.ok(original.includes(text), text)
+      if (pitch.pitch.stage === 'investigate') assert.match(original, /unresolved reporting, not an established conclusion/)
+      const edited = original + '\n\nScope: explain what the selected evidence supports and what remains an open question.'
+      await direction.fill(edited)
+      await page.getByRole('button', { name: 'Save brief', exact: true }).click()
+      await page.getByText('Brief saved', { exact: true }).waitFor()
+      assert.equal(savedBrief.angle, edited)
+      assert.deepEqual(savedBrief.candidate_ids, ids)
+      await page.reload()
+      await page.getByRole('heading', { name: 'Selected sources (2/8)', exact: true }).waitFor()
+      assert.equal(await direction.inputValue(), edited)
+      assert.equal(generationCalls, 0)
+      if (pitch.pitch.stage === 'investigate') await page.screenshot({ path: 'work/investigation-preview/investigation-brief.png', fullPage: true })
+      await page.getByRole('button', { name: 'Generate draft', exact: true }).click()
+      await page.waitForURL(`**/admin/drafts/${draftId}`)
+      await page.getByRole('button', { name: 'Approve & publish', exact: true }).waitFor()
+      assert.equal(generationCalls, 1)
+      assert.equal(await page.getByLabel('Title', { exact: true }).inputValue(), pitch.title)
+    }
     // Public wire entries lead to their published analysis and keep original attribution.
     await page.goto(base + '/fact-flow')
     await page
@@ -266,7 +325,7 @@ const candidates = ids.map((id, i) => ({
     assert.equal(await page.getByRole('link', { name: 'Original source ↗', exact: true }).getAttribute('href'), 'https://example.test/announcement')
     assert.equal(errors.length, 0, errors.join('\n'))
     console.log(
-      'Browser checks passed: single/multiple source selection, saved direction and experience, explicit generation, manual publication boundary, sourced Fact Flow.'
+      'Browser checks passed: single/multiple sources, ready and investigation pitches → complete saved/reloaded briefs → explicit pending drafts, unavailable-source guard, manual publication boundary and sourced Fact Flow.'
     )
     await context.close()
   } finally {

@@ -15,6 +15,7 @@ function load(file, dependencies = {}) {
 const schema = load('lib/researchSchema.ts')
 const synthesis = load('lib/synthesis.ts')
 const citations = load('lib/eventMatching.ts')
+const brief = load('lib/compositionBrief.ts')
 const compId = '40000000-0000-4000-8000-000000000001'
 const draftId = '50000000-0000-4000-8000-000000000001'
 const candidateId = '30000000-0000-4000-8000-000000000001'
@@ -23,10 +24,10 @@ const request = body => new NextRequest(`http://localhost/api/compositions/${com
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
 })
 
-function generation({ cite = true, authorized = true, sourceCount = 1, title = 'Editor title' } = {}) {
+function generation({ cite = true, authorized = true, sourceCount = 1, title = 'Editor title', angle = 'Explain buyer implications' } = {}) {
   const calls = [], updates = [], modelCalls = []
   const composition = {
-    id: compId, status: 'editing', title, angle: 'Explain buyer implications',
+    id: compId, status: 'editing', title, angle,
     personal_experience: 'In my projects, integration took two weeks.', target_words: 900,
     composition_sources: [{ candidate_id: candidateId, position: 0, snapshot: {
       title: 'Source announcement', source_name: 'Publisher', source_url: url,
@@ -123,8 +124,26 @@ test('single-source generation retains the authenticated editor boundary', async
   assert.equal(modelCalls.length, 0)
 })
 
+test('investigation reasoning and reporting gaps reach generation without becoming source evidence', async () => {
+  const angle = brief.pitchEditorialDirection({ question: 'Who bears the integration cost?', rationale: 'Unit prices hide operational work.', pitch: {
+    stage: 'investigate', why_now: 'A new pricing model', audience: 'Buyers budgeting a pilot', originality: 'Compare total workflow cost',
+    counterargument: 'Automation could reduce total costs', missing_evidence: ['Interview a buyer about integration costs'],
+    source_contributions: [{ candidate_id: candidateId, contribution: 'Records the announced prices' }]
+  } }, [{ id: candidateId, title: 'Pricing announcement' }])
+  const { route, calls, modelCalls } = generation({ angle })
+  assert.equal((await route.POST(request({}), { params: Promise.resolve({ id: compId }) })).status, 200)
+  const input = JSON.parse(modelCalls[0].messages[1].content)
+  assert.equal(input.editorial_direction, angle)
+  assert.equal(input.sources.length, 1)
+  assert.equal(input.sources[0].evidence, 'Publisher announced a new product.')
+  assert.match(modelCalls[0].messages[0].content, /working brief, not additional evidence/)
+  assert.match(modelCalls[0].messages[0].content, /If reporting is unresolved, narrow the scope/)
+  assert.deepEqual(calls.map(c => c.name), ['claim_composition_generation', 'finish_composition_generation'])
+})
+
 test('an older database explains the single-source migration while multi-source creation continues', async () => {
   const route = load('app/api/compositions/route.ts', {
+    '@/lib/compositionBrief': brief,
     '@/lib/adminAuth': { requireAdmin: async () => ({ id: candidateId }), requireResearchSchema: async () => null },
     '@/lib/supabase/server': { createServiceClient: () => ({ rpc: async (_name, params) => params.p_candidates.length === 1
       ? { data: null, error: { message: 'Select 2–8 source candidates' } }
