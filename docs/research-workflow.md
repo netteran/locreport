@@ -84,8 +84,12 @@ Suggested articles now runs two model passes: a broader set of up to 18 proposed
 
 The first pass explores contradictions, incentives, consequences and connections beyond semantic similarity. The critique checks reader value, originality and evidence strength. The UI ranks ideas using 40% reader value, 35% originality and 25% evidence, with model-assigned scores labelled as editorial assessments.
 
-- **Ready to develop:** a supported editorial question with no essential missing reporting and an evidence score of at least 4/5. Choosing it opens the existing manual composition workflow with the reader, angle and counterargument as direction. It never generates or publishes automatically.
-- **Worth investigating:** a promising but unproven angle, with explicit missing evidence and reporting tasks. It has no direct composition action. Add the evidence as source candidates, then refresh for reassessment; an editor can still independently select sources from Candidates.
+- **Ready to develop:** a supported editorial question with no essential missing reporting and an evidence score of at least 4/5.
+- **Worth investigating:** a promising angle with unresolved premises or reporting gaps. These ideas can be broader and more original than a ready pitch; the label describes evidence readiness, not editorial quality or depth.
+
+Both queues offer **Choose sources & direction** and open the same editable article brief. The brief retains the question, rationale, timing, intended reader, contribution, counterargument, each source's role and all reporting tasks. Add sources or narrow the scope to supported claims before generating. The writer receives reporting tasks as unresolved work, not as evidence or completed interviews. Starting a brief does not change its pitch assessment, generate an article or publish it. Generation and approval remain explicit editor actions. All suggested sources must still be available to reserve; refresh a stale suggestion or select available sources directly from Candidates.
+
+Creation and editing share a 40,000-character editorial-direction limit so complete pitches are not silently cut at creation. No database migration is needed for this workflow update.
 
 Every stored pitch must reference 1–8 supplied candidates, explain each source contribution, name the reader's decision, explain novelty and state a counterargument. Missing evidence or weak evidence downgrades a nominally ready pitch to an investigation. Different questions can reuse the same evidence; identical source/question combinations do not revive dismissed suggestions. Source or recent-coverage changes invalidate the refresh cache. Repeating refresh on unchanged inputs reuses the saved batch.
 

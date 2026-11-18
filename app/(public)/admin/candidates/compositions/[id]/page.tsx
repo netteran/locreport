@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import type { Composition, SourceCandidate } from '@/lib/researchTypes'
+import { EDITORIAL_DIRECTION_LIMIT } from '@/lib/compositionBrief'
 
 export default function CompositionPage() {
   const { id } = useParams<{ id: string }>()
@@ -91,13 +92,14 @@ export default function CompositionPage() {
             Central question and editorial direction
             <Textarea
               value={composition.angle}
-              maxLength={12000}
-              rows={4}
+              maxLength={EDITORIAL_DIRECTION_LIMIT}
+              rows={8}
               disabled={locked}
               onChange={(e) => field('angle', e.target.value)}
               placeholder="Who is this for? What should it explain, compare or challenge?"
             />
           </label>
+          <p className="text-xs" style={{ color: 'var(--muted)' }}>For a suggested article, this includes its reasoning and any reporting gaps. Add sources or adjust the scope before generating; unresolved reporting is not evidence.</p>
           <label className="block">
             Your personal experience
             <Textarea

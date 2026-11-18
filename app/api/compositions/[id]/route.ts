@@ -3,6 +3,7 @@ import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAu
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked } from '@/lib/research'
 import { singleSourceMigrationProblem } from '@/lib/researchSchema'
+import { EDITORIAL_DIRECTION_LIMIT } from '@/lib/compositionBrief'
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -50,7 +51,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     for (const key of ['title', 'angle', 'personal_experience']) {
       if (key in b) {
-        if (typeof b[key] !== 'string' || b[key].length > (key === 'title' ? 250 : 12000))
+        const limit = key === 'title' ? 250 : key === 'angle' ? EDITORIAL_DIRECTION_LIMIT : 12000
+        if (typeof b[key] !== 'string' || b[key].length > limit)
           throw new Error(`Invalid ${key}`)
         patch[key] = b[key]
       }

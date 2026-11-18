@@ -4,12 +4,15 @@ import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAu
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked } from '@/lib/research'
 import { singleSourceMigrationProblem } from '@/lib/researchSchema'
+import { EDITORIAL_DIRECTION_LIMIT } from '@/lib/compositionBrief'
 
 export async function POST(req: NextRequest) {
   const user = await requireAdmin()
   if (!user) return unauthorized()
   try {
     const body = await req.json()
+    if ('angle' in body && (typeof body.angle !== 'string' || body.angle.length > EDITORIAL_DIRECTION_LIMIT))
+      return NextResponse.json({ error: `Editorial direction must be text within ${EDITORIAL_DIRECTION_LIMIT} characters` }, { status: 400 })
     const ids = [...new Set<string>(Array.isArray(body.candidate_ids) ? body.candidate_ids : [])]
     if (ids.length < 1 || ids.length > 8)
       return NextResponse.json({ error: 'Select 1–8 source candidates' }, { status: 400 })
@@ -27,7 +30,7 @@ export async function POST(req: NextRequest) {
           .from('compositions')
           .update({
             title: String(body.title || '').slice(0, 250),
-            angle: String(body.angle || '').slice(0, 8000)
+            angle: body.angle || ''
           })
           .eq('id', id)
       )
