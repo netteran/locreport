@@ -10,6 +10,8 @@ export const ORG_ID = `${SITE_URL}/#organization`
 export const WEBSITE_ID = `${SITE_URL}/#website`
 export const LOGO_ID = `${SITE_URL}/#logo`
 
+export const ADSENSE_CLIENT = 'ca-pub-4411470587763033'
+
 export const SITE_NAME = 'LocReport'
 
 export const SITE_DESCRIPTION =

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
 import { Analytics } from '@vercel/analytics/next'
-import { siteJsonLd, SITE_DESCRIPTION, SITE_URL } from '@/lib/seo'
+import { ADSENSE_CLIENT, siteJsonLd, SITE_DESCRIPTION, SITE_URL } from '@/lib/seo'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   metadataBase: new URL(SITE_URL),
+  other: { 'google-adsense-account': ADSENSE_CLIENT },
   applicationName: 'LocReport',
   icons: {
     icon: '/icon.png',

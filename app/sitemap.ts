@@ -3,8 +3,8 @@ import { createPublicClient } from '@/lib/supabase/server'
 import { required } from '@/lib/supabase/required'
 import { fetchDirectoryEntries } from '@/lib/directory'
 import { articleHref } from '@/lib/utils'
-
-const BASE_URL = 'https://locreport.com'
+import { SITE_URL } from '@/lib/seo'
+import { redirects } from '@/vercel.json'
 
 // Cookie-free client keeps this cacheable; an hour matches the listing pages.
 export const revalidate = 3600
@@ -12,20 +12,23 @@ export const revalidate = 3600
 // PostgREST caps a response at 1,000 rows, so a single select silently dropped
 // the oldest articles once the archive grew past that.
 const PAGE_SIZE = 1000
+const REDIRECT_SOURCES = new Set(redirects.map(rule => rule.source))
 
 const STATIC_PAGES: MetadataRoute.Sitemap = [
-  { url: BASE_URL, changeFrequency: 'weekly', priority: 1.0 },
-  { url: `${BASE_URL}/articles`, changeFrequency: 'weekly', priority: 0.9 },
-  { url: `${BASE_URL}/fact-flow`, changeFrequency: 'daily', priority: 0.8 },
-  { url: `${BASE_URL}/reports`, changeFrequency: 'monthly', priority: 0.7 },
-  { url: `${BASE_URL}/reports/2026-annual-global-market-report`, changeFrequency: 'yearly', priority: 0.6 },
-  { url: `${BASE_URL}/reports/monthly`, changeFrequency: 'monthly', priority: 0.6 },
-  { url: `${BASE_URL}/compass`, changeFrequency: 'weekly', priority: 0.7 },
-  { url: `${BASE_URL}/compass/locstock`, changeFrequency: 'daily', priority: 0.6 },
-  { url: `${BASE_URL}/compass/llm-pricing`, changeFrequency: 'weekly', priority: 0.6 },
-  { url: `${BASE_URL}/compass/directory`, changeFrequency: 'monthly', priority: 0.6 },
-  { url: `${BASE_URL}/about`, changeFrequency: 'yearly', priority: 0.4 },
-  { url: `${BASE_URL}/contact`, changeFrequency: 'yearly', priority: 0.3 },
+  { url: SITE_URL },
+  { url: `${SITE_URL}/articles` },
+  { url: `${SITE_URL}/fact-flow` },
+  { url: `${SITE_URL}/reports` },
+  { url: `${SITE_URL}/reports/2026-annual-global-market-report` },
+  { url: `${SITE_URL}/reports/monthly` },
+  { url: `${SITE_URL}/compass` },
+  { url: `${SITE_URL}/compass/locstock` },
+  { url: `${SITE_URL}/compass/llm-pricing` },
+  { url: `${SITE_URL}/compass/directory` },
+  { url: `${SITE_URL}/about` },
+  { url: `${SITE_URL}/contact` },
+  { url: `${SITE_URL}/privacy` },
+  { url: `${SITE_URL}/terms` },
 ]
 
 type Row = { slug: string; published_at: string; updated_at: string | null }
@@ -39,7 +42,7 @@ async function fetchAllArticles(): Promise<Row[]> {
       await supabase
         .from('articles')
         .select('slug, published_at, updated_at')
-        .order('published_at', { ascending: false })
+        .order('published_at', { ascending: true })
         .order('id', { ascending: true })
         .range(from, from + PAGE_SIZE - 1),
       'sitemap articles'
@@ -55,27 +58,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     fetchDirectoryEntries(createPublicClient()),
   ])
 
-  // List the canonical URL, never the legacy date path: those 301 to the clean
-  // one, and a sitemap full of redirects contradicts each page's canonical tag.
-  // Newest first, so a clean URL shared by duplicate imports keeps its latest date.
-  const seen = new Set<string>()
-  const articleUrls: MetadataRoute.Sitemap = []
-  for (const a of articles) {
-    const url = `${BASE_URL}${articleHref(a.slug)}`
-    if (seen.has(url)) continue
-    seen.add(url)
-    articleUrls.push({
-      url,
-      lastModified: new Date(a.updated_at ?? a.published_at),
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    })
+  // Match the detail route: a bare slug wins over a dated slug, otherwise
+  // the earliest dated copy supplies the content and its modification time.
+  const canonicalArticles = new Map<string, Row>()
+  for (const article of articles) {
+    const path = articleHref(article.slug)
+    if (REDIRECT_SOURCES.has(path)) continue
+    const url = `${SITE_URL}${path}`
+    if (!canonicalArticles.has(url) || !article.slug.includes('/')) {
+      canonicalArticles.set(url, article)
+    }
   }
 
+  const articleUrls: MetadataRoute.Sitemap = [...canonicalArticles].map(([url, article]) => {
+    const lastModified = new Date(article.updated_at ?? article.published_at)
+    return Number.isFinite(lastModified.getTime()) ? { url, lastModified } : { url }
+  })
+
   const directoryUrls: MetadataRoute.Sitemap = directory.map((e) => ({
-    url: `${BASE_URL}/compass/directory/${e.slug}`,
-    changeFrequency: 'monthly',
-    priority: 0.5,
+    url: `${SITE_URL}/compass/directory/${e.slug}`,
   }))
 
   return [...STATIC_PAGES, ...directoryUrls, ...articleUrls]

@@ -43,13 +43,18 @@ const fetchArticle = cache(async (slugParts: string[]) => {
     .from('articles').select(ARTICLE_WITH_EMBEDDING).eq('slug', joined).maybeSingle())
   if (exact) return { article: exact as unknown as Article, shouldRedirect: slugParts.length > 1 }
 
+  const bareMatch = slugParts.length > 1
+    ? orThrow(await supabase.from('articles').select(ARTICLE_WITH_EMBEDDING).eq('slug', bare).maybeSingle())
+    : null
+  if (bareMatch) return { article: bareMatch as unknown as Article, shouldRedirect: true }
+
   // A handful of stories were ingested twice under different date prefixes, so
   // one clean URL can match several legacy rows. maybeSingle() errors on that,
   // which took those URLs down entirely; serve the earliest copy instead.
   const bySuffix = orThrow(await supabase
     .from('articles').select(ARTICLE_WITH_EMBEDDING).ilike('slug', `%/${bare}`)
-    .order('published_at', { ascending: true }).limit(1))
-  if (bySuffix?.length) return { article: bySuffix[0] as unknown as Article, shouldRedirect: false }
+    .order('published_at', { ascending: true }).order('id', { ascending: true }).limit(1))
+  if (bySuffix?.length) return { article: bySuffix[0] as unknown as Article, shouldRedirect: slugParts.length > 1 }
 
   // Legacy URLs (pre-migration Jekyll permalinks, RSS-title truncation) sometimes carry a
   // slug that's a truncated/un-deduped prefix of the current one (slugify() cuts titles to
@@ -81,13 +86,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const result = await fetchArticle(slug)
   if (!result) return {}
   const { article: a } = result
-  const canonicalSlug = a.slug.split('/').pop()
   // Only override the site-wide OG image when this article has its own.
   const image = safeImageUrl(a.image_url)
   return {
     title: a.title,
     description: a.excerpt ?? undefined,
-    alternates: { canonical: `/articles/${canonicalSlug}` },
+    alternates: { canonical: articleHref(a.slug) },
     ...(image ? { openGraph: { images: [{ url: image }] }, twitter: { images: [image] } } : {}),
   }
 }
@@ -166,7 +170,7 @@ export default async function ArticlePage({ params }: Props) {
   const hasImplications = a.business_implications?.length > 0
   const hasRelated = relatedArticles.length > 0
 
-  const articleUrl = `https://locreport.com/articles/${a.slug.split('/').pop()}`
+  const articleUrl = `${SITE_URL}${articleHref(a.slug)}`
 
   const jsonLd = {
     '@context': 'https://schema.org',

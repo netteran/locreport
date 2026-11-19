@@ -47,6 +47,7 @@ export default function PrivacyPage() {
           <li><strong>OpenAI, Anthropic Claude, Google Gemini</strong> (content and editorial support services)</li>
           <li><strong>Twelve Data</strong> (financial market data)</li>
           <li><strong>Google Analytics</strong> (traffic analysis)</li>
+          <li><strong>Google AdSense</strong> (advertising)</li>
           <li><strong>Google Fonts</strong> (typeface delivery)</li>
           <li><strong>Buy Me a Coffee</strong> (voluntary support)</li>
         </ul>
@@ -56,6 +57,11 @@ export default function PrivacyPage() {
         <h2>Cookies</h2>
 
         <p>Google Analytics and certain third-party services may place cookies on your device to track usage patterns. You can disable cookies through your browser settings. Doing so will not affect core site functionality.</p>
+
+        <h2>Advertising</h2>
+
+        <p>LocReport uses Google AdSense to help fund the service. As a result of serving ads, Google and other advertising providers may place or read cookies in your browser and use web beacons, IP addresses, or other identifiers to collect information. These providers may collect, use, and share this information to deliver and measure ads and, where permitted by your choices, personalize them.</p>
+        <p>See <a href="https://policies.google.com/technologies/partner-sites">how Google uses data from sites that use its services</a>. You can manage ad personalization in <a href="https://myadcenter.google.com/">Google My Ad Center</a>.</p>
 
         <h2>Data Retention</h2>
 
