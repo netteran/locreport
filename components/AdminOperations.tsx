@@ -3,6 +3,8 @@ import { useId, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { IngestButton, type IngestResult } from '@/components/IngestButton'
+import { IngestDetails } from '@/components/IngestDetails'
+import type { IngestSourceResult } from '@/lib/ingestReport'
 import { BackfillEmbeddingsButton } from '@/components/BackfillEmbeddingsButton'
 import { RunFeedButton, type RunFeedResult } from '@/components/RunFeedButton'
 import { researchRunSummary } from '@/lib/manualResearch'
@@ -73,6 +75,7 @@ export function AdminOperations({ area }: { area: 'daily' | 'monthly' | 'facts' 
   const [backfillSlug, setBackfillSlug] = useState('')
   const [backfillAllRunning, setBackfillAllRunning] = useState(false)
   const [confirm, setConfirm] = useState<Confirm>(null)
+  const [ingestSources, setIngestSources] = useState<IngestSourceResult[] | null>(null)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'ok' | 'error'>('ok')
   const [messageFor, setMessageFor] = useState<RowKey | null>(null)
@@ -245,7 +248,7 @@ export function AdminOperations({ area }: { area: 'daily' | 'monthly' | 'facts' 
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => { setConfirm('ingest'); clearFlash() }}
+                onClick={() => { setConfirm('ingest'); setIngestSources(null); clearFlash() }}
                 disabled={confirm === 'ingest'}
               >
                 Run
@@ -260,6 +263,7 @@ export function AdminOperations({ area }: { area: 'daily' | 'monthly' | 'facts' 
                     <IngestButton
                       label="Confirm"
                       onDone={(result: IngestResult) => {
+                        setIngestSources(result.source_results ?? null)
                         setConfirm(null)
                         const issues = [...result.errors, ...result.research.errors]
                         flash('ingest', `+${result.processed} source candidate${result.processed !== 1 ? 's' : ''} collected, ${result.skipped} skipped. ${researchRunSummary(result.research)} ${issues.join('; ')}`.trim(), issues.length ? 'error' : 'ok')
@@ -271,6 +275,7 @@ export function AdminOperations({ area }: { area: 'daily' | 'monthly' | 'facts' 
               />
             )}
             {status('ingest')}
+            {ingestSources && <IngestDetails sources={ingestSources} />}
           </ActionRow>
           <ActionRow
             title="Refresh market quotes"

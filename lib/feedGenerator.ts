@@ -256,16 +256,23 @@ function extractFromJsonLd($: CheerioAPI, source: ScrapedSource): RawArticle[] {
         const obj = node as Record<string, unknown>
         if (obj['@graph']) queue.push(obj['@graph'])
         if (obj.itemListElement) queue.push(obj.itemListElement)
+        if (obj.item && typeof obj.item === 'object') queue.push(obj.item)
         if (Array.isArray(node)) { queue.push(...node); continue }
 
         const type = obj['@type']
         const typeList = Array.isArray(type) ? type : [type]
-        const isArticle = typeList.some(t => typeof t === 'string' && /article|blogposting|newsarticle/i.test(t))
+        const isArticle = typeList.some(t => typeof t === 'string' && /^(article|blogposting|newsarticle)$/i.test(t.split(/[\/#]/).pop() || ''))
         if (!isArticle) continue
 
         const title = stripHtml(String(obj.headline ?? obj.name ?? ''))
-        const link = normalizeUrl(typeof obj.url === 'string' ? obj.url : null, source.url)
+        const entity = obj.mainEntityOfPage
+        const entityUrl = typeof entity === 'string' ? entity : entity && typeof entity === 'object' ? (entity as Record<string, unknown>)['@id'] : null
+        const link = normalizeUrl(typeof obj.url === 'string' ? obj.url : typeof entityUrl === 'string' ? entityUrl : null, source.url)
         if (!title || !link) continue
+        try {
+          const parsed = new URL(link), publisher = new URL(source.url)
+          if (!['https:', 'http:'].includes(parsed.protocol) || parsed.origin !== publisher.origin) continue
+        } catch { continue }
         if (!matchesLinkPattern(link, source.link_pattern)) continue
         if (isListingPage(link, source.url)) continue
 
@@ -303,8 +310,8 @@ function extractFromAnchors($: CheerioAPI, source: ScrapedSource): RawArticle[] 
     try {
       const parsed = new URL(link)
       if (siteOrigin && parsed.origin !== siteOrigin) return
-      if (link === source.url) return
-      if (listingPathname && parsed.pathname === listingPathname) return
+      if (isListingPage(link, source.url)) return
+      if (/\/(?:category|categories|tag|tags|author|authors|page)(?:\/|$)/i.test(parsed.pathname)) return
       // With no link_pattern, only links below the listing page count as
       // articles. Without this, a selector miss on lokalise.com/blog/ (CSS-module
       // class names rotated) turned the site's nav menu — /product/*, /solutions/*
@@ -329,7 +336,7 @@ function getFallbackArticles($: CheerioAPI, source: ScrapedSource): RawArticle[]
   for (const a of [...extractFromJsonLd($, source), ...extractFromAnchors($, source)]) {
     if (!deduped.has(a.link)) deduped.set(a.link, a)
   }
-  return [...deduped.values()].slice(0, MAX_ITEMS)
+  return [...deduped.values()]
 }
 
 async function collectHtmlCandidates(source: ScrapedSource): Promise<RawArticle[]> {
@@ -369,6 +376,13 @@ async function collectHtmlCandidates(source: ScrapedSource): Promise<RawArticle[
   // shows the message on /admin/scraped-feeds. The fallback stays for sources
   // configured without an article selector.
   if (source.article_selector) {
+    // Publisher-declared Article metadata can survive a CSS redesign. Never
+    // fall back to arbitrary anchors when a configured selector has failed.
+    const metadata = [...new Map(extractFromJsonLd($, source).map(article => [article.link, article])).values()]
+    if (metadata.length) {
+      console.warn(`[feedGenerator] ${source.name}: configured selector missed; recovered publisher Article metadata`)
+      return metadata // The output limit is applied after content filtering.
+    }
     throw new Error(
       `article selector "${source.article_selector}" matched nothing on ${source.url} — ` +
       'the page changed or was not served in full; keeping the previous feed',
@@ -384,6 +398,9 @@ async function collectHtmlCandidates(source: ScrapedSource): Promise<RawArticle[
 async function collectRssCandidates(source: ScrapedSource): Promise<RawArticle[]> {
   const xml = await fetchText(source.url, 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7')
   const $ = cheerio.load(xml, { xmlMode: true })
+  const root = $.root().children().first()[0]
+  const rootName = root && 'name' in root ? root.name.split(':').pop()?.toLowerCase() : ''
+  if (!['rss', 'feed', 'rdf'].includes(rootName || '')) throw new Error('Expected an RSS or Atom document; refusing to replace the previous feed with an HTML/error page')
   const results: RawArticle[] = []
 
   $('item').each((_, el) => {

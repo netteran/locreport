@@ -162,6 +162,7 @@ export async function fetchFeedResult(url: string): Promise<{ items: RssItem[]; 
         'Accept': 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7',
         'Accept-Language': 'en-US,en;q=0.9',
       },
+      signal: AbortSignal.timeout(15000),
     })
     if (!res.ok) {
       throw new Error(res.status === 403

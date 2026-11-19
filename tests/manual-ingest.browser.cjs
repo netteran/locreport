@@ -56,7 +56,18 @@ const ids = [1, 2, 3].map(n => `70000000-0000-4000-8000-${String(n).padStart(12,
     await page.route('**/api/candidates', route => route.fulfill({ json: { candidates: [], groups: [], events: [], compositions: [] } }))
     await page.route('**/api/ingest*', route => {
       calls.push({ path: '/api/ingest', sources: new URL(route.request().url()).searchParams.get('sources') })
-      return route.fulfill({ json: { processed: mode === 'quiet' ? 0 : 2, skipped: 0, errors: [] } })
+      const detail = { id: ids[0], name: 'RSS publisher 1', url: 'https://publisher1.example.test/feed', status: 'ok',
+        items: 30, old: 3, invalid: 0, seen: 10, keyword_misses: 15, short_text: 1, unusable: 1,
+        collected: 0, failed: 0, deferred: 0, rejections: [
+          { url: 'https://publisher1.example.test/short-item', reason: 'short_text' },
+          { url: 'https://publisher1.example.test/unusable-item', reason: 'unusable' }
+        ] }
+      if (mode === 'quiet') return route.fulfill({ json: { processed: 0, skipped: 2, errors: [], source_results: [detail] } })
+      if (mode === 'feed-error') return route.fulfill({ json: { processed: 0, skipped: 0,
+        errors: ['RSS publisher 1: HTTP 403 — test feed blocked'], source_results: [{ ...detail,
+          status: 'error', items: 0, old: 0, seen: 0, keyword_misses: 0, short_text: 0, unusable: 0,
+          error: 'HTTP 403 — test feed blocked', rejections: [] }] } })
+      return route.fulfill({ json: { processed: 2, skipped: 0, errors: [] } })
     })
     await page.route('**/api/podcasts/auto*', route => {
       calls.push({ path: '/api/podcasts/auto', source: new URL(route.request().url()).searchParams.get('id') })
@@ -95,11 +106,14 @@ const ids = [1, 2, 3].map(n => `70000000-0000-4000-8000-${String(n).padStart(12,
     reset('quiet')
     await page.getByRole('combobox', { name: 'Batch', exact: true }).selectOption('1')
     await page.getByRole('button', { name: 'Ingest batch 1', exact: true }).click()
-    await page.getByText('0 fresh items', { exact: true }).waitFor()
+    await page.getByText('0 new candidates collected', { exact: true }).waitFor()
     await page.waitForFunction(() => document.querySelectorAll('[role="status"]').length >= 2)
     assert.equal(calls[0].sources, ids.slice(0, 2).join(','))
     assert.deepEqual(calls[1].body, { source_ids: ids.slice(0, 2) })
     assert.deepEqual(calls.at(-1).body, { stage: 'groups' })
+    await page.getByText('Collection details · 1 source · 30 feed entries', { exact: true }).click()
+    await page.getByText(/15 outside keywords/).waitFor()
+    await page.getByRole('link', { name: 'https://publisher1.example.test/unusable-item', exact: true }).waitFor()
 
     reset()
     await page.getByRole('combobox', { name: 'Batch', exact: true }).selectOption('all')
@@ -133,6 +147,15 @@ const ids = [1, 2, 3].map(n => `70000000-0000-4000-8000-${String(n).padStart(12,
     await ingestRow.getByRole('button', { name: 'Confirm', exact: true }).click()
     await ingestRow.getByText(/Fact Flow processing incomplete.*20261113_research_publications.sql/).waitFor()
     assert.equal(calls.length, 2)
+    // Dashboard retains collection details when its confirmation panel closes.
+    reset('feed-error')
+    await page.goto(base + '/admin')
+    await ingestRow.getByRole('button', { name: 'Run', exact: true }).click()
+    await ingestRow.getByRole('button', { name: 'Confirm', exact: true }).click()
+    await ingestRow.getByRole('alert').waitFor()
+    await ingestRow.getByText('Collection details · 1 source · 0 feed entries', { exact: true }).click()
+    await ingestRow.getByText('HTTP 403 — test feed blocked', { exact: true }).waitFor()
+    assert.deepEqual(calls.map(c => c.path), ['/api/ingest', '/api/research/process', '/api/research/process', '/api/research/process'])
     assert.equal(articleWrites.length, 0, articleWrites.join('\n'))
     assert.equal(errors.length, 0, errors.join('\n'))
     console.log('Manual ingest browser checks passed: dashboard, source, batch, podcast, saved backlog, suggestions, migration errors and manual article boundary.')

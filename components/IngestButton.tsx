@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ResearchRunStatus } from '@/components/ResearchProcessButton'
 import { postResearchJson, runResearchPipeline, type ResearchRunResult } from '@/lib/manualResearch'
+import { IngestDetails } from '@/components/IngestDetails'
+import type { IngestSourceResult } from '@/lib/ingestReport'
 
 type IngestState = 'idle' | 'confirm' | 'running' | 'done' | 'error'
-export type IngestResult = { processed: number; skipped: number; errors: string[]; research: ResearchRunResult }
+export type IngestResult = { processed: number; skipped: number; errors: string[]; research: ResearchRunResult; source_results?: IngestSourceResult[] }
 
 interface Props {
   label: string
@@ -38,6 +40,7 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
         processed: data.processed ?? 0,
         skipped: data.skipped ?? 0,
         errors: data.errors ?? [],
+        source_results: data.source_results,
         research
       }
       setResult(result)
@@ -81,7 +84,7 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
           <span className={`${text} font-medium`} style={{ color: result.processed > 0 ? 'var(--accent)' : 'var(--muted)' }}>
             {result.processed > 0
               ? `+${result.processed} source candidate${result.processed !== 1 ? 's' : ''} collected`
-              : '0 fresh items'}
+              : result.errors.length ? '0 collected; collection had errors' : '0 new candidates collected'}
           </span>
           <Link
             href="/admin/candidates"
@@ -93,6 +96,7 @@ export function IngestButton({ label, sourceIds, requireConfirm, confirmMessage,
           <Button size={size} variant="ghost" onClick={reset}>↺</Button>
         </div>
         <ResearchRunStatus result={result.research} />
+        {result.source_results && <IngestDetails sources={result.source_results} />}
         {result.errors.length > 0 && (
           <details className="text-xs" style={{ color: 'var(--destructive, #e53e3e)' }}>
             <summary style={{ cursor: 'pointer' }}>{result.errors.length} error{result.errors.length !== 1 ? 's' : ''}</summary>

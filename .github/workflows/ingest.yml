@@ -64,9 +64,8 @@ jobs:
           fi
       # Regenerate the scraped feeds first, so /api/feeds/<name> serves fresh XML
       # by the time ingest reads it moments later. The route reports per-source
-      # failures in its JSON body but always answers 200, so a single broken
-      # scrape can't block the ingest step below — the response is echoed here so
-      # a failure is visible in the job log rather than silent.
+      # failures in its JSON body. Mark partial failures red while the explicit
+      # conditions below still collect other feeds and process saved research.
       - name: Refresh generated feeds
         if: steps.dst.outputs.proceed == 'true'
         run: |
@@ -102,6 +101,10 @@ jobs:
               echo "::warning::Generated feeds returned 0 items (empty feed, no error): $EMPTY"
             fi
           fi
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::error::$FAILED generated feed(s) failed; collection will still use available feeds."
+            exit 1
+          fi
       # Feed refresh can fail or be rate-limited; ingest can still use existing feeds.
       # Explicit status conditions also let saved candidates process after ingest fails.
       - name: Run ingest
@@ -121,6 +124,14 @@ jobs:
             exit 1
           fi
           echo "$RESPONSE"
+          ERROR_COUNT="$(printf '%s' "$RESPONSE" | jq '(.errors // []) | length')"
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "::error::$ERROR_COUNT collection error(s); inspect errors and source_results above. Saved research will still be processed."
+            exit 1
+          fi
+          if [ "$(printf '%s' "$RESPONSE" | jq -r '.complete == false')" = "true" ]; then
+            echo "::warning::Some feed entries were deferred by the extraction limit; run collection again to continue."
+          fi
       # Podcast sources with automatic collection enabled. Each call does ONE unit of
       # work (one Gemini call: episode notes, or the write-up + publish), so it
       # fits a single 300 s function; repeat until the route reports "idle".
