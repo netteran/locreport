@@ -144,3 +144,50 @@ test('feed repair migration is idempotent and preserves XML, filters, history an
     assert.equal((await db.query("select article_selector from scraped_sources where name='LingopalAI'")).rows[0].article_selector, '.editor-custom')
   } finally { await db.close() }
 })
+
+test('client-rendered publisher listings use dated, on-site press articles from their public JSON', async t => {
+  const cases = [
+    {
+      config: { name: 'transperfect-news-and-press', url: 'https://www.transperfect.com/about/news-and-press/',
+        article_selector: '.views-row', link_selector: '.views-field-title a' },
+      endpoint: 'https://www.transperfect.com/api/get-resources',
+      article: 'https://www.transperfect.com/press/story/',
+      payload: [
+        { preview_title: 'Translation announcement', preview_description: 'A new service.', publication_date: '2026-11-18',
+          translations_routing: { 'en-US': { permalink: '/press/story' } } },
+        { title: 'Off-site story', translations_routing: { 'en-US': { permalink: '//other.test/press/story' } } }
+      ]
+    },
+    {
+      config: { name: 'RWS-media-centre', url: 'https://www.rws.com/about/media-centre/',
+        article_selector: "a[href^='/about/media-centre/press-releases/']", link_selector: '' },
+      endpoint: 'https://www.rws.com/query',
+      article: 'https://www.rws.com/about/news/2026/story/',
+      payload: { results: [
+        { title: 'Translation announcement', description: 'A new service.', date: '2026-11-18T00:00:00Z',
+          linkUrl: { url: '/about/news/2026/story/' } },
+        { title: 'Listing page', linkUrl: { url: '/about/news/' } }
+      ] }
+    }
+  ]
+  const originalFetch = global.fetch
+  t.after(() => { global.fetch = originalFetch })
+  for (const { config, endpoint, article, payload } of cases) {
+    global.fetch = async (url, options) => {
+      assert.equal(url.split('?')[0], endpoint)
+      assert.equal(options.headers.Accept, 'application/json')
+      return Response.json(payload)
+    }
+    const result = await generator.generateFeedForSource({ ...source, ...config, link_pattern: null })
+    assert.equal(result.itemCount, 1)
+    assert.ok(result.xml.includes(`<link>${article}</link>`))
+    assert.match(result.xml, /<pubDate>Wed, 18 Nov 2026 00:00:00 GMT<\/pubDate>/)
+    assert.match(result.xml, /<description>A new service\.<\/description>/)
+
+    global.fetch = async () => Response.json({})
+    await assert.rejects(
+      generator.generateFeedForSource({ ...source, ...config, link_pattern: null }),
+      /No usable articles.*keeping the previous feed/
+    )
+  }
+})
