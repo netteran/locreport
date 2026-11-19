@@ -168,13 +168,27 @@ test('client-rendered publisher listings use dated, on-site press articles from 
           linkUrl: { url: '/about/news/2026/story/' } },
         { title: 'Listing page', linkUrl: { url: '/about/news/' } }
       ] }
+    },
+    {
+      config: { name: 'RWS-Blog', url: 'https://www.rws.com/blog/',
+        article_selector: '.list__results__wrapper' },
+      endpoint: 'https://www.rws.com/query',
+      itemType: 'blog',
+      article: 'https://www.rws.com/content-management/blog/story/',
+      payload: { results: [
+        { title: 'Translation announcement', description: 'A new service.', date: '2026-11-18T00:00:00Z',
+          linkUrl: { url: '/content-management/blog/story/' } },
+        { title: 'Press release', linkUrl: { url: '/about/news/2026/story/' } },
+        { title: 'Listing page', linkUrl: { url: '/blog/' } }
+      ] }
     }
   ]
   const originalFetch = global.fetch
   t.after(() => { global.fetch = originalFetch })
-  for (const { config, endpoint, article, payload } of cases) {
+  for (const { config, endpoint, article, payload, itemType } of cases) {
     global.fetch = async (url, options) => {
       assert.equal(url.split('?')[0], endpoint)
+      if (itemType) assert.equal(new URL(url).searchParams.get('itemType'), itemType)
       assert.equal(options.headers.Accept, 'application/json')
       return Response.json(payload)
     }
@@ -189,5 +203,45 @@ test('client-rendered publisher listings use dated, on-site press articles from 
       generator.generateFeedForSource({ ...source, ...config, link_pattern: null }),
       /No usable articles.*keeping the previous feed/
     )
+  }
+})
+
+test('HTTP failures identify the requested and redirected endpoints without query strings', async t => {
+  const originalFetch = global.fetch
+  t.after(() => { global.fetch = originalFetch })
+  global.fetch = async () => ({ ok: false, status: 403, url: 'https://publisher.test/native.rss?private=1' })
+  await assert.rejects(
+    generator.generateFeedForSource({ ...source, type: 'rss', url: 'https://publisher.test/feed?private=2' }),
+    { message: 'HTTP 403 from https://publisher.test/native.rss (requested https://publisher.test/feed)' }
+  )
+})
+
+test('production feed migration repairs Acclaro Press and legacy Cohere link settings', async () => {
+  const { PGlite } = require('@electric-sql/pglite')
+  const db = new PGlite()
+  try {
+    await db.exec(fs.readFileSync('supabase/migrations/20260906_scraped_sources.sql', 'utf8'))
+    await db.exec(`
+      insert into scraped_sources (name, url, article_selector, generated_xml)
+      values ('Acclaro', 'https://www.acclaro.com/press', '.w-dyn-item', '<rss>saved</rss>');
+      update scraped_sources set link_selector='a' where name='Cohere-Newsroom-L10N';
+    `)
+    await db.exec(fs.readFileSync('supabase/migrations/20261126_publisher_feed_repairs.sql', 'utf8'))
+    const migration = fs.readFileSync('supabase/migrations/20261127_production_feed_selectors.sql', 'utf8')
+    const read = async () => (await db.query(
+      "select * from scraped_sources where name in ('Acclaro','Cohere-Newsroom-L10N') order by name"
+    )).rows
+    await db.exec(migration)
+    const [acclaro, cohere] = await read()
+    assert.equal(acclaro.url, 'https://www.acclaro.com/press')
+    assert.equal(acclaro.link_selector, '.card-body a[href^="/press/"]')
+    assert.equal(acclaro.generated_xml, '<rss>saved</rss>')
+    assert.equal(cohere.url, 'https://cohere.com/blog')
+    assert.equal(cohere.link_selector, 'self')
+    assert.ok(cohere.content_filter.keywords.includes('translation'))
+    await db.exec(migration)
+    assert.deepEqual(await read(), [acclaro, cohere])
+  } finally {
+    await db.close()
   }
 })
