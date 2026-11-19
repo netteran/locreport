@@ -38,18 +38,19 @@ test('pitches require known sources, distinct contributions and complete editori
   assert.equal(normalize(null), null)
   assert.equal(normalize({ ...base, scores: { reader_value: Infinity, originality: -4, evidence: 50 } }).pitch.score, 25)
 })
-function fixture({ results, history = [], coverage = [], prior = null, schemaError = null, existing = null } = {}) {
+function fixture({ results, history = [], coverage = [], prior = null, schemaError = null, existing = null, candidateRows } = {}) {
   const requests = [], writes = [], selects = []
-  const rows = [{ id: 'source-1', title: 'Pricing announcement', extracted_facts: 'Prices changed.', topics: [], entities: [], event_id: null }]
+  const rows = candidateRows ?? [{ id: 'source-1', title: 'Pricing announcement', extracted_facts: 'Prices changed.', topics: [], entities: [], event_id: null }]
   const service = {
     from(table) {
+      let from = 0, to = rows.length
       const q = {
-        select(columns) { selects.push([table, columns]); return q }, eq() { return q }, order() { return q }, limit() { return q }, lte() { return q },
+        select(columns) { selects.push([table, columns]); return q }, eq() { return q }, order() { return q }, limit(size) { to = size; return q }, range(start, end) { from = start; to = end + 1; return q }, lte() { return q },
         maybeSingle: async () => ({ data: table === 'story_groups' ? existing : prior ? { value: prior } : null, error: null }),
         update(data) { writes.push({ table, data, update: true }); return q },
         upsert: async (data, options) => { writes.push({ table, data, options }); return { data: null, error: null } },
         then(resolve, reject) { return Promise.resolve({
-          data: table === 'source_candidates' ? rows : table === 'articles' ? coverage : history,
+          data: table === 'source_candidates' ? rows.slice(from, to) : table === 'articles' ? coverage : history,
           error: table === 'story_groups' ? schemaError : null
         }).then(resolve, reject) }
       }
@@ -60,7 +61,7 @@ function fixture({ results, history = [], coverage = [], prior = null, schemaErr
     '@/lib/editorialPitches': editorial, '@/lib/embeddings': {}, '@/lib/eventMatching': {}, '@/lib/revalidate': {},
     '@/lib/openai': { getOpenAI: () => ({ chat: { completions: { create: async input => {
       requests.push(input)
-      const result = results?.[requests.length - 1] ?? { groups: [base] }
+      const result = (typeof results === 'function' ? results(input) : results?.[requests.length - 1]) ?? { groups: [base] }
       return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(result) } }] }
     } } } }) }
   })
@@ -146,4 +147,31 @@ test('a critique can return no supported ideas without failing Fact Flow or inve
   assert.equal(f.requests.length, 2)
   assert.equal(f.writes.filter(w => w.table === 'story_groups').length, 0)
   assert.ok(f.writes.some(w => w.table === 'settings'))
+})
+
+test('archive pitching considers every database page in mixed-age batches', async () => {
+  const candidateRows = Array.from({ length: 501 }, (_, index) => ({
+    id: `source-${index}`, title: 'Evidence', extracted_facts: 'Collected evidence.',
+    source_published_at: new Date(Date.UTC(2026, 10, 19 - index)).toISOString()
+  }))
+  const oldest = candidateRows.at(-1).id
+  const archivePitch = {
+    ...base, candidate_ids: [oldest],
+    source_contributions: [{ candidate_id: oldest, contribution: 'Establishes the historical baseline.' }]
+  }
+  const f = fixture({ candidateRows, results: input => {
+    const context = JSON.parse(input.messages[1].content)
+    if (context.proposed_pitches) {
+      assert.deepEqual(context.sources.map(source => source.id), [oldest])
+      return { groups: context.proposed_pitches }
+    }
+    return { groups: context.sources.some(source => source.id === oldest) ? [archivePitch] : [] }
+  } })
+  await f.run()
+  const batches = f.requests.filter(request => request.temperature === 0.7)
+    .map(request => JSON.parse(request.messages[1].content).sources)
+  assert.equal(new Set(batches.flat().map(source => source.id)).size, candidateRows.length)
+  assert.ok(batches.every(batch => batch.length <= 60 && batch[0].source_published_at.slice(0, 4) === '2026'
+    && batch.at(-1).source_published_at.slice(0, 4) === '2025'))
+  assert.deepEqual(f.writes.find(write => write.table === 'story_groups').data.candidate_ids, [oldest])
 })

@@ -92,20 +92,17 @@ To reproduce a preview build against the unmigrated schema, start a fresh fixtur
 
 Apply `20261118_editorial_pitches.sql` after the existing research migrations. It adds nullable `story_groups.pitch` JSON metadata; older suggestions stay readable. A refresh explains the missing migration before calling a model if the column is absent.
 
-Suggested articles now runs two model passes: a broader set of up to 18 proposed angles, followed by a skeptical evidence critique retaining at most 10. Both see up to 60 available processed source candidates, the latest 30 published article titles/excerpts, and 30 previous pitches (including dismissed ones). This is limited editorial memory, not a search across the entire archive. Sources and previous text are treated as data. No live web research or interviews are performed.
+Suggested articles shows one ranked list. Refresh considers every available, processed source candidate with no age cutoff. Larger pools are divided into batches that mix recent and older sources. A final critique compares the strongest proposed angles and retains up to 10. The latest 30 published article titles and excerpts and 30 previous pitches help avoid repetition.
 
-The first pass explores contradictions, incentives, consequences and connections beyond semantic similarity. The critique checks reader value, originality and evidence strength. The UI ranks ideas using 40% reader value, 35% originality and 25% evidence, with model-assigned scores labelled as editorial assessments.
+The pitching pass looks for immediate decisions, longer-term changes and plausible future consequences. The critique checks reader value, originality and evidence strength and keeps reporting gaps visible. The UI ranks ideas using 40% reader value, 35% originality and 25% evidence.
 
-- **Ready to develop:** a supported editorial question with no essential missing reporting and an evidence score of at least 4/5.
-- **Worth investigating:** a promising angle with unresolved premises or reporting gaps. These ideas can be broader and more original than a ready pitch; the label describes evidence readiness, not editorial quality or depth.
-
-Both queues offer **Choose sources & direction** and open the same editable article brief. The brief retains the question, rationale, timing, intended reader, contribution, counterargument, each source's role and all reporting tasks. Add sources or narrow the scope to supported claims before generating. The writer receives reporting tasks as unresolved work, not as evidence or completed interviews. Starting a brief does not change its pitch assessment, generate an article or publish it. Generation and approval remain explicit editor actions. All suggested sources must still be available to reserve; refresh a stale suggestion or select available sources directly from Candidates.
+**Choose sources & direction** opens an editable article brief. The brief retains the question, rationale, timing, intended reader, contribution, counterargument, each source's role and all reporting tasks. Add sources or narrow the scope to supported claims before generating. The writer receives reporting tasks as unresolved work, not as evidence or completed interviews. Starting a brief does not change its pitch assessment, generate an article or publish it. Generation and approval remain explicit editor actions. All suggested sources must still be available to reserve; refresh a stale suggestion or select available sources directly from Candidates.
 
 Creation and editing share a 40,000-character editorial-direction limit so complete pitches are not silently cut at creation. No database migration is needed for this workflow update.
 
 Every stored pitch must reference 1–8 supplied candidates, explain each source contribution, name the reader's decision, explain novelty and state a counterargument. Missing evidence or weak evidence downgrades a nominally ready pitch to an investigation. Different questions can reuse the same evidence; identical source/question combinations do not revive dismissed suggestions. Source or recent-coverage changes invalidate the refresh cache. Repeating refresh on unchanged inputs reuses the saved batch.
 
-Review a sample of real pitches after rollout: the automated tests use model fixtures and cannot establish live editorial quality. Neither model scores nor the ready label establish that claims are verified. Older waiting sources remain eligible, but the current 60-source limit means this is not exhaustive archive discovery.
+Review a sample of real pitches after rollout: the automated tests use model fixtures and cannot establish live editorial quality. Model scores reflect editorial judgments. Assess whether the selected sources support the proposed angle before drafting.
 
 ### Suggestion and scheduler failures
 

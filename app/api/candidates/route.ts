@@ -37,9 +37,22 @@ export async function GET() {
         .order('created_at', { ascending: false })
         .limit(100)
     ])
+    const candidateRows = checked(candidates) || []
+    const groupRows = checked(groups) || []
+    const listedIds = new Set(candidateRows.map(candidate => candidate.id))
+    const olderIds = [...new Set(groupRows.flatMap(group => group.candidate_ids as string[]))]
+      .filter(id => !listedIds.has(id))
+    const suggestionSources = []
+    for (let offset = 0; offset < olderIds.length; offset += 100) {
+      const sources = checked(await service.from('source_candidates')
+        .select('id,title,source_url,source_name,status')
+        .in('id', olderIds.slice(offset, offset + 100))) || []
+      suggestionSources.push(...sources)
+    }
     return NextResponse.json({
-      candidates: checked(candidates),
-      groups: checked(groups),
+      candidates: candidateRows,
+      groups: groupRows,
+      suggestionSources,
       events: checked(events),
       compositions: checked(compositions)
     })

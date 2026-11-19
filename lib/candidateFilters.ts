@@ -1,6 +1,6 @@
 import type { SourceCandidate } from './researchTypes'
 
-export function publisherName(candidate: SourceCandidate): string {
+export function publisherName(candidate: Pick<SourceCandidate, 'source_name'>): string {
   return candidate.source_name?.trim() || 'Unknown publisher'
 }
 
