@@ -40,7 +40,6 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               <ul className="footer-links" aria-label="Footer coverage links">
                 <li><Link href="/articles">All articles</Link></li>
                 <li><Link href="/fact-flow">Fact Flow</Link></li>
-                <li><Link href="/reports/monthly">Monthly Briefing</Link></li>
                 <li><Link href="/reports">Briefings &amp; archive</Link></li>
               </ul>
             </div>

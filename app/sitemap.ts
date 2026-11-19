@@ -4,6 +4,7 @@ import { required } from '@/lib/supabase/required'
 import { fetchDirectoryEntries } from '@/lib/directory'
 import { articleHref } from '@/lib/utils'
 import { SITE_URL } from '@/lib/seo'
+import { ANNUAL_REPORTS, annualReportPath } from '@/lib/reports'
 import { redirects } from '@/vercel.json'
 
 // Cookie-free client keeps this cacheable; an hour matches the listing pages.
@@ -19,8 +20,7 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/articles` },
   { url: `${SITE_URL}/fact-flow` },
   { url: `${SITE_URL}/reports` },
-  { url: `${SITE_URL}/reports/2026-annual-global-market-report` },
-  { url: `${SITE_URL}/reports/monthly` },
+  ...ANNUAL_REPORTS.map(report => ({ url: `${SITE_URL}${annualReportPath(report.slug)}` })),
   { url: `${SITE_URL}/compass` },
   { url: `${SITE_URL}/compass/locstock` },
   { url: `${SITE_URL}/compass/llm-pricing` },

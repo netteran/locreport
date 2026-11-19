@@ -39,11 +39,11 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     }
 
     if (process.env.TEST_SCHEMA === 'legacy') {
-      for (const path of ['/', '/articles', '/reports/monthly', '/search', '/search?q=Monthly']) {
+      for (const path of ['/', '/articles', '/reports', '/search', '/search?q=Monthly']) {
         await visit(path)
         await noRetiredLinks()
       }
-      await page.locator('.search-main a[href="/reports/monthly"]').waitFor()
+      await page.locator('.search-main a[href="/reports"]').waitFor()
       assert.deepEqual(errors, [])
       console.log('Legacy editorial browser checks passed: homepage, article archive, monthly briefings and search remain readable when optional coverage columns are missing.')
       return
@@ -67,23 +67,26 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await page.locator('.site-nav a[href="/compass"]').hover()
     await page.getByRole('menuitem', { name: 'Tech Directory', exact: true }).waitFor({ state: 'visible' })
 
-    await visit('/reports/monthly')
-    await page.getByRole('heading', { name: 'Monthly Briefing', exact: true }).waitFor()
-    assert.match(await page.locator('.mr-featured-meta').innerText(), /Coverage: October 2026/)
-    assert.match(await page.locator('.mr-featured-meta').innerText(), /Published Nov 17, 2026/)
-    assert.equal(await page.locator('.mr-featured-signals, .mr-signal-chip').count(), 0)
+    for (const legacyPath of ['/reports/monthly', '/monthly-reports', '/reports/monthly/2026/10']) {
+      const redirect = await context.request.get(base + legacyPath, { maxRedirects: 0 })
+      assert.equal(redirect.status(), 308)
+      assert.equal(new URL(redirect.headers().location, base).pathname, '/reports')
+    }
+
+    await visit('/reports')
+    await page.getByRole('heading', { name: 'Monthly briefings', exact: true }).waitFor()
+    const latest = page.locator('#monthly-briefings + .reports-list .report-card').first()
+    assert.match(await latest.innerText(), /Coverage: October 2026/)
+    assert.match(await latest.innerText(), /Published Nov 17, 2026/)
+    assert.equal(await latest.getAttribute('href'), '/articles/october-buyer-decisions-briefing')
+    await page.getByRole('heading', { name: 'Annual reports', exact: true }).waitFor()
+    await page.getByText('Archived annual report', { exact: true }).waitFor()
     await noRetiredLinks()
     await page.screenshot({ path: 'work/editorial-preview/monthly-desktop.png', fullPage: true, animations: 'disabled' })
 
-    await visit('/reports')
-    const reportLinks = await page.locator('.reports-list > a').evaluateAll(links => links.map(link => link.getAttribute('href')))
-    assert.equal(reportLinks[0], '/reports/monthly')
-    await page.getByRole('heading', { name: 'Report archive', exact: true }).waitFor()
-    await page.getByText('Archived annual report', { exact: true }).waitFor()
-
     await visit('/reports/2026-annual-global-market-report')
     assert.match(await page.locator('.all-articles-subtitle').innerText(), /From the report archive · Published April 2026/)
-    await page.locator('.all-articles-subtitle a[href="/reports/monthly"]').waitFor()
+    await page.locator('.all-articles-subtitle a[href="/reports"]').waitFor()
 
     for (const path of ['/intelligence', '/intelligence/signals', '/intelligence/signals/quality-gap-closure', '/intelligence/signals/unknown-legacy-signal', '/intelligence/high-impact']) {
       await visit(path)
@@ -94,7 +97,9 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     }
     const sitemap = await context.request.get(base + '/sitemap.xml')
     assert.equal(sitemap.status(), 200)
-    assert.doesNotMatch(await sitemap.text(), /<loc>[^<]*\/intelligence/)
+    const sitemapXml = await sitemap.text()
+    assert.doesNotMatch(sitemapXml, /<loc>[^<]*(?:\/intelligence|\/reports\/monthly)/)
+    assert.match(sitemapXml, /<loc>https:\/\/locreport\.com\/reports<\/loc>/)
 
     await visit('/search?q=October')
     await page.locator('.search-main a[href="/articles/october-buyer-decisions-briefing"]').waitFor()
@@ -143,10 +148,10 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await page.waitForURL(base + '/fact-flow')
     assert.equal(await page.getByRole('button', { name: 'Open menu', exact: true }).getAttribute('aria-expanded'), 'false')
     await noOverflow()
-    for (const path of ['/reports/monthly', '/reports', '/intelligence', '/articles/newest-authored-analysis']) {
+    for (const path of ['/reports', '/intelligence', '/articles/newest-authored-analysis']) {
       await visit(path)
       await noOverflow()
-      if (path === '/reports/monthly') await page.screenshot({ path: 'work/editorial-preview/monthly-mobile.png', fullPage: true, animations: 'disabled' })
+      if (path === '/reports') await page.screenshot({ path: 'work/editorial-preview/monthly-mobile.png', fullPage: true, animations: 'disabled' })
     }
     assert.deepEqual(errors, [])
     console.log('Editorial browser checks passed: newest article and continuous archive, desktop/mobile navigation, monthly coverage dates, annual archive, retired routes/noindex/sitemap, briefing search, article context, Fact Flow and all Compass tools; no live actions.')

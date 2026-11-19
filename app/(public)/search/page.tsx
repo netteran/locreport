@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 }
 
 const STATIC_PAGES = [
-  { title: 'Monthly Briefing', href: '/reports/monthly', section: 'Briefings', excerpt: 'What mattered in localization and language services, its practical implications and what to watch next.' },
+  { title: 'Monthly Briefing', href: '/reports', section: 'Briefings', excerpt: 'What mattered in localization and language services, its practical implications and what to watch next.' },
   { title: 'Fact Flow', href: '/fact-flow', section: 'News', excerpt: 'The latest localization and language-services news with links to original sources.' },
   { title: '2026 Annual Global Market Report', href: '/reports/2026-annual-global-market-report', section: 'Report archive', excerpt: 'Archived annual analysis of market evolution, AI disruption, and competitive dynamics.' },
   { title: 'LocStock — Localization Market Index', href: '/compass/locstock', section: 'Compass', excerpt: 'Live equity overview of 39 publicly traded companies in language services and AI translation.' },
@@ -211,7 +211,7 @@ function SearchSidebar({ latestMonthly }: {
 
       <div className="post-sidebar-widget">
         <p className="post-sidebar-widget__title">Monthly Briefing</p>
-        <Link href="/reports/monthly" className="search-sidebar__link">
+        <Link href="/reports" className="search-sidebar__link">
           <p className="search-sidebar__link-title">Browse all briefings</p>
           <p className="search-sidebar__link-sub">The developments that mattered and what to watch next.</p>
         </Link>

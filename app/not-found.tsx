@@ -30,7 +30,7 @@ const LINKS = [
     ),
   },
   {
-    href: '/reports/monthly',
+    href: '/reports',
     label: 'Monthly Briefing',
     desc: 'What mattered this month, its practical implications and what to watch next.',
     icon: (
