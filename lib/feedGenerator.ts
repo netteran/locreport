@@ -60,7 +60,13 @@ async function fetchText(url: string, accept: string): Promise<string> {
     },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) {
+    const requested = new URL(url)
+    const received = new URL(res.url || url)
+    const endpoint = requested.origin + requested.pathname
+    const finalEndpoint = received.origin + received.pathname
+    throw new Error(`HTTP ${res.status} from ${finalEndpoint}${endpoint === finalEndpoint ? '' : ` (requested ${endpoint})`}`)
+  }
   return res.text()
 }
 
@@ -396,7 +402,7 @@ async function collectHtmlCandidates(source: ScrapedSource): Promise<RawArticle[
   return getFallbackArticles($, source).map(a => ({ ...a, description: truncate(a.description, MAX_DESCRIPTION_LENGTH) }))
 }
 
-// These two listings render their cards client-side. Use the same public
+// These listings render their cards client-side. Use the same public
 // endpoints as the listings, only for the known configurations.
 async function collectPublisherCandidates(source: ScrapedSource): Promise<RawArticle[] | null> {
   const listing = source.url.replace(/\/+$/, '')
@@ -407,14 +413,21 @@ async function collectPublisherCandidates(source: ScrapedSource): Promise<RawArt
     && listing === 'https://www.rws.com/about/media-centre'
     && source.article_selector === "a[href^='/about/media-centre/press-releases/']"
     && !source.link_selector
-  if (!isTransPerfect && !isRws) return null
+  const isRwsBlog = source.name === 'RWS-Blog'
+    && listing === 'https://www.rws.com/blog'
+    && source.article_selector === '.list__results__wrapper'
+  if (!isTransPerfect && !isRws && !isRwsBlog) return null
 
   const endpoint = isTransPerfect
     ? 'https://www.transperfect.com/api/get-resources?prefixes=%2Fpress%2F&dateSource=publication&sortBy=publication_date_desc&eventWindow=all&limit=20&page=1'
-    : 'https://www.rws.com/query?freetext=*&page=1&take=20&itemType=news&sortBy=date&sortByAscending=date&filterQueryOperator=or'
+    : isRwsBlog
+      ? 'https://www.rws.com/query?freetext=*&page=1&take=20&itemType=blog&sortBy=sorting_value%20asc%2C%20date&filterQueryOperator=or'
+      : 'https://www.rws.com/query?freetext=*&page=1&take=20&itemType=news&sortBy=date&sortByAscending=date&filterQueryOperator=or'
   const payload = JSON.parse(await fetchText(endpoint, 'application/json'))
   const rows: unknown = isTransPerfect ? payload : payload?.results
-  const articlePath = isTransPerfect ? /^\/press\/[^/]+\/?$/ : /^\/about\/news\/\d{4}\/[^/]+\/?$/
+  const articlePath = isTransPerfect
+    ? /^\/press\/[^/]+\/?$/
+    : isRwsBlog ? /^\/(?:[^/]+\/)?blog\/[^/]+/ : /^\/about\/news\/\d{4}\/[^/]+\/?$/
   const origin = new URL(listing).origin
   const items: RawArticle[] = []
 
