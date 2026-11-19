@@ -93,7 +93,7 @@ export default function ArticlesFilter({ filters, shownCount, totalCount }: {
             <select className="filter-select" id="category-filter" value={filters.category} onChange={e => setParam('category', e.target.value)}>
               <option value="all">All categories</option>
               <option value="industry">Analysis</option>
-              <option value="monthly-summary">Monthly Briefing</option>
+              <option value="monthly-summary">Monthly Report</option>
               <option value="annual">Archived annual reports</option>
             </select>
           </div>

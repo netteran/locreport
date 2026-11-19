@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getReportImage } from '@/lib/reportImage'
 
 const SLUG = '2026-annual-global-market-report'
-const TITLE = '2026 Annual Global Market Report'
+const TITLE = '2026 Global Localization Market Report'
 
 // The lead image is set from /admin/reports, which revalidates this page on save.
 export const revalidate = 86400
@@ -26,13 +26,13 @@ export default async function AnnualReport2026() {
       <nav style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 'var(--space-5)', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
         <Link href="/" style={{ color: 'var(--muted)' }}>Home</Link>
         <span>›</span>
-        <Link href="/reports" style={{ color: 'var(--muted)' }}>Briefings &amp; archive</Link>
+        <Link href="/reports" style={{ color: 'var(--muted)' }}>Reports</Link>
         <span>›</span>
-        <span style={{ color: 'var(--text)' }}>2026 Annual Global Market Report</span>
+        <span aria-current="page" style={{ color: 'var(--text)' }}>{TITLE}</span>
       </nav>
 
       <p className="all-articles-subtitle">
-        From the report archive · Published April 2026. For current coverage, read the <Link href="/reports">Monthly Briefing</Link>.
+        From the report archive · Published April 2026. For current coverage, read the <Link href="/reports">Monthly Report</Link>.
       </p>
 
       {image && (
@@ -50,7 +50,7 @@ export default async function AnnualReport2026() {
 const ANNUAL_REPORT_HTML = `
 <header class="annual-report__header">
   <p class="annual-report__eyebrow">LocReport &middot; April 2026</p>
-  <h2>Localization &amp; Translation Industry: 2026 Annual Report</h2>
+  <h1>${TITLE}</h1>
   <p class="annual-report__dek">A data-rich strategic brief covering market evolution, AI disruption, competitive dynamics, and forward-looking implications for language services stakeholders.</p>
   <p class="annual-report__author">By LocReport Editorial Desk</p>
   <div class="annual-report__stats">

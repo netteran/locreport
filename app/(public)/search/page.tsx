@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createPublicClient } from '@/lib/supabase/server'
 import { articleHref } from '@/lib/utils'
-import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import { embedText } from '@/lib/embeddings'
 import { SearchRefine } from './SearchRefine'
@@ -18,16 +18,16 @@ export const metadata: Metadata = {
 }
 
 const STATIC_PAGES = [
-  { title: 'Monthly Briefing', href: '/reports', section: 'Briefings', excerpt: 'What mattered in localization and language services, its practical implications and what to watch next.' },
+  { title: 'Monthly Report', href: '/reports', section: 'Reports', excerpt: 'What mattered in localization and language services, its practical implications and what to watch next.' },
   { title: 'Fact Flow', href: '/fact-flow', section: 'News', excerpt: 'The latest localization and language-services news with links to original sources.' },
-  { title: '2026 Annual Global Market Report', href: '/reports/2026-annual-global-market-report', section: 'Report archive', excerpt: 'Archived annual analysis of market evolution, AI disruption, and competitive dynamics.' },
+  { title: '2026 Global Localization Market Report', href: '/reports/2026-annual-global-market-report', section: 'Report archive', excerpt: 'Archived annual analysis of market evolution, AI disruption, and competitive dynamics.' },
   { title: 'LocStock — Localization Market Index', href: '/compass/locstock', section: 'Compass', excerpt: 'Live equity overview of 39 publicly traded companies in language services and AI translation.' },
   { title: 'Compass — Industry Tools', href: '/compass', section: 'Compass', excerpt: 'Market intelligence tools: LocStock, industry directory, LLM pricing tracker.' },
   { title: 'Industry Directory', href: '/compass/directory', section: 'Compass', excerpt: 'Directory of companies in language services, translation technology, and localization.' },
   { title: 'LLM Pricing Tracker', href: '/compass/llm-pricing', section: 'Compass', excerpt: 'Comparative pricing for large language models used in translation and localization.' },
 ]
 
-interface ArticleResult {
+interface ArticleResult extends BriefingCoverage {
   id: string
   title: string
   slug: string
@@ -126,6 +126,13 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   const qLower = query.toLowerCase()
   const { results: articles, mode } = await searchArticles(supabase, query)
+  const reportIds = articles.filter(article => article.article_type === 'monthly-summary').map(article => article.id)
+  const { data: reportCoverage } = reportIds.length > 0
+    ? await withOptionalBriefingCoverage(columns => supabase
+      .from('articles').select('id' + columns).in('id', reportIds)
+      .returns<Array<BriefingCoverage & { id: string }>>())
+    : { data: [] }
+  const coverageById = new Map(reportCoverage?.map(report => [report.id, report]))
 
   // Static pages
   const pages = STATIC_PAGES.filter(p =>
@@ -163,17 +170,18 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
           {articles.length > 0 && (
             <Section label="Articles" count={articles.length}>
-              {articles.map(a => (
-                <ResultRow key={a.id} href={articleHref(a.slug)} section={a.article_type === 'monthly-summary' ? 'Monthly Briefing' : a.publisher ?? 'Article'}
-                  title={<span dangerouslySetInnerHTML={{ __html: highlight(a.title, query) }} />}
-                  excerpt={a.excerpt ? <span dangerouslySetInnerHTML={{ __html: highlight(a.excerpt, query) }} /> : null}
-                  meta={
-                    <span className="search-result__meta-text search-result__meta-text--row">
-                      {fmtDate(a.published_at)}
-                    </span>
-                  }
-                />
-              ))}
+              {articles.map(a => {
+                const isReport = a.article_type === 'monthly-summary'
+                const title = isReport ? monthlyReportTitle({ ...a, ...coverageById.get(a.id) }) : a.title
+                const excerpt = isReport ? monthlyReportSubtitle(a.excerpt) : a.excerpt
+                return (
+                  <ResultRow key={a.id} href={articleHref(a.slug)} section={isReport ? 'Monthly Report' : a.publisher ?? 'Article'}
+                    title={<span dangerouslySetInnerHTML={{ __html: highlight(title, query) }} />}
+                    excerpt={excerpt ? <span dangerouslySetInnerHTML={{ __html: highlight(excerpt, query) }} /> : null}
+                    meta={<span className="search-result__meta-text search-result__meta-text--row">{fmtDate(a.published_at)}</span>}
+                  />
+                )
+              })}
             </Section>
           )}
 
@@ -193,16 +201,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 function SearchSidebar({ latestMonthly }: {
   latestMonthly: BriefingResult | null
 }) {
-  const coverage = latestMonthly ? briefingCoverageLabel(latestMonthly) : null
   return (
     <aside className="post-sidebar search-sidebar">
       {latestMonthly && (
         <div className="post-sidebar-widget">
-          <p className="post-sidebar-widget__title">Latest Monthly Briefing</p>
+          <p className="post-sidebar-widget__title">Latest Monthly Report</p>
           <Link href={articleHref(latestMonthly.slug)} className="search-sidebar__link">
-            <p className="search-sidebar__link-title">{latestMonthly.title}</p>
+            <p className="search-sidebar__link-title">{monthlyReportTitle(latestMonthly)}</p>
             <p className="search-sidebar__link-sub">
-              {coverage && <>Coverage: {coverage}<br /></>}
               Published {fmtDate(latestMonthly.published_at)}
             </p>
           </Link>
@@ -210,9 +216,9 @@ function SearchSidebar({ latestMonthly }: {
       )}
 
       <div className="post-sidebar-widget">
-        <p className="post-sidebar-widget__title">Monthly Briefing</p>
+        <p className="post-sidebar-widget__title">Monthly Report</p>
         <Link href="/reports" className="search-sidebar__link">
-          <p className="search-sidebar__link-title">Browse all briefings</p>
+          <p className="search-sidebar__link-title">Browse monthly reports</p>
           <p className="search-sidebar__link-sub">The developments that mattered and what to watch next.</p>
         </Link>
       </div>

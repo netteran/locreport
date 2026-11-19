@@ -30,3 +30,23 @@ export function briefingCoverageLabel(report: BriefingCoverage): string | null {
     ? calendarDate(`${report.monthly_period}-01`) : null
   return legacyMonth ? monthLabel(legacyMonth) : null
 }
+
+// Older editions record their coverage month in the title only.
+const MONTH = '(January|February|March|April|May|June|July|August|September|October|November|December)'
+const LEGACY_MONTH_FIRST = new RegExp(`^${MONTH} (\\d{4}) (?:Localization Industry Report|Industry Intelligence Report)(?::.*)?$`, 'i')
+const LEGACY_REPORT_FIRST = new RegExp(`^Monthly (?:Report|Briefing): ${MONTH} (\\d{4})$`, 'i')
+
+export function monthlyReportTitle(report: BriefingCoverage & { title: string }): string {
+  const coverage = briefingCoverageLabel(report)
+  if (coverage) return `${coverage} Localization Industry Report`
+
+  const legacy = report.title.trim().match(LEGACY_MONTH_FIRST) ?? report.title.trim().match(LEGACY_REPORT_FIRST)
+  if (!legacy) return report.title
+  const month = legacy[1][0].toUpperCase() + legacy[1].slice(1).toLowerCase()
+  return `${month} ${legacy[2]} Localization Industry Report`
+}
+
+export function monthlyReportSubtitle(excerpt: string | null | undefined): string | null {
+  const text = excerpt?.trim()
+  return text && !/^A monthly roundup for .+ based on [\d,]+ articles?\.?$/i.test(text) ? text : null
+}

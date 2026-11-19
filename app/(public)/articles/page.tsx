@@ -6,7 +6,7 @@ import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { articleHref, safeImageUrl } from '@/lib/utils'
 import { getTopics, topicOrFilter, TOPIC_IDS } from '@/lib/topics'
-import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import ArticlesFilter, { FilterState } from './ArticlesFilter'
 
@@ -14,7 +14,7 @@ const PAGE_SIZE = 30
 
 const CATEGORY_LABEL: Record<string, string> = {
   industry: 'Analysis',
-  'monthly-summary': 'Monthly Briefing',
+  'monthly-summary': 'Monthly Report',
   annual: 'Archived annual report',
 }
 
@@ -29,13 +29,12 @@ interface FeedRow {
   published_at: string
   topics: string[]
   image_url: string | null
-  coverage: string | null
 }
 
 const STATIC_REPORTS: FeedRow[] = [
   {
     id: 'static-annual-2026',
-    title: 'Localization & Translation Industry: 2026 Annual Report',
+    title: '2026 Global Localization Market Report',
     href: '/reports/2026-annual-global-market-report',
     excerpt: 'A data-rich strategic brief covering market evolution, AI disruption, competitive dynamics, and forward-looking implications for language services stakeholders.',
     author: 'LocReport Editorial Desk',
@@ -44,7 +43,6 @@ const STATIC_REPORTS: FeedRow[] = [
     published_at: '2026-04-01T00:00:00.000Z',
     topics: [],
     image_url: null,
-    coverage: null,
   },
 ]
 
@@ -94,7 +92,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
   return {
     title: filters.page === 1 ? 'All Articles' : `All Articles, Page ${filters.page}`,
-    description: 'Browse LocReport reporting, analysis and monthly briefings by topic — quality, operations, governance, market dynamics, and strategy.',
+    description: 'Browse LocReport reporting, analysis and monthly reports by topic — quality, operations, governance, market dynamics, and strategy.',
     ...(isFiltered
       ? { robots: { index: false, follow: true } }
       : { alternates: { canonical } }),
@@ -146,16 +144,15 @@ export default async function ArticlesPage({ searchParams }: Props) {
 
   let rows: FeedRow[] = ((data as (Article & BriefingCoverage)[]) ?? []).map(a => ({
     id: a.id,
-    title: a.title,
+    title: a.article_type === 'monthly-summary' ? monthlyReportTitle(a) : a.title,
     href: articleHref(a.slug),
-    excerpt: a.excerpt ?? null,
+    excerpt: a.article_type === 'monthly-summary' ? monthlyReportSubtitle(a.excerpt) : a.excerpt ?? null,
     author: a.author ?? null,
     article_type: a.article_type ?? 'industry',
     impact_score: a.impact_score,
     published_at: a.published_at,
-    topics: getTopics(a),
+    topics: a.article_type === 'monthly-summary' ? getTopics(a).slice(0, 3) : getTopics(a),
     image_url: safeImageUrl(a.image_url),
-    coverage: a.article_type === 'monthly-summary' ? briefingCoverageLabel(a) : null,
   }))
 
   const staticMatches = STATIC_REPORTS.filter(r => staticReportMatches(r, f))
@@ -218,7 +215,6 @@ export default async function ArticlesPage({ searchParams }: Props) {
                   )}
                 </div>
                 <div className="article-card-meta">
-                  {article.coverage && <span className="article-card-date">Coverage: {article.coverage}</span>}
                   <time className="article-card-date" dateTime={article.published_at}>{article.article_type === 'monthly-summary' ? 'Published ' : ''}{dateDisplay}</time>
                   {article.author && (
                     <span className="article-card-source">{article.author}</span>

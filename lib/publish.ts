@@ -66,7 +66,9 @@ export async function approveDraft(
     const title = overrides.title?.trim() || titleMatch?.[1]?.trim() || draft.title || 'Untitled'
     const baseSlug = overrides.slug?.trim() || (monthlyReport ? draft.slug : slugify(title))
     const slug = await uniqueSlug(baseSlug, 'articles', supabase)
-    const excerpt = overrides.excerpt?.trim() || extractTeaser(content)
+    const excerpt = overrides.excerpt?.trim() || (monthlyReport
+      ? extractTeaser(content.replace(/^#\s+.+$/m, '').trim(), 1)
+      : extractTeaser(content))
     const publisher = overrides.publisher?.trim() || 'LocReport'
     const source_url = overrides.source_url !== undefined ? overrides.source_url : draft.source_url
     const image_url = (overrides.image_url !== undefined ? overrides.image_url : draft.image_url) || null

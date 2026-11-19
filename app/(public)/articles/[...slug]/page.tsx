@@ -8,6 +8,8 @@ import { SITE_URL, ORG_ID, WEBSITE_ID, breadcrumbJsonLd } from '@/lib/seo'
 import { marked } from 'marked'
 import { Article, ARTICLE_COLUMNS } from '@/lib/types'
 import { articleHref, estimateReadMinutes, safeImageUrl } from '@/lib/utils'
+import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import { SIGNAL_MAP } from '@/lib/signals'
 import { ShareButton } from '@/components/ShareButton'
 import Link from 'next/link'
@@ -22,9 +24,7 @@ export async function generateStaticParams() {
 
 type Props = { params: Promise<{ slug: string[] }> }
 
-// Deduped per render pass: the page and generateMetadata both need the
-// article, and without this each one issued its own set of lookups.
-const fetchArticle = cache(async (slugParts: string[]) => {
+async function findArticle(slugParts: string[]) {
   const supabase = createPublicClient()
   // Related reading passes this article's own vector to match_articles.
   const ARTICLE_WITH_EMBEDDING = `${ARTICLE_COLUMNS}, embedding`
@@ -79,6 +79,28 @@ const fetchArticle = cache(async (slugParts: string[]) => {
   }
 
   return null
+}
+
+// Share the article and its display metadata across page and metadata rendering.
+const fetchArticle = cache(async (slugParts: string[]) => {
+  const result = await findArticle(slugParts)
+  if (!result || result.shouldRedirect || result.article.article_type !== 'monthly-summary') return result
+
+  const supabase = createPublicClient()
+  const { data, error } = await withOptionalBriefingCoverage(columns => supabase
+    .from('articles').select('id' + columns).eq('id', result.article.id)
+    .returns<BriefingCoverage[]>().maybeSingle())
+  if (error) throw new Error(`Monthly report coverage lookup failed: ${error.message}`)
+
+  const article = result.article
+  return {
+    ...result,
+    article: {
+      ...article,
+      title: monthlyReportTitle({ ...data, title: article.title }),
+      excerpt: monthlyReportSubtitle(article.excerpt),
+    },
+  }
 })
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -214,6 +236,7 @@ export default async function ArticlePage({ params }: Props) {
 
         <header className="post-header">
           <h1>{a.title}</h1>
+          {a.article_type === 'monthly-summary' && a.excerpt && <p className="post-report-subtitle">{a.excerpt}</p>}
 
           <div className="post-meta-row">
             <p className="post-meta">

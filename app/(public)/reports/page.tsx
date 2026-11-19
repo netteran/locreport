@@ -5,13 +5,13 @@ import { getReportImage } from '@/lib/reportImage'
 import { createPublicClient } from '@/lib/supabase/server'
 import { required } from '@/lib/supabase/required'
 import { articleHref, safeImageUrl } from '@/lib/utils'
-import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import type { Article } from '@/lib/types'
 
 export const metadata: Metadata = {
-  title: 'Reports and Monthly Briefings',
-  description: 'Read LocReport monthly briefings on what changed in language services, why it matters, and what to watch next. Browse annual market reports in the archive.',
+  title: 'Localization Industry Reports',
+  description: 'Read LocReport monthly reports on what changed in language services, why it matters, and what to watch next. Browse annual market reports in the archive.',
   alternates: { canonical: '/reports' },
 }
 
@@ -35,22 +35,27 @@ export default async function ReportsPage() {
       .returns<BriefingListRow[]>()),
     Promise.all(ANNUAL_REPORTS.map(async report => ({ ...report, image: await getReportImage(report.slug) }))),
   ])
-  const posts = required(briefings, 'monthly briefings') ?? []
+  const posts = required(briefings, 'monthly reports') ?? []
 
   return (
     <div className="container" style={{ paddingBottom: 'var(--space-12)' }}>
-      <section className="intel-hero">
+      <header className="reports-header">
         <h1>Reports</h1>
-        <p className="intel-subtitle">What changed in language services, why it matters, and what deserves attention next.</p>
-      </section>
+        <p>Monthly analysis of the localization industry and annual research on the global market.</p>
+        <nav aria-label="Report sections">
+          <a href="#monthly-reports">Monthly Reports</a>
+          {annual.length > 0 && <a href="#annual-reports">Annual Reports</a>}
+        </nav>
+      </header>
 
-      <section aria-labelledby="monthly-briefings" style={{ marginBottom: 'var(--space-10)' }}>
-        <h2 id="monthly-briefings" style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 'var(--space-3)' }}>Monthly briefings</h2>
-        {posts.length === 0 && <p style={{ color: 'var(--muted)' }}>No monthly briefings have been published yet.</p>}
+      <section aria-labelledby="monthly-reports" className="reports-section">
+        <h2 id="monthly-reports">Monthly Reports</h2>
+        {posts.length === 0 && <p style={{ color: 'var(--muted)' }}>No monthly reports have been published yet.</p>}
         <div className="reports-list">
           {posts.map((post, index) => {
             const image = safeImageUrl(post.image_url)
-            const coverage = briefingCoverageLabel(post)
+            const title = monthlyReportTitle(post)
+            const subtitle = monthlyReportSubtitle(post.excerpt)
             return (
               <Link key={post.id} href={articleHref(post.slug)} className="report-card">
                 {image && (
@@ -58,13 +63,12 @@ export default async function ReportsPage() {
                   <img className="report-card__image" src={image} alt="" loading="lazy" decoding="async" style={{ maxWidth: 120 }} />
                 )}
                 <div className="report-card__meta">
-                  {index === 0 && <span className="report-card__type">Latest briefing</span>}
-                  {coverage && <span className="report-card__date">Coverage: {coverage}</span>}
+                  {index === 0 && <span className="report-card__type">Latest report</span>}
                   <time className="report-card__date" dateTime={post.published_at}>Published {publicationDate.format(new Date(post.published_at))}</time>
                 </div>
-                <h3 className="report-card__title">{post.title}</h3>
-                {post.excerpt && <p className="report-card__desc">{post.excerpt}</p>}
-                <span className="report-card__cta">Read briefing →</span>
+                <h3 className="report-card__title">{title}</h3>
+                {subtitle && <p className="report-card__desc">{subtitle}</p>}
+                <span className="report-card__cta">Read report →</span>
               </Link>
             )
           })}
@@ -72,8 +76,8 @@ export default async function ReportsPage() {
       </section>
 
       {annual.length > 0 && (
-        <section aria-labelledby="annual-reports" style={{ marginBottom: 'var(--space-10)' }}>
-          <h2 id="annual-reports" style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 'var(--space-3)' }}>Annual reports</h2>
+        <section aria-labelledby="annual-reports" className="reports-section">
+          <h2 id="annual-reports">Annual Reports</h2>
           <p style={{ color: 'var(--muted)', marginBottom: 'var(--space-4)' }}>Previously published reports, retained for reference.</p>
           <div className="reports-list">
             {annual.map(report => (
