@@ -261,13 +261,14 @@ const investigationPitch = { ...readyPitch, id: 'investigation-pitch', title: 'W
     assert.equal(await page.locator('.digest-popup__overlay').count(), 0)
     await page.getByRole('button', { name: 'Approve & publish', exact: true }).waitFor()
     assert.equal(await page.locator('#edit-fact').count(), 0)
-    // Either queue opens the complete saved brief and requires an explicit draft action.
+    // Either pitch opens the complete saved brief and requires an explicit draft action.
     fs.mkdirSync('work/investigation-preview', { recursive: true })
     for (const pitch of [readyPitch, investigationPitch]) {
       generationCalls = 0
       await page.goto(base + '/admin/candidates')
       await page.getByRole('button', { name: 'Suggested articles', exact: true }).click()
-      if (pitch.pitch.stage === 'investigate') await page.getByRole('button', { name: 'Worth investigating', exact: true }).click()
+      await page.getByRole('heading', { name: readyPitch.title, exact: true }).waitFor()
+      await page.getByRole('heading', { name: investigationPitch.title, exact: true }).waitFor()
       const card = page.locator('section').filter({ has: page.getByRole('heading', { name: pitch.title, exact: true }) })
       if (pitch.pitch.stage === 'investigate') {
         const stale = page.locator('section').filter({ has: page.getByRole('heading', { name: 'A pitch with unavailable evidence', exact: true }) })

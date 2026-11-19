@@ -254,18 +254,17 @@ export async function processPendingCandidates(
 }
 
 export async function refreshStoryGroups(service: ResearchService) {
-  const rows =
-    checked(
-      await service
-        .from('source_candidates')
-        .select(
-          'id,title,source_url,source_name,source_published_at,topics,entities,event_id,extracted_facts'
-        )
-        .eq('status', 'available')
-        .eq('processing_status', 'ready')
-        .order('created_at', { ascending: false })
-        .limit(60)
-    ) || []
+  const pageSize = 500
+  const candidatePage = () => service.from('source_candidates')
+    .select('id,title,source_url,source_name,source_published_at,topics,entities,event_id,extracted_facts')
+    .eq('status', 'available')
+    .eq('processing_status', 'ready')
+    .order('id')
+  const rows = checked(await candidatePage().limit(pageSize)) || []
+  for (let offset = pageSize; rows.length === offset; offset += pageSize) {
+    const page = checked(await candidatePage().range(offset, offset + pageSize - 1)) || []
+    rows.push(...page)
+  }
   if (!rows.length) return
   // Probe the new column before model calls; a missing migration must not silently lose assessments.
   const historyResult = await service.from('story_groups')
@@ -281,22 +280,58 @@ export async function refreshStoryGroups(service: ResearchService) {
     .select('title,excerpt,published_at').lte('published_at', new Date().toISOString())
     .order('published_at', { ascending: false }).limit(30)) || []
   // History informs novelty, but saving a batch must not invalidate its own cache.
-  const signature = createHash('sha256').update('editorial-pitches-v2:' + JSON.stringify({ rows, coverage })).digest('hex')
+  const signature = createHash('sha256').update('editorial-pitches-v3:' + JSON.stringify({ rows, coverage })).digest('hex')
   const prior = checked(await service.from('settings').select('value')
     .eq('key', 'research_group_signature').maybeSingle())
   if (prior?.value === signature) return
   const neighbors = checked(await service.rpc('candidate_group_edges')) || []
-  const context = {
-    sources: rows.map(r => ({ ...r, extracted_facts: r.extracted_facts.slice(0, 3000) })),
-    semantic_neighbors: neighbors,
+  const memory = {
     recent_coverage: coverage,
     previous_pitches: history.map(g => ({ title: g.title, question: g.question, dismissed: g.dismissed }))
   }
-  const sourceIds = rows.map(r => r.id)
-  const proposals = await jsonModel(PITCH_PROMPT, context, pitchResponseSchema(sourceIds, 18), 0.7)
-  if (!Array.isArray(proposals.groups)) throw new Error('Editorial pitching returned no valid pitch list; try refreshing again.')
-  const available = new Set<string>(sourceIds)
-  const critiqueInput = { ...context, proposed_pitches: proposals.groups.slice(0, 18) }
+  // Deal newer and older material into each batch so an older baseline can
+  // inform a current development without sending the full archive in one call.
+  const chronological = [...rows].sort((a, b) =>
+    (b.source_published_at || '').localeCompare(a.source_published_at || ''))
+  const batchCount = Math.ceil(rows.length / 60)
+  const batches = Array.from({ length: batchCount }, (): typeof rows => [])
+  chronological.forEach((row, index) => batches[index % batchCount].push(row))
+  const buildContext = (sources: typeof rows, evidenceLimit: number) => {
+    const ids = new Set(sources.map(row => row.id))
+    return {
+      ...memory,
+      sources: sources.map(row => ({ ...row, extracted_facts: row.extracted_facts.slice(0, evidenceLimit) })),
+      semantic_neighbors: neighbors.filter((edge: { source_id: string; related_id: string }) =>
+        ids.has(edge.source_id) && ids.has(edge.related_id))
+    }
+  }
+  const propose = async (batch: typeof rows) => {
+    const limit = batchCount === 1 ? 18 : 6
+    const ids = batch.map(row => row.id)
+    const response = await jsonModel(PITCH_PROMPT, buildContext(batch, 3000), pitchResponseSchema(ids, limit), 0.7)
+    if (!Array.isArray(response.groups)) throw new Error('Editorial pitching returned no valid pitch list; try refreshing again.')
+    const proposals: unknown[] = response.groups.slice(0, limit)
+    const available = new Set(ids)
+    return proposals.map(value => ({ value, group: normalizePitch(value, available) }))
+  }
+  const shortlist: Awaited<ReturnType<typeof propose>> = []
+  for (let index = 0; index < batches.length; index += 4) {
+    shortlist.push(...(await Promise.all(batches.slice(index, index + 4).map(propose))).flat())
+  }
+  const ranked = batchCount === 1 ? shortlist : shortlist
+    .filter(entry => entry.group)
+    .sort((a, b) => (b.group?.pitch.score ?? 0) - (a.group?.pitch.score ?? 0))
+    .slice(0, 18)
+  const selectedIds = new Set(ranked.flatMap(entry => entry.group?.candidate_ids ?? []))
+  const critiqueSources = batchCount === 1 || !selectedIds.size
+    ? batches[0] : chronological.filter(row => selectedIds.has(row.id))
+  const proposedPitches = ranked.map(entry => entry.value)
+  const sourceIds = critiqueSources.map(row => row.id)
+  const available = new Set(sourceIds)
+  const critiqueInput = {
+    ...buildContext(critiqueSources, batchCount === 1 ? 3000 : 1200),
+    proposed_pitches: proposedPitches
+  }
   const schema = pitchResponseSchema(sourceIds, 10)
   let result = await jsonModel(CRITIQUE_PROMPT, critiqueInput, schema)
   const normalize = (response: { groups?: unknown }) => (Array.isArray(response.groups) ? response.groups.slice(0, 10) : [])
