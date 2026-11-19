@@ -3,7 +3,7 @@
 import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
 
-const CLIENT = 'ca-pub-4411470587763033'
+import { ADSENSE_CLIENT } from '@/lib/seo'
 
 type Format = 'feed' | 'article'
 
@@ -30,7 +30,7 @@ function AdUnit({ format }: { format: Format }) {
       data-ad-format="fluid"
       data-ad-layout={format === 'article' ? 'in-article' : undefined}
       data-ad-layout-key={format === 'feed' ? '-f9+5v+4m-d8+7b' : undefined}
-      data-ad-client={CLIENT}
+      data-ad-client={ADSENSE_CLIENT}
       data-ad-slot={format === 'feed' ? '7822958076' : '1337440775'}
     />
   )
@@ -85,7 +85,7 @@ export function DisplayAd({ placement, feed = false }: DisplayAdProps) {
       <Script
         id="google-adsense"
         async
-        src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${CLIENT}`}
+        src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
         crossOrigin="anonymous"
         strategy="afterInteractive"
         onError={() => {

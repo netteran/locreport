@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { createPublicClient } from '@/lib/supabase/server'
 import { Article } from '@/lib/types'
 import type { Metadata } from 'next'
@@ -8,12 +9,6 @@ import { getTopics, topicOrFilter, TOPIC_IDS } from '@/lib/topics'
 import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import ArticlesFilter, { FilterState } from './ArticlesFilter'
-
-export const metadata: Metadata = {
-  title: 'All Articles',
-  description: 'Browse LocReport reporting, analysis and monthly briefings by topic — quality, operations, governance, market dynamics, and strategy.',
-  alternates: { canonical: '/articles' },
-}
 
 const PAGE_SIZE = 30
 
@@ -90,11 +85,28 @@ function pageLink(f: FilterState, page: number): string {
   return qs ? `/articles?${qs}` : '/articles'
 }
 
-export default async function ArticlesPage({ searchParams }: { searchParams: Promise<Search> }) {
+type Props = { searchParams: Promise<Search> }
+
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const filters = parseFilters(await searchParams)
+  const canonical = pageLink(filters, filters.page)
+  const isFiltered = pageLink(filters, 1) !== '/articles'
+
+  return {
+    title: filters.page === 1 ? 'All Articles' : `All Articles, Page ${filters.page}`,
+    description: 'Browse LocReport reporting, analysis and monthly briefings by topic — quality, operations, governance, market dynamics, and strategy.',
+    ...(isFiltered
+      ? { robots: { index: false, follow: true } }
+      : { alternates: { canonical } }),
+  }
+}
+
+export default async function ArticlesPage({ searchParams }: Props) {
   const f = parseFilters(await searchParams)
   const supabase = createPublicClient()
 
   const fromIdx = (f.page - 1) * PAGE_SIZE
+  if (!Number.isSafeInteger(fromIdx) || fromIdx > 2147483647 - PAGE_SIZE) notFound()
   const [listing, { count: totalCount }] = await Promise.all([
     withOptionalBriefingCoverage(coverageColumns => {
       let query = supabase
@@ -115,7 +127,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
         query = query.order('published_at', { ascending: f.sort === 'oldest' })
       }
 
-      return query.range(fromIdx, fromIdx + PAGE_SIZE - 1).returns<(Article & BriefingCoverage)[]>()
+      return query.order('id', { ascending: true }).range(fromIdx, fromIdx + PAGE_SIZE - 1).returns<(Article & BriefingCoverage)[]>()
     }),
     supabase.from('articles').select('id', { count: 'exact', head: true }),
   ])
@@ -123,10 +135,14 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   // A failed query would otherwise fall through to `?? []` and render an
   // article index with no articles, at HTTP 200 — indistinguishable from
   // "nothing matched these filters" to a reader and to any monitoring.
+  if (listing.status === 416 && f.page > 1) notFound()
   if (listing.error) {
     throw new Error(`articles listing query failed: ${listing.error.message}`)
   }
   const { data, count } = listing
+
+  const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE))
+  if (f.page > totalPages) notFound()
 
   let rows: FeedRow[] = ((data as (Article & BriefingCoverage)[]) ?? []).map(a => ({
     id: a.id,
@@ -156,7 +172,6 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
 
   const filteredCount = (count ?? 0) + staticMatches.length
   const archiveTotal = (totalCount ?? 0) + STATIC_REPORTS.length
-  const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE))
 
   return (
     <div className="container" style={{ paddingBottom: 'var(--space-12)' }}>
