@@ -340,6 +340,9 @@ function getFallbackArticles($: CheerioAPI, source: ScrapedSource): RawArticle[]
 }
 
 async function collectHtmlCandidates(source: ScrapedSource): Promise<RawArticle[]> {
+  const publisherArticles = await collectPublisherCandidates(source)
+  if (publisherArticles) return publisherArticles
+
   const html = await fetchText(source.url, 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')
   const $ = cheerio.load(html)
 
@@ -391,6 +394,55 @@ async function collectHtmlCandidates(source: ScrapedSource): Promise<RawArticle[
 
   console.warn(`[feedGenerator] no articles matched selectors for ${source.name}; using fallback extraction`)
   return getFallbackArticles($, source).map(a => ({ ...a, description: truncate(a.description, MAX_DESCRIPTION_LENGTH) }))
+}
+
+// These two listings render their cards client-side. Use the same public
+// endpoints as the listings, only for the known configurations.
+async function collectPublisherCandidates(source: ScrapedSource): Promise<RawArticle[] | null> {
+  const listing = source.url.replace(/\/+$/, '')
+  const isTransPerfect = source.name === 'transperfect-news-and-press'
+    && listing === 'https://www.transperfect.com/about/news-and-press'
+    && source.article_selector === '.views-row' && source.link_selector === '.views-field-title a'
+  const isRws = source.name === 'RWS-media-centre'
+    && listing === 'https://www.rws.com/about/media-centre'
+    && source.article_selector === "a[href^='/about/media-centre/press-releases/']"
+    && !source.link_selector
+  if (!isTransPerfect && !isRws) return null
+
+  const endpoint = isTransPerfect
+    ? 'https://www.transperfect.com/api/get-resources?prefixes=%2Fpress%2F&dateSource=publication&sortBy=publication_date_desc&eventWindow=all&limit=20&page=1'
+    : 'https://www.rws.com/query?freetext=*&page=1&take=20&itemType=news&sortBy=date&sortByAscending=date&filterQueryOperator=or'
+  const payload = JSON.parse(await fetchText(endpoint, 'application/json'))
+  const rows: unknown = isTransPerfect ? payload : payload?.results
+  const articlePath = isTransPerfect ? /^\/press\/[^/]+\/?$/ : /^\/about\/news\/\d{4}\/[^/]+\/?$/
+  const origin = new URL(listing).origin
+  const items: RawArticle[] = []
+
+  if (Array.isArray(rows)) {
+    for (const row of rows) {
+      const title = isTransPerfect ? row?.preview_title || row?.title : row?.title
+      const href = isTransPerfect ? row?.translations_routing?.['en-US']?.permalink : row?.linkUrl?.url
+      const description = isTransPerfect ? row?.preview_description : row?.description
+      const date = isTransPerfect ? row?.publication_date : row?.date
+      if (typeof href !== 'string' || !href.startsWith('/') || typeof title !== 'string' || !stripHtml(title)) continue
+      const normalized = normalizeUrl(href, listing)
+      if (!normalized) continue
+      const link = new URL(normalized)
+      if (link.origin !== origin || !articlePath.test(link.pathname)) continue
+      // TransPerfect's public article URLs use trailing slashes.
+      if (isTransPerfect && !link.pathname.endsWith('/')) link.pathname += '/'
+      if (!matchesLinkPattern(link.href, source.link_pattern)) continue
+      items.push({
+        title: stripHtml(title),
+        link: link.href,
+        description: typeof description === 'string' ? truncate(stripHtml(description), MAX_DESCRIPTION_LENGTH) : '',
+        date: typeof date === 'string' ? parseArticleDate(date) : null,
+      })
+    }
+  }
+
+  if (!items.length) throw new Error(`No usable articles in ${source.name} publisher response; keeping the previous feed`)
+  return items
 }
 
 // ─── Existing RSS/Atom feed → re-filtered candidates ────────────────────────
