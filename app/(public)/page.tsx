@@ -277,7 +277,7 @@ export default async function HomePage() {
               <h3 className="sidebar-report__title">{latestReport.title}</h3>
               <p className="sidebar-report__desc">{latestReport.excerpt ?? 'What mattered, what it means in practice and what to watch next.'}</p>
               <Link href={articleHref(latestReport.slug)} className="sidebar-report__link">Read the briefing →</Link>
-              <Link href="/reports/monthly" className="sidebar-widget__more">All monthly briefings →</Link>
+              <Link href="/reports" className="sidebar-widget__more">All monthly briefings →</Link>
             </div>
           )}
         </aside>

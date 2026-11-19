@@ -19,8 +19,6 @@
     { "source": "/intelligence/high-impact", "destination": "/intelligence", "permanent": true },
     { "source": "/intelligence/correlations", "destination": "/intelligence", "permanent": true },
     { "source": "/intelligence/correlations/", "destination": "/intelligence", "permanent": true },
-    { "source": "/monthly-reports", "destination": "/reports/monthly", "permanent": true },
-    { "source": "/monthly-reports/", "destination": "/reports/monthly", "permanent": true },
     { "source": "/dashboard", "destination": "/", "permanent": true },
     { "source": "/dashboard/", "destination": "/", "permanent": true },
     {
@@ -125,8 +123,6 @@
     { "source": "/events/:path*", "destination": "/compass", "permanent": true },
     { "source": "/compass/events", "destination": "/compass", "permanent": true },
     { "source": "/compass/events/:path*", "destination": "/compass", "permanent": true },
-    { "source": "/reports/monthly/:year/:month", "destination": "/reports/monthly", "permanent": true },
-    { "source": "/reports/monthly/:year/:month/", "destination": "/reports/monthly", "permanent": true },
     { "source": "/articles/humanx-2026-what-vistatec-took-away-from-ais-most-talked-ab", "destination": "/articles/humanx-2026--what-vistatec-took-away-from-ais-most-talked-ab", "permanent": true },
     { "source": "/articles/smartling-achieves-iso-27001-certification-strengthening-sec", "destination": "/articles/smartling-achieves-iso-27001-certification-strengthening-sec-1", "permanent": true },
     { "source": "/articles/measuring-translation-quality-when-you-dont-speak-the-langua", "destination": "/articles/measuring-translation-quality-when-you-dont-speak-the-langua-1", "permanent": true },
