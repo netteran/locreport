@@ -11,6 +11,7 @@ import { OPEN_DIGEST_EVENT } from '@/components/DigestPopup'
 const NAV_LINKS = [
   { href: '/articles', label: 'Articles' },
   { href: '/fact-flow', label: 'Fact Flow', live: true },
+  { href: '/reports', label: 'Reports' },
   {
     href: '/compass', label: 'Compass', dropdown: [
       { href: '/compass/locstock', label: 'LocStock' },

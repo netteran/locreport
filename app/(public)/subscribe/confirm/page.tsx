@@ -55,7 +55,7 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
           </p>
           <div className="subscribe-status__actions">
             <Link href="/articles" className="btn btn--primary">Browse articles</Link>
-            <Link href="/reports" className="btn btn--ghost">Read the Monthly Briefing</Link>
+            <Link href="/reports" className="btn btn--ghost">Read the Monthly Report</Link>
           </div>
         </>
       )}

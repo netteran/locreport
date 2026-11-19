@@ -98,6 +98,7 @@ function generator(db, { authorized = true, content = '# Monthly briefing\n\nThe
       return { choices: [{ finish_reason: finish, message: { content: output } }] }
     } } } }) },
     '@/lib/slugify': { slugify: () => 'monthly-briefing', uniqueSlug: async value => value },
+    '@/lib/briefingDisplay': load('lib/briefingDisplay.ts'),
     '@/lib/prompts': prompts, '@/lib/monthlyBriefing': monthly, '@/lib/citationStyle': citationStyle,
     '@/lib/embeddings': { embedAndStoreArticle: async () => {} }, '@/lib/revalidate': { revalidateArticleSurfaces: () => {} }
   })
@@ -123,6 +124,8 @@ test('report generation uses the wider evidence pool and the saved monthly promp
   assert.equal(db.inserts[0].article_type, 'monthly-summary')
   assert.equal(db.inserts[0].status, 'pending')
   assert.ok(db.inserts[0].monthly_period)
+  assert.match(db.inserts[0].title, /Localization Industry Report$/)
+  assert.ok(db.inserts[0].content.startsWith(`# ${db.inserts[0].title}\n`))
   assert.deepEqual(JSON.parse(db.inserts[0].extracted_facts).allowed_urls, [source.source_url])
   assert.equal(f.modelCalls.length, 1, 'descriptive links need no extra generation')
 })
@@ -302,7 +305,7 @@ test('generation repairs unsupported citations once before saving a validated dr
   assert.match(repair, /https:\/\/publisher.test\/pricing/)
   assert.match(repair, /Remove any claim/)
   assert.equal(db.inserts.length, 1)
-  assert.match(db.inserts[0].content, /^# Repaired briefing/)
+  assert.match(db.inserts[0].content, /^# October 2026 Localization Industry Report/)
   assert.equal(db.inserts[0].status, 'pending')
 })
 
@@ -341,7 +344,7 @@ test('monthly wording problems remain editable when a cosmetic retry fails or ch
     const db = database(), f = generator(db, { content: [first, retry] })
     assert.equal((await f.run()).status, 200)
     assert.equal(f.modelCalls.length, 2)
-    assert.equal(db.inserts[0].content, first)
+    assert.equal(db.inserts[0].content.split('\n').slice(1).join('\n'), first.split('\n').slice(1).join('\n'))
     assert.equal(db.inserts[0].status, 'pending')
   }
 })

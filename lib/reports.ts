@@ -15,7 +15,7 @@ export interface AnnualReport {
 export const ANNUAL_REPORTS: AnnualReport[] = [
   {
     slug: '2026-annual-global-market-report',
-    title: '2026 Annual Global Market Report',
+    title: '2026 Global Localization Market Report',
     date: 'April 2026',
     description: 'A data-rich strategic brief covering market evolution, AI disruption, competitive dynamics, and forward-looking implications for language services stakeholders.',
   },

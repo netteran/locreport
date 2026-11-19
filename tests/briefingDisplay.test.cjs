@@ -57,7 +57,7 @@ test('monthly archive distinguishes a delayed briefing coverage from its publica
     excerpt: 'An editorial assessment.', report_start_date: '2026-10-01', report_end_date: '2026-10-31',
     published_at: '2026-11-05T10:00:00Z', signal_ids: ['legacy-signal'] }])
   const html = renderToStaticMarkup(await Page())
-  assert.match(html, /Coverage: October 2026/)
+  assert.match(html, /October 2026 Localization Industry Report/)
   assert.match(html, /Published Nov 5, 2026/)
   assert.doesNotMatch(html, /Coverage: November 2026|legacy-signal/)
   assert.match(html, /href="\/articles\/october-briefing"/)
@@ -69,4 +69,14 @@ test('legacy briefing archive without coverage records only identifies publicati
   const html = renderToStaticMarkup(await Page())
   assert.match(html, /Published Nov 5, 2026/)
   assert.doesNotMatch(html, /Coverage:/)
+})
+
+test('legacy monthly titles normalize only when the edition states its month', () => {
+  assert.equal(display.monthlyReportTitle({ title: 'Monthly Report: May 2026' }), 'May 2026 Localization Industry Report')
+  assert.equal(display.monthlyReportTitle({ title: 'June 2026 Industry Intelligence Report' }), 'June 2026 Localization Industry Report')
+  assert.equal(display.monthlyReportTitle({ title: 'Older briefing' }), 'Older briefing')
+  assert.equal(display.monthlyReportTitle({ title: 'Monthly Report: May 2026',
+    report_start_date: '2026-05-01', report_end_date: '2026-05-15' }), 'May 1, 2026 – May 15, 2026 Localization Industry Report')
+  assert.equal(display.monthlyReportSubtitle('A monthly roundup for May 2026 based on 135 articles.'), null)
+  assert.equal(display.monthlyReportSubtitle('An editorial assessment.'), 'An editorial assessment.')
 })

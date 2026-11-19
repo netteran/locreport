@@ -2,6 +2,19 @@ import { NextResponse } from 'next/server'
 import { createPublicClient } from '@/lib/supabase/server'
 import { articleHref, safeImageUrl, imageMimeType, escapeXml } from '@/lib/utils'
 
+import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
+
+type FeedArticle = BriefingCoverage & {
+  title: string
+  slug: string
+  excerpt: string | null
+  author: string | null
+  published_at: string
+  image_url: string | null
+  article_type: string | null
+}
+
 export const dynamic = 'force-dynamic'
 
 const BASE_URL = 'https://locreport.com'
@@ -9,26 +22,29 @@ const BASE_URL = 'https://locreport.com'
 export async function GET() {
   const supabase = createPublicClient()
 
-  const { data: articles } = await supabase
+  const { data: articles } = await withOptionalBriefingCoverage(columns => supabase
     .from('articles')
-    .select('id, title, slug, excerpt, author, published_at, image_url')
+    .select('title, slug, excerpt, author, published_at, image_url, article_type' + columns)
     .order('published_at', { ascending: false })
-    .limit(50)
+    .limit(50).returns<FeedArticle[]>())
 
   const items = (articles ?? [])
     .map(a => {
+      const isReport = a.article_type === 'monthly-summary'
+      const title = isReport ? monthlyReportTitle(a) : a.title
+      const excerpt = isReport ? monthlyReportSubtitle(a.excerpt) : a.excerpt
       const link = `${BASE_URL}${articleHref(a.slug)}`
       // Readers show the lead image when the item carries an enclosure.
       const image = safeImageUrl(a.image_url)
       const imageAbs = image ? new URL(image, BASE_URL).toString() : null
       return `
     <item>
-      <title>${escapeXml(a.title)}</title>
+      <title>${escapeXml(title)}</title>
       <link>${escapeXml(link)}</link>
       <guid isPermaLink="true">${escapeXml(link)}</guid>
       <pubDate>${new Date(a.published_at).toUTCString()}</pubDate>
       ${a.author ? `<dc:creator>${escapeXml(a.author)}</dc:creator>` : ''}
-      ${a.excerpt ? `<description>${escapeXml(a.excerpt)}</description>` : ''}
+      ${excerpt ? `<description>${escapeXml(excerpt)}</description>` : ''}
       ${imageAbs ? `<enclosure url="${escapeXml(imageAbs)}" type="${imageMimeType(imageAbs)}" length="0"/>` : ''}
     </item>`
     }).join('\n')
@@ -42,7 +58,7 @@ export async function GET() {
   <channel>
     <title>LocReport</title>
     <link>${BASE_URL}</link>
-    <description>Independent analysis and monthly briefings on localization, language services and AI.</description>
+    <description>Independent analysis and monthly reports on localization, language services and AI.</description>
     <language>en-us</language>
     <lastBuildDate>${lastBuildDate}</lastBuildDate>
     <atom:link href="${BASE_URL}/feed.xml" rel="self" type="application/rss+xml"/>

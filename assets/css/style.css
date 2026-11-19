@@ -2781,7 +2781,7 @@ article.page > h1 {
   letter-spacing: 0.1em;
   color: var(--accent);
 }
-.annual-report__header h2 {
+.annual-report__header h1 {
   margin: 0 0 var(--space-3);
   font-family: var(--font-display);
   font-size: clamp(1.4rem, 3.5vw, 2.1rem);
@@ -3114,7 +3114,7 @@ article.page > h1 {
     padding: var(--space-5) var(--space-4);
     border-radius: var(--radius-lg);
   }
-  .annual-report__header h2 {
+  .annual-report__header h1 {
     font-size: clamp(1.15rem, 5.5vw, 1.5rem);
     line-height: 1.25;
   }

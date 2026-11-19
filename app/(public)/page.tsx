@@ -7,7 +7,7 @@ import { createPublicClient } from '@/lib/supabase/server'
 import { loadPublishedFacts, httpUrl, factMainLink } from '@/lib/publicFacts'
 import { Article } from '@/lib/types'
 import { articleHref, safeImageUrl } from '@/lib/utils'
-import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import { DigestPopupTrigger } from '@/components/DigestPopupTrigger'
 
@@ -90,7 +90,7 @@ export default async function HomePage() {
   const lead = allArticles[0]
   const recentArticles = allArticles.slice(1)
   const leadImage = safeImageUrl(lead?.image_url)
-  const reportCoverage = latestReport ? briefingCoverageLabel(latestReport) : null
+  const reportSubtitle = monthlyReportSubtitle(latestReport?.excerpt)
   const thirdFeedArticleId = recentArticles[2]?.id
 
   return (
@@ -273,11 +273,11 @@ export default async function HomePage() {
 
           {latestReport && (
             <div className="sidebar-widget sidebar-widget--report">
-              <p className="sidebar-report__eyebrow">Monthly Briefing{reportCoverage ? ` · ${reportCoverage}` : ''}</p>
-              <h3 className="sidebar-report__title">{latestReport.title}</h3>
-              <p className="sidebar-report__desc">{latestReport.excerpt ?? 'What mattered, what it means in practice and what to watch next.'}</p>
-              <Link href={articleHref(latestReport.slug)} className="sidebar-report__link">Read the briefing →</Link>
-              <Link href="/reports" className="sidebar-widget__more">All monthly briefings →</Link>
+              <p className="sidebar-report__eyebrow">Monthly Report</p>
+              <h3 className="sidebar-report__title">{monthlyReportTitle(latestReport)}</h3>
+              {reportSubtitle && <p className="sidebar-report__desc">{reportSubtitle}</p>}
+              <Link href={articleHref(latestReport.slug)} className="sidebar-report__link">Read the report →</Link>
+              <Link href="/reports" className="sidebar-widget__more">All monthly reports →</Link>
             </div>
           )}
         </aside>

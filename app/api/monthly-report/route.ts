@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
+import { monthlyReportTitle } from '@/lib/briefingDisplay'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import { DEFAULT_MONTHLY_PROMPT, CITATION_STYLE_GUIDANCE } from '@/lib/prompts'
 import { unclearCitations, citationWordingRepair, sameCitationDestinations } from '@/lib/citationStyle'
@@ -25,6 +26,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: (error as Error).message }, { status: 400 })
     }
     const { year, monthName } = period
+    const title = monthlyReportTitle({
+      title: `${period.label} Localization Industry Report`,
+      report_start_date: period.startDay,
+      report_end_date: period.endDay,
+    })
     // Legacy full-month reports have no explicit boundaries.
     const rangeFilter = period.fullMonth
       ? `and(report_start_date.eq.${period.startDay},report_end_date.eq.${period.endDay}),and(report_start_date.is.null,monthly_period.eq.${period.period})`
@@ -55,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
     const { data: setting, error: settingError } = await service.from('settings').select('value').eq('key', 'prompt_monthly').maybeSingle()
     if (settingError) throw new Error(settingError.message)
-    const systemPrompt = `${setting?.value || DEFAULT_MONTHLY_PROMPT}\nCoverage override: the requested reporting period is ${period.startDay} through ${period.endDay}, inclusive (Europe/Warsaw). Apply all monthly guidance to this exact period. ${period.fullMonth ? '' : 'This is a partial or custom period, not a full calendar month. Include the exact dates in the title and do not imply full-month coverage.'}`
+    const systemPrompt = `${setting?.value || DEFAULT_MONTHLY_PROMPT}\nCoverage override: the requested reporting period is ${period.startDay} through ${period.endDay}, inclusive (Europe/Warsaw). Apply all monthly guidance to this exact period. Use “${title}” as the only Markdown H1. Open the report with a sentence explaining the most important development and why it matters. ${period.fullMonth ? '' : 'This is a partial or custom period, not a full calendar month. Include the exact dates in the title and do not imply full-month coverage.'}`
     const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
       { role: 'system', content: `${systemPrompt}\n\n${CITATION_STYLE_GUIDANCE}` },
       { role: 'user', content: `Create an industry briefing covering ${period.label}.
@@ -104,7 +110,7 @@ Do not invent a replacement URL or attach a claim to an unrelated source. Remove
 ${CITATION_STYLE_GUIDANCE}` : citationWordingRepair(unclear)
       })
     }
-    const title = reportContent.match(/^#\s+(.+)$/m)![1].trim()
+    reportContent = reportContent.replace(/^#\s+(.+)$/m, () => `# ${title}`)
     const slug = await uniqueSlug(`${period.key}-${slugify(title)}`, 'drafts', service)
     const { data: draft, error: insertError } = await service.from('drafts').insert({
       title, slug, content: reportContent, article_type: 'monthly-summary', monthly_period: period.period,
