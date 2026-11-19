@@ -25,7 +25,9 @@ export async function GET(_req: Request, { params }: Params) {
   return new NextResponse(data.generated_xml, {
     headers: {
       'Content-Type': 'application/rss+xml; charset=utf-8',
-      'Cache-Control': 'public, max-age=1800, s-maxage=1800',
+      // Generation runs immediately before collection; a cached older XML body
+      // can otherwise turn a successful refresh into a false zero-result run.
+      'Cache-Control': 'no-store',
     },
   })
 }

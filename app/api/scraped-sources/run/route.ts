@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { generateFeedForSource } from '@/lib/feedGenerator'
 import type { ScrapedSource } from '@/lib/types'
+import { isCronRequest } from '@/lib/adminAuth'
 
 export const maxDuration = 300
 
@@ -10,8 +11,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get('Authorization')
-  const isCron = auth === `Bearer ${process.env.CRON_SECRET}`
+  const isCron = isCronRequest(req)
 
   if (!isCron) {
     const supabase = await createClient()
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   for (const source of sources as ScrapedSource[]) {
     try {
       const { xml, itemCount, classifiedLinks } = await generateFeedForSource(source)
-      await supabase.from('scraped_sources').update({
+      const { error: saveError } = await supabase.from('scraped_sources').update({
         generated_xml: xml,
         classified_links: classifiedLinks,
         last_run_at: new Date().toISOString(),
@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
         last_item_count: itemCount,
         updated_at: new Date().toISOString(),
       }).eq('id', source.id)
+      if (saveError) throw new Error(`Could not save regenerated feed: ${saveError.message}`)
       results.push({ name: source.name, status: 'success', itemCount })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)

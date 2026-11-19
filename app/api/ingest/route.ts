@@ -8,6 +8,7 @@ import { loadSeenUrls, rememberSeenUrl } from '@/lib/seenUrls'
 import { storeCandidate } from '@/lib/research'
 import { canonicalSourceUrl } from '@/lib/eventMatching'
 import { isCronRequest, requireResearchSchema } from '@/lib/adminAuth'
+import { sourceResult, type IngestSourceResult } from '@/lib/ingestReport'
 
 async function getPrompt(
   supabase: ReturnType<typeof createServiceClient>,
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const deadline = Date.now() + 240_000 // Leave headroom inside the 300-second function limit.
   const isCron = isCronRequest(req)
 
   if (!isCron) {
@@ -54,11 +56,12 @@ export async function POST(req: NextRequest) {
 
   let sourcesQuery = supabase.from('rss_sources').select('*').eq('active', true)
   if (sourceFilter.length > 0) sourcesQuery = sourcesQuery.in('id', sourceFilter)
-  const { data: allSources } = await sourcesQuery
+  const { data: allSources, error: sourcesError } = await sourcesQuery
+  if (sourcesError) return NextResponse.json({ error: `Could not load RSS sources: ${sourcesError.message}` }, { status: 500 })
   // Podcasts have their own evidence collector and episode baseline.
   const sources = (allSources ?? []).filter((s) => s.kind !== 'podcast')
 
-  if (!sources.length) return NextResponse.json({ processed: 0, skipped: 0, errors: [] })
+  if (!sources.length) return NextResponse.json({ processed: 0, skipped: 0, errors: [], source_results: [], complete: true })
 
   let seen: Set<string>
   try {
@@ -84,14 +87,29 @@ export async function POST(req: NextRequest) {
   let processed = 0
   const errors: string[] = []
   const skipped: string[] = []
+  const sourceResults: IngestSourceResult[] = []
+  let timeLimitReported = false
+  const reportTimeLimit = () => {
+    if (!timeLimitReported) errors.push('Collection time limit reached. Unexamined items and sources are reported as deferred; run collection again to continue.')
+    timeLimitReported = true
+  }
 
   const maxAgeDays = 30
   const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000)
 
   for (const source of sources) {
+    const result = sourceResult(source)
+    sourceResults.push(result)
+    if (Date.now() >= deadline) {
+      result.status = 'deferred'
+      result.error = 'Time limit reached before this feed was read.'
+      reportTimeLimit()
+      continue
+    }
     const { items, error: fetchError } = await fetchFeedResult(source.url)
+    result.items = items.length
     // Record the fetch on the source so /admin/sources can tell a dead feed
-    // from a quiet one. Never fails the run (e.g. before the migration lands).
+    // from a quiet one. Report a health-write failure without stopping collection.
     const newest = items.reduce<number | null>((max, i) => {
       const t = i.pubDate ? new Date(i.pubDate).getTime() : NaN
       return isNaN(t) ? max : Math.max(max ?? t, t)
@@ -105,31 +123,52 @@ export async function POST(req: NextRequest) {
         last_fetch_newest_at: newest === null ? null : new Date(newest).toISOString()
       })
       .eq('id', source.id)
-    if (healthError)
+    if (healthError) {
       console.warn(
         `[ingest] could not record fetch health for ${source.url}: ${healthError.message}`
       )
+      errors.push(`${result.name}: could not record feed health: ${healthError.message}`)
+    }
+    if (fetchError) {
+      const message = fetchError.replaceAll(source.url, '[configured feed URL]')
+      result.status = 'error'
+      result.error = message
+      errors.push(`${result.name}: ${message}`)
+      continue // A failed feed is not a quiet feed; other sources and saved research can still proceed.
+    }
     const recent = items.filter((i) => {
       if (!i.pubDate) return true // no date → don't filter out
       const pub = new Date(i.pubDate)
-      return !isNaN(pub.getTime()) && pub >= cutoff
+      if (isNaN(pub.getTime())) { result.invalid++; return false }
+      if (pub < cutoff) { result.old++; return false }
+      return true
     })
-    console.log(
-      `[ingest] ${source.url}: ${items.length} items, ${recent.filter((i) => i.link && !seen.has(canonicalSourceUrl(i.link))).length} fresh within ${maxAgeDays}d`
-    )
     const keywords: string[] = (source.keywords ?? []).map((k: string) => k.toLowerCase())
     const matchesKeywords = (text: string) => {
       if (keywords.length === 0) return true
       return keywords.some((k) => text.includes(k))
     }
-    const fresh = recent.filter((i) => i.link && !seen.has(canonicalSourceUrl(i.link))).slice(0, 15)
+    const fresh = recent.filter((i) => {
+      try {
+        if (!i.link) { result.invalid++; return false }
+        if (seen.has(canonicalSourceUrl(i.link))) { result.seen++; return false }
+        return true
+      } catch { result.invalid++; return false }
+    })
+    console.log(`[ingest] ${source.url}: ${items.length} items, ${fresh.length} unseen within ${maxAgeDays}d`)
     // The outlet to credit: the feed itself, unless it is an aggregator, in
     // which case only the item's own <source> counts (see lib/sourceName.ts).
     const aggregator = isGoogleNewsUrl(source.url)
 
-    for (const item of fresh) {
+    let extractionCalls = 0
+    for (const [index, item] of fresh.entries()) {
+      if (Date.now() >= deadline || extractionCalls >= 15) {
+        result.deferred = fresh.length - index
+        if (Date.now() >= deadline) { result.status = 'deferred'; reportTimeLimit() }
+        break
+      }
       // `fresh` was computed before this loop; a feed may repeat a URL.
-      if (seen.has(canonicalSourceUrl(item.link))) continue
+      if (seen.has(canonicalSourceUrl(item.link))) { result.seen++; continue }
       try {
         // Prefer full article text over RSS snippet — RSS feeds only carry teasers
         const fetchedSource = item.link ? await fetchArticleSource(item.link) : null
@@ -138,6 +177,7 @@ export async function POST(req: NextRequest) {
         if (seen.has(canonicalSourceUrl(originalUrl))) {
           await rememberSeenUrl(supabase, item.link)
           seen.add(canonicalSourceUrl(item.link))
+          result.seen++
           continue
         }
         const articleText = fetchedText ?? item.contentSnippet ?? item.content ?? ''
@@ -145,6 +185,7 @@ export async function POST(req: NextRequest) {
         // Keyword filter runs on full text (title + fetched body) so body-only mentions aren't missed
         const keywordHaystack = `${item.title} ${articleText}`.toLowerCase()
         if (!matchesKeywords(keywordHaystack)) {
+          result.keyword_misses++
           console.log(`[ingest] skipping ${item.link}: no keyword match`)
           continue
         }
@@ -153,6 +194,8 @@ export async function POST(req: NextRequest) {
         )
 
         if (articleText.length < 50) {
+          result.short_text++
+          if (result.rejections.length < 20) result.rejections.push({ url: item.link, reason: 'short_text' })
           console.log(
             `[ingest] skipping ${item.link}: text too short (${articleText.length} chars)`
           )
@@ -177,16 +220,27 @@ export async function POST(req: NextRequest) {
           .join('\n\n')
 
         // Stage 1: extract facts
+        // Only eligible extractor calls use the 15-call budget. Irrelevant or short
+        // feed entries must not permanently hide a later relevant article.
+        if (Date.now() >= deadline) {
+          result.deferred = fresh.length - index
+          result.status = 'deferred'
+          reportTimeLimit()
+          break
+        }
+        extractionCalls++
         const extractRes = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [
             { role: 'system', content: extractorPrompt },
             { role: 'user', content: extractInput }
           ]
-        })
-        const facts = extractRes.choices[0].message.content ?? ''
+        }, { timeout: Math.max(1, Math.min(30_000, deadline - Date.now())), maxRetries: 0 })
+        const facts = extractRes.choices[0]?.message.content ?? ''
 
         if (!facts.trim() || facts.trim() === 'UNUSABLE_CONTENT') {
+          result.unusable++
+          if (result.rejections.length < 20) result.rejections.push({ url: item.link, reason: 'unusable' })
           console.log(`[ingest] UNUSABLE_CONTENT: ${item.link}`)
           skipped.push(item.link)
           await rememberSeenUrl(supabase, item.link)
@@ -208,15 +262,19 @@ export async function POST(req: NextRequest) {
         })
         seen.add(canonicalSourceUrl(item.link))
         seen.add(canonicalSourceUrl(originalUrl))
-        await rememberSeenUrl(supabase, item.link)
+        result.collected++
         processed++
+        await rememberSeenUrl(supabase, item.link)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         console.error(`[ingest] Error processing ${item.link}:`, err)
         errors.push(`${item.link}: ${msg}`)
+        result.failed++
       }
     }
+    console.log(`[ingest] source result: ${JSON.stringify(result)}`)
   }
 
-  return NextResponse.json({ processed, skipped: skipped.length, errors })
+  return NextResponse.json({ processed, skipped: skipped.length, errors, source_results: sourceResults,
+    complete: errors.length === 0 && sourceResults.every(source => source.status !== 'deferred' && source.deferred === 0) })
 }
