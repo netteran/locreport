@@ -38,20 +38,22 @@ test('legacy reports use a valid recorded month but unknown coverage is never gu
   assert.equal(briefingCoverageLabel({ report_start_date: '2026-11-01', monthly_period: '2026-11' }), 'November 2026')
 })
 
-function monthlyPage(posts) {
+function reportsPage(posts) {
   const query = { select() { return query }, eq() { return query }, order() { return query }, returns: async () => ({ data: posts, error: null }) }
-  return load('app/(public)/reports/monthly/page.tsx', {
+  return load('app/(public)/reports/page.tsx', {
     'next/link': { default: ({ children, ...props }) => React.createElement('a', props, children) },
     '@/lib/supabase/server': { createPublicClient: () => ({ from: () => query }) },
     '@/lib/supabase/required': { required: result => result.data },
     '@/lib/utils': { articleHref: slug => `/articles/${slug}`, safeImageUrl: () => null },
     '@/lib/briefingDisplay': display,
     '@/lib/briefingCoverage': coverage,
+    '@/lib/reports': load('lib/reports.ts'),
+    '@/lib/reportImage': { getReportImage: async () => null },
   }).default
 }
 
 test('monthly archive distinguishes a delayed briefing coverage from its publication date', async () => {
-  const Page = monthlyPage([{ id: 'briefing', title: 'October industry briefing', slug: 'october-briefing',
+  const Page = reportsPage([{ id: 'briefing', title: 'October industry briefing', slug: 'october-briefing',
     excerpt: 'An editorial assessment.', report_start_date: '2026-10-01', report_end_date: '2026-10-31',
     published_at: '2026-11-05T10:00:00Z', signal_ids: ['legacy-signal'] }])
   const html = renderToStaticMarkup(await Page())
@@ -59,10 +61,11 @@ test('monthly archive distinguishes a delayed briefing coverage from its publica
   assert.match(html, /Published Nov 5, 2026/)
   assert.doesNotMatch(html, /Coverage: November 2026|legacy-signal/)
   assert.match(html, /href="\/articles\/october-briefing"/)
+  assert.match(html, /href="\/reports\/2026-annual-global-market-report"/)
 })
 
 test('legacy briefing archive without coverage records only identifies publication timing', async () => {
-  const Page = monthlyPage([{ id: 'legacy', title: 'Older briefing', slug: 'older-briefing', published_at: '2026-11-05T10:00:00Z' }])
+  const Page = reportsPage([{ id: 'legacy', title: 'Older briefing', slug: 'older-briefing', published_at: '2026-11-05T10:00:00Z' }])
   const html = renderToStaticMarkup(await Page())
   assert.match(html, /Published Nov 5, 2026/)
   assert.doesNotMatch(html, /Coverage:/)

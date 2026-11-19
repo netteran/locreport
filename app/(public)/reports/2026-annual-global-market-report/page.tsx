@@ -32,7 +32,7 @@ export default async function AnnualReport2026() {
       </nav>
 
       <p className="all-articles-subtitle">
-        From the report archive · Published April 2026. For current coverage, read the <Link href="/reports/monthly">Monthly Briefing</Link>.
+        From the report archive · Published April 2026. For current coverage, read the <Link href="/reports">Monthly Briefing</Link>.
       </p>
 
       {image && (

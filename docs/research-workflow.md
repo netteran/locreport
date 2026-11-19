@@ -167,7 +167,7 @@ Draft review and the article editor show a non-blocking note for unclear anchors
 
 ### Public editorial structure
 
-The public navigation is Articles, Fact Flow and Compass. The homepage lists authored industry analyses in publication order rather than by daily batches or impact ranking. Monthly Briefings retain `/reports/monthly` and the stored `monthly-summary` type; their cards show the actual coverage period separately from the Warsaw publication date. The existing annual report remains available in the report archive without a commitment to future annual editions.
+The public navigation is Articles, Fact Flow and Compass. The homepage lists authored industry analyses in publication order rather than by daily batches or impact ranking. Monthly Briefings are listed on `/reports` and retain the stored `monthly-summary` type; their cards show the actual coverage period separately from the Warsaw publication date. The existing annual report remains available in the report archive without a commitment to future annual editions.
 
 The public Intelligence dashboard and Signals Tracker are retired. `/intelligence` is a static, noindex notice; legacy signal and high-impact URLs redirect there. The internal signal taxonomy and article metadata remain available to classification, topic filters and related reading. Research collection, Fact Flow publication and Compass keep their existing workflows. The Weekly retains its Friday schedule, includes newly published briefings and omits signal movement tables. Older schemas retry public listing queries without the optional coverage columns and show publication dates without guessing coverage. No new database migration is required for this presentation change.
 

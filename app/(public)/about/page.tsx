@@ -29,7 +29,7 @@ export default function AboutPage() {
 
         <p>We publish when a subject deserves a considered explanation. Each article aims to connect the evidence, test the argument and explain what it means for people working in the industry.</p>
 
-        <p><Link href="/fact-flow">Fact Flow</Link> carries the ongoing news stream with links to original sources. The <Link href="/reports/monthly">Monthly Briefing</Link> selects the developments that mattered, explains their practical consequences and identifies questions to watch. <Link href="/compass">Compass</Link> brings together our technology directory, LocStock and AI cost simulator.</p>
+        <p><Link href="/fact-flow">Fact Flow</Link> carries the ongoing news stream with links to original sources. The <Link href="/reports">Monthly Briefing</Link> selects the developments that mattered, explains their practical consequences and identifies questions to watch. <Link href="/compass">Compass</Link> brings together our technology directory, LocStock and AI cost simulator.</p>
 
         <h2>Behind LocReport</h2>
 

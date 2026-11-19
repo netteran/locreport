@@ -57,7 +57,7 @@ function revalidateAll(paths: Iterable<string>) {
 export function revalidateArticleSurfaces(opts: { slug?: string | null; monthlyReport?: boolean } = {}) {
   const paths = new Set([...ARTICLE_PATHS, ...FACT_PATHS])
   if (opts.slug) paths.add(articleHref(opts.slug))
-  if (opts.monthlyReport) paths.add('/reports/monthly')
+  if (opts.monthlyReport) paths.add('/reports')
   revalidateAll(paths)
 }
 

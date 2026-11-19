@@ -24,7 +24,7 @@ export default function IntelligencePage() {
         </p>
         <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', marginTop: 'var(--space-6)' }}>
           <Link href="/articles" className="btn btn--primary">Browse articles</Link>
-          <Link href="/reports/monthly" className="btn btn--ghost">Read the Monthly Briefing</Link>
+          <Link href="/reports" className="btn btn--ghost">Read the Monthly Briefing</Link>
           <Link href="/fact-flow" className="btn btn--ghost">Follow Fact Flow</Link>
         </div>
       </div>
