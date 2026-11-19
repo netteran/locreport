@@ -246,17 +246,15 @@ export default async function ArticlePage({ params }: Props) {
         )}
 
         {hasImplications && (
-          <section className="post-intel" aria-label="Why this matters">
-            <h2 className="post-section-label">Why this matters</h2>
-            <div className="post-intel__implications">
-              <ul className="post-intel__list">
-                {a.business_implications.map((imp, i) => <li key={i}>{imp}</li>)}
-              </ul>
-            </div>
+          <section className="post-intel" aria-labelledby="post-intel-heading">
+            <h2 id="post-intel-heading">Why this matters</h2>
+            <ul className="post-intel__list">
+              {a.business_implications.map((imp, i) => <li key={i}>{imp}</li>)}
+            </ul>
             {a.affected_segments?.length > 0 && (
-              <div className="intelligence-segments post-intel__segments">
+              <div className="post-intel__segments">
                 {a.affected_segments.map(seg => (
-                  <span key={seg} className="segment-tag" data-segment={seg}>{seg}</span>
+                  <span key={seg}>{seg}</span>
                 ))}
               </div>
             )}
