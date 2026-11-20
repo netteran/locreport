@@ -56,7 +56,7 @@ test('metadata recovery applies content filtering before limiting the output ite
 })
 test('native RSS retains source content filters; an HTML challenge cannot become a successful empty feed', async t => {
   page(t, '<rss version="2.0"><channel><item><title>A translation development</title><link>https://publisher.test/news/one</link><pubDate>Wed, 18 Nov 2026 10:00:00 GMT</pubDate></item><item><title>Unrelated sports</title><link>https://publisher.test/news/two</link></item></channel></rss>')
-  const result = await generator.generateFeedForSource({ ...source, type: 'rss', content_filter: { keywords: ['translation'], checkFullContent: false } })
+  const result = await generator.generateFeedForSource({ ...source, type: 'rss', link_pattern: null, content_filter: { keywords: ['translation'], checkFullContent: false } })
   assert.equal(result.itemCount, 1)
   assert.match(result.xml, /translation development/)
   assert.doesNotMatch(result.xml, /Unrelated sports/)
@@ -243,5 +243,20 @@ test('production feed migration repairs Acclaro Press and legacy Cohere link set
     assert.deepEqual(await read(), [acclaro, cohere])
   } finally {
     await db.close()
+  }
+})
+
+test('RSS and Atom feeds filter mixed sections using the configured link substring', async t => {
+  const industry = 'https://publisher.test/industry-news/story'
+  const member = 'https://publisher.test/member-news/story'
+  const rss = `<rss><channel><item><title>Industry story</title><link>${industry}</link></item><item><title>Member story</title><link>${member}</link></item></channel></rss>`
+  const atom = `<feed><entry><title>Industry story</title><link href="${industry}"/></entry><entry><title>Member story</title><link href="${member}"/></entry></feed>`
+  page(t, rss)
+  for (const xml of [rss, atom]) {
+    global.fetch = async () => new Response(xml)
+    const result = await generator.generateFeedForSource({ ...source, type: 'rss', link_pattern: '/industry-news/' })
+    assert.equal(result.itemCount, 1)
+    assert.match(result.xml, /Industry story/)
+    assert.doesNotMatch(result.xml, /Member story/)
   }
 })
