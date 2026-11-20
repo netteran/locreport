@@ -34,13 +34,38 @@ const base=process.env.TEST_BASE_URL||'http://127.0.0.1:3000'
   assert.equal(await page.locator('.admin-source-name').evaluate(e=>getComputedStyle(e).whiteSpace),'normal')
   assert.ok((await page.locator('.admin-keywords-value').boundingBox()).width<120)
 
-  const entry={id:'80000000-0000-4000-8000-000000000001',name:'Example company',slug:'example-company',category:'tms',website:'https://example.test',description:'A directory description.',long_description:'Longer company description.',founded:2020,hq:'Warsaw',address:'',type:'Private',tags:[],logo_url:null}
-  await page.route('**/api/directory',r=>r.fulfill({json:[entry]}))
+  const entry={id:'80000000-0000-4000-8000-000000000001',name:'Example company',slug:'example-company',category:'tms',website:'https://example.test',description:'A directory description.',long_description:'Longer company description.',founded:2020,hq:'Warsaw',address:'',type:'Private',tags:[],logo_url:base+'/icon.png'}
+  let addedCompany
+  await page.route('**/api/directory',r=>{
+    if(r.request().method()==='POST') {
+      addedCompany=r.request().postDataJSON()
+      return r.fulfill({status:201,json:addedCompany})
+    }
+    return r.fulfill({json:[entry]})
+  })
   await page.goto(base+'/admin/directory',{waitUntil:'networkidle'})
   const form=await page.locator('.admin-directory-form').boundingBox(),stack=await page.locator('.admin-directory-stack').boundingBox()
   assert.ok(Math.abs(form.width-stack.width)<2,'company editor uses the full available width')
+  const name=page.getByLabel('Company or tool name *',{exact:true})
+  const slug=page.getByLabel('URL slug',{exact:true})
+  const optional=page.getByText('Additional details',{exact:true})
+  assert.ok((await page.getByRole('button',{name:'Add company',exact:true}).boundingBox()).y<650,'primary action fits near the form fields on desktop')
+  assert.equal(await slug.isVisible(),false)
+  await name.fill('New Language Company')
+  await page.getByLabel('Website *',{exact:true}).fill('https://language.example.test')
+  await page.getByLabel('Listing description *',{exact:true}).fill('Language services description.')
+  await optional.click()
+  assert.equal(await slug.inputValue(),'new-language-company')
+  await page.getByLabel('Founded year',{exact:true}).fill('2001')
+  await page.getByLabel('Tags',{exact:true}).fill('localization, enterprise')
+  await page.getByRole('button',{name:'Add company',exact:true}).click()
+  await page.getByText('Entry added.',{exact:true}).waitFor()
+  assert.equal(addedCompany.slug,'new-language-company')
+  assert.equal(addedCompany.founded,2001)
+  assert.deepEqual(addedCompany.tags,['localization','enterprise'])
   await page.getByRole('button',{name:'Edit',exact:true}).click()
-  assert.equal(await page.getByPlaceholder('Company / tool name *',{exact:true}).inputValue(),entry.name)
+  assert.equal(await name.inputValue(),entry.name)
+  await page.getByRole('button',{name:'Replace logo',exact:true}).waitFor()
   await page.waitForFunction(()=>window.scrollY===0)
   await page.screenshot({path:'work/admin-preview/directory-full-width.png',fullPage:true,animations:'disabled'})
 
@@ -91,7 +116,7 @@ const base=process.env.TEST_BASE_URL||'http://127.0.0.1:3000'
     await page.goto(base+route,{waitUntil:'networkidle'})
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,route+' mobile overflow')
     if(route==='/admin/directory') {
-      assert.ok((await page.getByPlaceholder('Company / tool name *',{exact:true}).boundingBox()).width>250,'mobile company fields stay readable beside the logo uploader')
+      assert.ok((await page.getByLabel('Company or tool name *',{exact:true}).boundingBox()).width>250,'mobile company fields stack at full width')
       await page.screenshot({path:'work/admin-preview/directory-mobile.png',fullPage:true,animations:'disabled'})
     }
   }

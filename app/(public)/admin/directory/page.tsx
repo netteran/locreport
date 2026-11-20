@@ -186,22 +186,9 @@ export default function AdminDirectoryPage() {
     outline: 'none',
   }
 
-  const textareaStyle = {
-    width: '100%',
-    borderRadius: 8,
-    padding: '10px 12px',
-    fontSize: '0.875rem',
-    fontFamily: 'inherit',
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    color: 'var(--text)',
-    resize: 'vertical' as const,
-    outline: 'none',
-  }
-
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <header className="admin-directory-heading">
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Directory</h1>
         <Link
           href="/directory"
@@ -211,7 +198,7 @@ export default function AdminDirectoryPage() {
         >
           View public page →
         </Link>
-      </div>
+      </header>
 
       {!isDbBacked && entries.length > 0 && (
         <div className="mb-6 rounded-lg px-4 py-3 text-sm" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--muted)' }}>
@@ -220,111 +207,135 @@ export default function AdminDirectoryPage() {
       )}
 
       <div className="admin-directory-stack">
-        {/* Form */}
-        <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide mb-4" style={{ color: 'var(--muted)' }}>
-            {editingSlug ? `Editing: ${form.name}` : 'Add entry'}
-          </h2>
+        <section aria-labelledby="directory-form-title">
+          <div className="admin-directory-form-heading">
+            <h2 id="directory-form-title">
+              {editingSlug ? `Editing ${form.name}` : 'Add company'}
+            </h2>
+            <span>* Required</span>
+          </div>
           <form onSubmit={submit} className="admin-directory-form">
-            <div className="grid grid-cols-[1fr_auto] gap-3 items-start">
-              <div className="flex flex-col gap-3">
-                <Input
-                  placeholder="Company / tool name *"
-                  value={form.name}
-                  onChange={e => set('name', e.target.value)}
-                  required
-                />
-                <Input
-                  placeholder="Slug (auto-generated)"
-                  value={form.slug}
-                  onChange={e => set('slug', e.target.value)}
-                />
-              </div>
-              <LogoUpload
-                slug={form.slug}
-                currentUrl={form.logo_url || undefined}
-                onUploaded={url => set('logo_url', url)}
+            <label className="admin-directory-field">
+              <span>Company or tool name *</span>
+              <Input
+                value={form.name}
+                onChange={e => set('name', e.target.value)}
+                required
               />
-            </div>
-            <div>
-              <label className="text-xs mb-1 block" style={{ color: 'var(--muted)' }}>Category</label>
-              <select style={selectStyle} value={form.category} onChange={e => set('category', e.target.value)}>
-                {CATEGORIES.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
+            </label>
+            <label className="admin-directory-field">
+              <span>Website *</span>
+              <Input
+                type="url"
+                placeholder="https://example.com"
+                value={form.website}
+                onChange={e => set('website', e.target.value)}
+                required
+              />
+            </label>
+            <label className="admin-directory-field admin-directory-field--short">
+              <span>Category</span>
+              <select value={form.category} onChange={e => set('category', e.target.value)}>
+                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
-            </div>
-            <Input
-              placeholder="Website URL *"
-              type="url"
-              value={form.website}
-              onChange={e => set('website', e.target.value)}
-              required
-            />
-            <Input
-              placeholder="Type (e.g. SaaS, LSP, Open Source)"
-              value={form.type}
-              onChange={e => set('type', e.target.value)}
-            />
-            <div className="grid grid-cols-2 gap-3">
+            </label>
+            <label className="admin-directory-field admin-directory-field--short">
+              <span>Type</span>
               <Input
-                placeholder="Founded year"
-                type="number"
-                value={form.founded}
-                onChange={e => set('founded', e.target.value)}
+                placeholder="e.g. SaaS, LSP"
+                value={form.type}
+                onChange={e => set('type', e.target.value)}
               />
-              <Input
-                placeholder="HQ (e.g. Berlin, Germany)"
-                value={form.hq}
-                onChange={e => set('hq', e.target.value)}
+            </label>
+            <LogoUpload
+              slug={form.slug}
+              currentUrl={form.logo_url || undefined}
+              onUploaded={url => set('logo_url', url)}
+            />
+            <label className="admin-directory-field">
+              <span>Listing description *</span>
+              <textarea
+                value={form.description}
+                onChange={e => set('description', e.target.value)}
+                rows={3}
+                required
               />
-            </div>
-            <Input
-              placeholder="Full address"
-              value={form.address}
-              onChange={e => set('address', e.target.value)}
-            />
-            <textarea
-              placeholder="Short description (shown on listing page) *"
-              value={form.description}
-              onChange={e => set('description', e.target.value)}
-              rows={2}
-              style={textareaStyle}
-              required
-            />
-            <textarea
-              placeholder="Long description (shown on detail page)"
-              value={form.long_description}
-              onChange={e => set('long_description', e.target.value)}
-              rows={6}
-              style={textareaStyle}
-            />
-            <Input
-              placeholder="Tags (comma-separated, e.g. tms, api, enterprise)"
-              value={form.tags}
-              onChange={e => set('tags', e.target.value)}
-            />
+            </label>
+            <label className="admin-directory-field">
+              <span>Profile description</span>
+              <textarea
+                value={form.long_description}
+                onChange={e => set('long_description', e.target.value)}
+                rows={3}
+              />
+            </label>
 
-            <div className="flex gap-2">
-              <Button type="submit" disabled={saving} className="flex-1">
-                {saving ? 'Saving…' : editingSlug ? 'Update entry' : 'Add entry'}
-              </Button>
-              {editingSlug && (
-                <Button type="button" variant="secondary" onClick={cancelEdit}>
-                  Cancel
-                </Button>
+            <details className="admin-directory-details">
+              <summary>Additional details</summary>
+              <div className="admin-directory-details-fields">
+                <label className="admin-directory-field">
+                  <span>URL slug</span>
+                  <Input
+                    placeholder="Generated from the name"
+                    value={form.slug}
+                    onChange={e => set('slug', e.target.value)}
+                  />
+                </label>
+                <label className="admin-directory-field admin-directory-field--short">
+                  <span>Headquarters</span>
+                  <Input
+                    placeholder="e.g. Berlin, Germany"
+                    value={form.hq}
+                    onChange={e => set('hq', e.target.value)}
+                  />
+                </label>
+                <label className="admin-directory-field admin-directory-field--short">
+                  <span>Founded year</span>
+                  <Input
+                    type="number"
+                    value={form.founded}
+                    onChange={e => set('founded', e.target.value)}
+                  />
+                </label>
+                <label className="admin-directory-field">
+                  <span>Full address</span>
+                  <Input
+                    value={form.address}
+                    onChange={e => set('address', e.target.value)}
+                  />
+                </label>
+                <label className="admin-directory-field">
+                  <span>Tags</span>
+                  <Input
+                    placeholder="e.g. tms, api, enterprise"
+                    value={form.tags}
+                    onChange={e => set('tags', e.target.value)}
+                  />
+                </label>
+              </div>
+            </details>
+
+            <div className="admin-directory-form-footer">
+              {message && (
+                <p role="status" style={{ color: message.includes('added') || message.includes('updated') ? 'var(--accent)' : 'red' }}>
+                  {message}
+                </p>
               )}
+              <div className="admin-directory-form-actions">
+                {editingSlug && (
+                  <Button type="button" variant="secondary" onClick={cancelEdit}>
+                    Cancel
+                  </Button>
+                )}
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Saving…' : editingSlug ? 'Update company' : 'Add company'}
+                </Button>
+              </div>
             </div>
-            {message && (
-              <p className="text-sm" style={{ color: message.includes('added') || message.includes('updated') ? 'var(--accent)' : 'red' }}>
-                {message}
-              </p>
-            )}
           </form>
-        </div>
+        </section>
 
-        {/* Entries list */}
-        <div>
+        <section className="admin-directory-entries" aria-label="Directory entries">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
               {filtered.length} of {entries.length} entries
@@ -395,7 +406,7 @@ export default function AdminDirectoryPage() {
               </Card>
             ))}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   )
