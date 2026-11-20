@@ -6,10 +6,8 @@ import { currentPeriod } from '@/lib/email/period'
 import { resolveEdition } from '@/lib/email/edition'
 import type { Issue } from '@/lib/email/digest'
 
-// Renders the current period's issue exactly as subscribers will get it —
-// every subscriber receives the same issue — so the admin can check layout
-// and wording before sending. Admin session only; never touches Resend or
-// writes to the DB.
+// Preview both the subscriber email and its recipient-free browser version.
+// Both modes are admin-only and render without sending or publishing the issue.
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -31,13 +29,24 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  const html = edition.bodyMarkdown !== null ? editedDigestEmail({ editionDate: edition.editionDate, bodyMarkdown: edition.bodyMarkdown,
+  const browserPreview = req.nextUrl.searchParams.get('browser') === '1'
+  const query = new URLSearchParams({ browser: '1' })
+  if (edition.revision) query.set('revision', edition.revision)
+  const links = browserPreview ? {} : {
     manageUrl: `${SITE_URL}/subscribe/manage?token=preview`,
+    browserUrl: `/api/digest/preview?${query}`,
+  }
+
+  const html = edition.bodyMarkdown !== null ? editedDigestEmail({ editionDate: edition.editionDate, bodyMarkdown: edition.bodyMarkdown,
+    ...links,
   }) : digestEmail({
     periodLabel,
     ...(issue as Issue),
-    manageUrl: `${SITE_URL}/subscribe/manage?token=preview`,
+    ...links,
   })
 
-  return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  return new NextResponse(html, { headers: {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'private, no-store',
+  } })
 }
