@@ -55,16 +55,21 @@ interface QuoteRow {
   data: { history?: { date: string; close: number }[] } | null
 }
 
-// Equal-weighted week-on-week move across LocStock plus the biggest single
+// Equal-weighted week-on-week move across LocStock language services providers
+// plus the biggest single
 // movers. Returns null — and the email skips the block — unless the week was
 // significant, or the quotes are too stale to describe it.
 export function summarizeMarket(rows: QuoteRow[], periodStart: Date, periodEnd: Date): DigestMarket | null {
   const startDay = periodStart.toISOString().slice(0, 10)
   const endDay = periodEnd.toISOString().slice(0, 10)
-  const names = new Map<string, { s: string; n: string }>(LOCSTOCK_COMPANIES.map(c => [c.t, { s: c.s, n: c.n }]))
+  const providers = new Map<string, { s: string; n: string }>(
+    LOCSTOCK_COMPANIES.filter(company => company.cat === 'lsp').map(company => [company.t, company]),
+  )
 
   const moves: { symbol: string; name: string; pct: number }[] = []
   for (const row of rows) {
+    const company = providers.get(row.ticker)
+    if (!company) continue
     const history = row.data?.history ?? []
     const upTo = (day: string) => {
       let found: { date: string; close: number } | null = null
@@ -75,10 +80,9 @@ export function summarizeMarket(rows: QuoteRow[], periodStart: Date, periodEnd: 
     const end = upTo(endDay)
     // No close inside the period means the quote is stale; no start means no baseline.
     if (!start || !end || end.date <= startDay || !start.close) continue
-    const meta = names.get(row.ticker)
     moves.push({
-      symbol: meta?.s ?? row.ticker,
-      name: meta?.n ?? row.ticker,
+      symbol: company.s,
+      name: company.n,
       pct: (end.close / start.close - 1) * 100,
     })
   }

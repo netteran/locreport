@@ -50,7 +50,7 @@ export function issueMarkdown(issue: Issue): string {
   if (issue.facts.length) sections.push('## Fact Flow\n\n' + issue.facts.map(f => `- ${link(f.content, f.url)}`).join('\n'))
   if (issue.market) {
     const m = issue.market
-    sections.push(`## LocStock\n\nThe ${m.tracked} companies we track moved **${signedPercent(m.avgPct)}** on average this week. Biggest moves:\n\n${m.movers.map(v => `- **${plain(v.symbol)}** ${plain(v.name)} **${signedPercent(v.pct)}**`).join('\n')}\n\n${link('Open LocStock →', m.url)}`)
+    sections.push(`## LocStock\n\nThe ${m.tracked} language services companies with usable prices moved **${signedPercent(m.avgPct)}** on average this week. Biggest moves:\n\n${m.movers.map(v => `- **${plain(v.symbol)}** ${plain(v.name)} **${signedPercent(v.pct)}**`).join('\n')}\n\n${link('Open LocStock →', m.url)}`)
   }
   if (issue.directory.length) sections.push('## New in the directory\n\n' + issue.directory.map(c => `${link(c.name, c.url)}${c.category ? ` · ${plain(c.category)}` : ''}\n\n${plain(c.description)}`).join('\n\n'))
   if (issue.more.length) sections.push('## More from LocReport\n\n' + issue.more.map(a => `- ${link(a.title, a.url)}`).join('\n'))

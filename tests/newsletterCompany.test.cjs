@@ -11,7 +11,7 @@ function load(file, dependencies = {}) {
 }
 const utils = load('lib/utils.ts', { './monthlyReportSlugs': load('lib/monthlyReportSlugs.ts') })
 const digest = load('lib/email/digest.ts', {
-  '@/lib/data/locstock': { LOCSTOCK_COMPANIES: [] },
+  '@/lib/data/locstock': load('lib/data/locstock.ts'),
   '@/lib/data/directory': { DIRECTORY_CATEGORIES: [{ value: 'lsp', label: 'LSPs' }] },
   '@/lib/utils': utils, '@/lib/email/send': { SITE_URL: 'https://locreport.com' }
 })
@@ -195,4 +195,19 @@ test('manual selection survives the existing save, reload and scheduled-issue re
   assert.equal(editionCompanySlug(saved.body_markdown), 'gamma')
   assert.equal(resolved.subject, 'Edited subject')
   assert.equal(resolved.bodyMarkdown, edit.body_markdown)
+})
+
+test('the newsletter LocStock brief averages and ranks only language services companies', () => {
+  const start = new Date('2026-11-13T13:00:00Z')
+  const end = new Date('2026-11-20T13:00:00Z')
+  const quote = (ticker, close) => ({ ticker, data: { history: [
+    { date: '2026-11-13', close: 100 },
+    { date: '2026-11-20', close },
+  ] } })
+  const unrelated = [quote('NVDA', 150), quote('AMN', 80), quote('UNKNOWN', 200)]
+  assert.equal(digest.summarizeMarket([...unrelated, quote('RWS.L', 101)], start, end), null)
+  const market = digest.summarizeMarket([...unrelated, quote('RWS.L', 110), quote('ZOO.L', 98)], start, end)
+  assert.equal(market.tracked, 2)
+  assert.equal(Math.round(market.avgPct), 4)
+  assert.deepEqual(market.movers.map(mover => mover.symbol), ['RWS', 'ZOO'])
 })

@@ -245,7 +245,7 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, facts,
   const marketHtml = market ? `
     ${eyebrow('LocStock brief')}
     <p style="margin:0 0 10px;font-size:14px;line-height:1.5;">
-      The ${market.tracked} companies we track moved <strong style="color:${market.avgPct >= 0 ? '#1E7F4F' : '#B3261E'};">${pct(market.avgPct)}</strong> on average this week. Biggest moves:
+      The ${market.tracked} language services companies with usable prices moved <strong style="color:${market.avgPct >= 0 ? '#1E7F4F' : '#B3261E'};">${pct(market.avgPct)}</strong> on average this week. Biggest moves:
     </p>
     ${market.movers.map(m => `
       <p style="margin:0 0 4px;font-size:13px;line-height:1.5;color:${BRAND.text};">
