@@ -44,11 +44,15 @@ const previews = 'work/reading-preview'
           const image = rect('.editorial-home__image')
           const headline = rect('.editorial-home__lead h1')
           const summary = rect('.editorial-home__summary')
-          const sources = rect('.home-sources')
+          const logos = rect('.home-logo-ticker')
+          const logoTrack = document.querySelector('.home-logo-ticker__track')
           return {
             beside: flow.left >= lead.right && Math.abs(flow.top - lead.top) < 1,
             stacked: flow.top >= lead.bottom,
-            sourcesBelow: sources.top >= Math.max(lead.bottom, flow.bottom),
+            logosBelowFlow: logos.top >= flow.bottom,
+            logosMatchColumn: Math.abs(logos.left - flow.left) < 1 && Math.abs(logos.right - flow.right) < 1,
+            logosFillLeadHeight: logos.bottom >= lead.bottom,
+            logosRespectReducedMotion: getComputedStyle(logoTrack).animationName === 'none',
             mobileImageOrder: image.top >= headline.bottom && image.bottom <= summary.top,
             imageWidth: image.width,
             imageHeight: image.height,
@@ -56,7 +60,9 @@ const previews = 'work/reading-preview'
         })
         assert.equal(dimensions.beside, width >= 1024, 'Fact Flow is beside the lead on wide screens')
         assert.equal(dimensions.stacked, width < 1024, 'Fact Flow follows the lead on smaller screens')
-        assert.ok(dimensions.sourcesBelow, 'the Sources strip follows the lead and Fact Flow')
+        assert.ok(dimensions.logosBelowFlow && dimensions.logosMatchColumn, 'the logo ticker stays directly below Fact Flow in its column')
+        assert.ok(dimensions.logosFillLeadHeight, 'the ticker fills the remaining lead row height')
+        assert.ok(dimensions.logosRespectReducedMotion, 'the ticker honors reduced motion')
         if (width <= 690) assert.ok(dimensions.mobileImageOrder, 'the mobile lead image sits between the headline and summary')
         metrics.push({ theme, width, ...dimensions })
 
@@ -102,11 +108,25 @@ const previews = 'work/reading-preview'
             style: '.site-header, .back-to-top, .digest-launcher, nextjs-portal { visibility: hidden !important; }' })
         }
       }
+      await page.emulateMedia({ reducedMotion: 'no-preference' })
+      await visit('/')
+      const ticker = page.locator('.home-logo-ticker')
+      assert.equal(await ticker.locator('button').count(), 0, 'the marquee needs no controls')
+      const groups = await ticker.locator('.home-logo-ticker__group').allTextContents()
+      assert.equal(groups.length, 2)
+      assert.equal(groups[0], groups[1], 'the two logo groups make the loop seamless')
+      await page.waitForFunction(() => {
+        const track = document.querySelector('.home-logo-ticker__track')
+        const animation = track?.getAnimations()[0]
+        return animation?.effect?.getTiming().iterations === Infinity
+          && animation.playState === 'running'
+          && animation.currentTime > 100
+      })
       await context.close()
     }
     assert.deepEqual(errors, [])
     fs.writeFileSync(`${previews}/metrics.json`, JSON.stringify(metrics, null, 2))
-    console.log('Reading layout checks passed at 320, 390, 768, 1024 and 1440px in light/dark themes: responsive lead and article imagery, preserved quotes, native nested list markers, links and no overflow.')
+    console.log('Reading layout checks passed at 320, 390, 768, 1024 and 1440px in light/dark themes: responsive lead imagery, continuous logo ticker, preserved quotes, native nested list markers, links and no overflow.')
   } finally {
     await browser.close()
   }
