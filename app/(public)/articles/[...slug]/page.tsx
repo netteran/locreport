@@ -15,6 +15,7 @@ import { SIGNAL_MAP } from '@/lib/signals'
 import { ShareButton } from '@/components/ShareButton'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import './reading.css'
 
 export const revalidate = 86400
 
@@ -229,7 +230,7 @@ export default async function ArticlePage({ params }: Props) {
   ])
 
   return (
-    <div className="container">
+    <main className="article-reading">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -248,13 +249,16 @@ export default async function ArticlePage({ params }: Props) {
         </nav>
 
         <header className="post-header">
+          {(a.article_type === 'industry' || a.article_type === 'monthly-summary') && (
+            <p className="article-reading__label">{a.article_type === 'industry' ? 'Analysis' : 'Monthly Report'}</p>
+          )}
           <h1>{a.title}</h1>
-          {a.article_type === 'monthly-summary' && a.excerpt && <p className="post-report-subtitle">{a.excerpt}</p>}
+          {a.excerpt && <p className="article-reading__deck">{a.excerpt}</p>}
 
           <div className="post-meta-row">
             <p className="post-meta">
               {a.author && <><span className="post-author">{a.author}</span> · </>}
-              {date}<span className="read-time"> · {readMinutes} min read</span>
+              <time dateTime={a.published_at}>{date}</time><span className="read-time"> · {readMinutes} min read</span>
             </p>
             <div className="post-meta-actions">
               <AdminEditLink articleId={a.id} />
@@ -317,6 +321,6 @@ export default async function ArticlePage({ params }: Props) {
           </section>
         )}
       </article>
-    </div>
+    </main>
   )
 }
