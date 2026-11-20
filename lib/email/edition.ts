@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Issue } from './digest'
-import type { DigestCompany } from './templates'
+import type { DigestCompany, DigestMarket } from './templates'
 import { buildIssue } from './issue'
 import { weeklyEditionDate } from './weeklyNote'
 import { articleHref } from '@/lib/utils'
@@ -39,6 +39,10 @@ export function companySectionMarkdown(c: DigestCompany): string {
   return `## Company of the week\n\n${link(c.name, c.url)}${c.logoUrl ? `\n\n![${plain(c.name)}](${c.logoUrl})` : ''}\n\n${[c.category, c.hq, c.founded ? `est. ${c.founded}` : null].filter(Boolean).map(v => plain(String(v))).join(' · ')}\n\n${plain(c.blurb)}\n\n${link('See the profile on LocReport →', c.url)}`
 }
 
+export function marketSectionMarkdown(m: DigestMarket): string {
+  return `## LocStock\n\nThe ${m.tracked} language services companies with usable prices moved **${signedPercent(m.avgPct)}** on average this week. Biggest moves:\n\n${m.movers.map(v => `- **${plain(v.symbol)}** ${plain(v.name)} **${signedPercent(v.pct)}**`).join('\n')}\n\n${link('Open LocStock →', m.url)}`
+}
+
 export function issueMarkdown(issue: Issue): string {
   const sections: string[] = []
   if (issue.editorNote) sections.push(issue.editorNote)
@@ -48,10 +52,7 @@ export function issueMarkdown(issue: Issue): string {
   }
   if (issue.company) sections.push(companySectionMarkdown(issue.company))
   if (issue.facts.length) sections.push('## Fact Flow\n\n' + issue.facts.map(f => `- ${link(f.content, f.url)}`).join('\n'))
-  if (issue.market) {
-    const m = issue.market
-    sections.push(`## LocStock\n\nThe ${m.tracked} companies we track moved **${signedPercent(m.avgPct)}** on average this week. Biggest moves:\n\n${m.movers.map(v => `- **${plain(v.symbol)}** ${plain(v.name)} **${signedPercent(v.pct)}**`).join('\n')}\n\n${link('Open LocStock →', m.url)}`)
-  }
+  if (issue.market) sections.push(marketSectionMarkdown(issue.market))
   if (issue.directory.length) sections.push('## New in the directory\n\n' + issue.directory.map(c => `${link(c.name, c.url)}${c.category ? ` · ${plain(c.category)}` : ''}\n\n${plain(c.description)}`).join('\n\n'))
   if (issue.more.length) sections.push('## More from LocReport\n\n' + issue.more.map(a => `- ${link(a.title, a.url)}`).join('\n'))
   if (issue.moreCount) sections.push(link(`Browse ${issue.moreCount} more articles`, `${SITE_URL}/articles`))

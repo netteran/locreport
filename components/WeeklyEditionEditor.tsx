@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { editionCompanySlug, replaceEditionCompany } from '@/lib/email/editionCompany'
+import { editionCompanySlug, replaceEditionCompany, replaceEditionLocStock } from '@/lib/email/editionCompany'
 
 type Copy = { editionDate: string; subject: string; body_markdown: string; saved: boolean; revision: string | null }
 type Recipients = { recipients: number; skipped: number; articles: number }
@@ -42,6 +42,25 @@ export function WeeklyEditionEditor() {
       setCopy(current => current && { ...current, body_markdown: replaceEditionCompany(current.body_markdown, data.section) })
     } catch (error) {
       setCompanyError((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function refreshLocStock() {
+    if (!copy) return
+    setBusy(true); setError(''); setConfirmation(null); setMessage('')
+    try {
+      const response = await fetch('/api/digest/locstock', { cache: 'no-store' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Could not refresh LocStock')
+      if (data.editionDate !== copy.editionDate) throw new Error('The weekly edition changed. Reload the edition before refreshing LocStock.')
+      const body = replaceEditionLocStock(copy.body_markdown, data.section)
+      edit('body_markdown', body)
+      setMessage(data.section ? 'LocStock refreshed for language services companies. Save the edition to keep it.'
+        : 'No LocStock summary qualified this week. Save the edition if you want to keep the section out.')
+    } catch (error) {
+      setError((error as Error).message)
     } finally {
       setBusy(false)
     }
@@ -104,8 +123,10 @@ export function WeeklyEditionEditor() {
     {error && <p role="alert">{error} <button onClick={() => load()}>Reload edition</button></p>}
     {!copy ? <p role="status">{busy ? 'Loading edition…' : 'The edition is unavailable.'}</p> : <>
       <div className="admin-weekly-actions"><strong>Edition {copy.editionDate}</strong><span role="status">{dirty ? 'Unsaved edition' : 'Saved edition'}</span>
-        <Button variant="ghost" disabled={busy} onClick={() => load(true)}>Refresh from latest content</Button></div>
-      <p className="text-xs" style={{ color: 'var(--muted)' }}>Refresh reloads the latest content and picks another directory company when available. Save the edition to update its preview and send.</p>
+        <Button variant="ghost" disabled={busy} onClick={() => load(true)}>Refresh from latest content</Button>
+        <Button variant="secondary" disabled={busy} onClick={refreshLocStock}>Refresh LocStock</Button>
+      </div>
+      <p className="text-xs" style={{ color: 'var(--muted)' }}>Refresh from latest content rebuilds the edition and picks another company when available. Refresh LocStock updates just the market section.</p>
       <label>Subject<input aria-label="Subject" value={copy.subject} maxLength={200} disabled={busy} onChange={e => edit('subject', e.target.value)} /></label>
       <label>Company of the week
         <select
