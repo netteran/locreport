@@ -11,10 +11,10 @@ function load(file, dependencies = {}) {
 }
 const utils = load('lib/utils.ts', { './monthlyReportSlugs': load('lib/monthlyReportSlugs.ts') })
 const digest = load('lib/email/digest.ts', {
-    '@/lib/email/companyLogo': load('lib/email/companyLogo.ts'),
   '@/lib/data/locstock': { LOCSTOCK_COMPANIES: [] },
   '@/lib/data/directory': { DIRECTORY_CATEGORIES: [{ value: 'lsp', label: 'LSPs' }] },
-  '@/lib/utils': utils, '@/lib/email/send': { SITE_URL: 'https://locreport.com' }
+  '@/lib/utils': utils, '@/lib/email/send': { SITE_URL: 'https://locreport.com' },
+  '@/lib/email/companyLogo': load('lib/email/companyLogo.ts'),
 })
 const companyLinks = load('lib/email/editionCompany.ts')
 const { editionCompanySlug } = companyLinks
@@ -171,33 +171,6 @@ test('refresh without a working-company parameter uses the saved profile and ign
   assert.equal(f.writes.length, 1)
 })
 
-test('choosing a company replaces only the real company section and preserves other edits', () => {
-  const { replaceEditionCompany } = companyLinks
-  const top = '[story]: /articles/story\n\n\tA code example\n\n```md\n## Company of the week\nExample only\n```\n\n## Top story\n\n[Edited lead][story]\n\n'
-  const end = '## Fact Flow\n\n- An edited fact\n\n## More from LocReport\n\nAn edited closing'
-  const selected = '## Company of the week\n\n[Beta](/compass/directory/beta)'
-  const expected = top + selected + '\n\n' + end
-  assert.equal(replaceEditionCompany(top + '## Company of the week\n\n[Old](/compass/directory/old)\n\n' + end, selected), expected)
-  assert.equal(replaceEditionCompany(top + end, selected), expected)
-  assert.equal(editionCompanySlug(expected), 'beta')
-  assert.equal(replaceEditionCompany('', selected), selected)
-  assert.equal(replaceEditionCompany('Editor note', selected), 'Editor note\n\n' + selected)
-})
-
-test('manual selection survives the existing save, reload and scheduled-issue resolution', async () => {
-  const f = apiFixture(); f.authorize()
-  const initial = await (await f.get()).json()
-  const body = companyLinks.replaceEditionCompany(initial.body_markdown,
-    f.edition.companySectionMarkdown(digest.digestCompanyFromEntry(companies[2])))
-  const edit = { ...initial, subject: 'Edited subject', body_markdown: 'Edited opening.\n\n' + body }
-  assert.equal((await f.put(edit)).status, 200)
-  const saved = await (await f.get()).json()
-  const resolved = await f.edition.resolveEdition(f.service, f.periodStart, f.periodEnd)
-  assert.equal(editionCompanySlug(saved.body_markdown), 'gamma')
-  assert.equal(resolved.subject, 'Edited subject')
-  assert.equal(resolved.bodyMarkdown, edit.body_markdown)
-})
-
 test('company selection keeps uploaded SVG logos as versioned PNG links in the edition', async t => {
   const oldStorage = process.env.NEXT_PUBLIC_SUPABASE_URL
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://storage.example.test'
@@ -249,4 +222,31 @@ test('company selection keeps uploaded SVG logos as versioned PNG links in the e
   assert.equal(png.headers.get('Content-Type'), 'image/png')
   const metadata = await sharp(Buffer.from(await png.arrayBuffer())).metadata()
   assert.deepEqual([metadata.format, metadata.width, metadata.height], ['png', 112, 112])
+})
+
+test('choosing a company replaces only the real company section and preserves other edits', () => {
+  const { replaceEditionCompany } = companyLinks
+  const top = '[story]: /articles/story\n\n\tA code example\n\n```md\n## Company of the week\nExample only\n```\n\n## Top story\n\n[Edited lead][story]\n\n'
+  const end = '## Fact Flow\n\n- An edited fact\n\n## More from LocReport\n\nAn edited closing'
+  const selected = '## Company of the week\n\n[Beta](/compass/directory/beta)'
+  const expected = top + selected + '\n\n' + end
+  assert.equal(replaceEditionCompany(top + '## Company of the week\n\n[Old](/compass/directory/old)\n\n' + end, selected), expected)
+  assert.equal(replaceEditionCompany(top + end, selected), expected)
+  assert.equal(editionCompanySlug(expected), 'beta')
+  assert.equal(replaceEditionCompany('', selected), selected)
+  assert.equal(replaceEditionCompany('Editor note', selected), 'Editor note\n\n' + selected)
+})
+
+test('manual selection survives the existing save, reload and scheduled-issue resolution', async () => {
+  const f = apiFixture(); f.authorize()
+  const initial = await (await f.get()).json()
+  const body = companyLinks.replaceEditionCompany(initial.body_markdown,
+    f.edition.companySectionMarkdown(digest.digestCompanyFromEntry(companies[2])))
+  const edit = { ...initial, subject: 'Edited subject', body_markdown: 'Edited opening.\n\n' + body }
+  assert.equal((await f.put(edit)).status, 200)
+  const saved = await (await f.get()).json()
+  const resolved = await f.edition.resolveEdition(f.service, f.periodStart, f.periodEnd)
+  assert.equal(editionCompanySlug(saved.body_markdown), 'gamma')
+  assert.equal(resolved.subject, 'Edited subject')
+  assert.equal(resolved.bodyMarkdown, edit.body_markdown)
 })

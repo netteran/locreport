@@ -5,22 +5,23 @@ import { Lexer, type Token } from 'marked'
 
 const BRAND = {
   accent: '#3550F5',
-  text: '#17233A',
-  muted: '#536179',
-  bg: '#F1F4F9',
-  masthead: '#14223C',
-  mastheadText: '#CFDAEF',
-  story: '#F1F4FF',
-  panel: '#F7F9FC',
+  text: '#182F54',
+  muted: '#465C79',
+  bg: '#F2F7FF',
+  masthead: '#E5F1FF',
+  story: '#FFF8E8',
+  storyRule: '#F2B84B',
+  storyLabel: '#80520F',
+  company: '#EDF9F4',
+  panel: '#F1F7FF',
   surface: '#FFFFFF',
-  border: '#DFE5F0',
+  border: '#D9E6F3',
 }
 
 // Direct asset URL (not the Next.js image optimizer) — email clients need a
 // stable, cacheable URL. logolight.png is the dark logo intended for the
 // light email header.
 const LOGO_URL = 'https://locreport.com/logolight.png'
-const WEEKLY_LOGO_URL = 'https://locreport.com/logodark.png'
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
 
 function escapeHtml(s: string): string {
@@ -112,15 +113,15 @@ function weeklyEmail(periodLabel: string, bodyHtml: string, { manageUrl, browser
         <tr><td bgcolor="${BRAND.masthead}" class="newsletter-masthead" style="background:${BRAND.masthead};padding:25px 36px 30px;border-top:4px solid ${BRAND.accent};">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr><td valign="middle">
-              <a href="https://locreport.com" style="display:inline-block;color:#FFFFFF;text-decoration:none;">
-                <img src="${WEEKLY_LOGO_URL}" alt="LocReport" width="112" height="32" style="display:block;width:112px;height:32px;border:0;color:#FFFFFF;">
+              <a href="https://locreport.com" style="display:inline-block;color:${BRAND.text};text-decoration:none;">
+                <img src="${LOGO_URL}" alt="LocReport" width="112" height="32" style="display:block;width:112px;height:32px;border:0;color:${BRAND.text};">
               </a>
             </td>${browserUrl ? `<td align="right" valign="middle">
-              <a href="${escapeHtml(browserUrl)}" style="color:${BRAND.mastheadText};font-size:13px;line-height:1.35;text-decoration:underline;">View in browser</a>
+              <a href="${escapeHtml(browserUrl)}" style="color:${BRAND.muted};font-size:13px;line-height:1.35;text-decoration:underline;">View in browser</a>
             </td>` : ''}</tr>
           </table>
-          <h1 style="margin:14px 0 5px;color:#FFFFFF;font-size:42px;line-height:1.1;font-weight:700;letter-spacing:-0.035em;">The Weekly</h1>
-          <p style="margin:0;color:${BRAND.mastheadText};font-size:14px;line-height:1.45;">${escapeHtml(periodLabel)}</p>
+          <h1 style="margin:14px 0 5px;color:${BRAND.text};font-size:42px;line-height:1.1;font-weight:700;letter-spacing:-0.035em;">The Weekly</h1>
+          <p style="margin:0;color:${BRAND.muted};font-size:14px;line-height:1.45;">${escapeHtml(periodLabel)}</p>
         </td></tr>
         <tr><td class="newsletter-content" style="padding:28px 35px 12px;overflow-wrap:break-word;word-wrap:break-word;">
           ${bodyHtml}
@@ -240,17 +241,17 @@ const TITLE_LINK = `color:${BRAND.text};text-decoration:none;`
 const CTA_LINK = `color:${BRAND.accent};text-decoration:underline;font-weight:650;`
 const MORE_LINK = `color:${BRAND.text};text-decoration:underline;font-weight:600;`
 
-function panel(content: string, kind: 'lead' | 'support'): string {
+function panel(content: string, kind: 'lead' | 'company' | 'support'): string {
   const lead = kind === 'lead'
-  const color = lead ? BRAND.story : BRAND.panel
+  const color = lead ? BRAND.story : kind === 'company' ? BRAND.company : BRAND.panel
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${color}" style="background:${color};border:1px solid ${BRAND.border};border-radius:9px;table-layout:fixed;">
-    <tr><td${lead ? ' class="newsletter-lead"' : ''} style="padding:${lead ? '24' : '18'}px;${lead ? `border-top:3px solid ${BRAND.accent};` : ''}">${content}</td></tr>
+    <tr><td${lead ? ' class="newsletter-lead"' : ''} style="padding:${lead ? '24' : '18'}px;${lead ? `border-top:3px solid ${BRAND.storyRule};` : ''}">${content}</td></tr>
   </table>`
 }
 
 function weeklySection(heading: string, kind: NewsletterSection, content: string): string {
   const label = kind === 'custom' ? '' : `<h2 style="margin:0 0 12px;font-size:20px;line-height:1.3;font-weight:700;letter-spacing:-0.01em;color:${BRAND.text};">${escapeHtml(heading)}</h2>`
-  const block = kind === 'story' ? panel(eyebrow(heading) + content, 'lead') : label + content
+  const block = kind === 'story' ? panel(eyebrow(heading, BRAND.storyLabel) + content, 'lead') : label + content
   return `<div data-newsletter-section="${kind}" style="margin:0 0 26px;">${block}</div>`
 }
 
@@ -308,7 +309,7 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, facts,
       company.name.charAt(0).toUpperCase(),
     )}
     <p style="margin:0 0 10px;font-size:15px;line-height:1.55;">${escapeHtml(company.blurb)}</p>
-    <a href="${escapeHtml(company.url)}" style="${CTA_LINK}">See the profile on LocReport →</a>`, 'support')) : ''
+    <a href="${escapeHtml(company.url)}" style="${CTA_LINK}">See the profile on LocReport →</a>`, 'company')) : ''
 
   const factsHtml = facts.length ? weeklySection('Fact Flow', 'facts', `
     <ul style="list-style:none;margin:0;padding:0;font-size:15px;line-height:1.55;">
@@ -318,7 +319,7 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, facts,
     </ul>`) : ''
 
   const marketHtml = market ? weeklySection('LocStock brief', 'market', panel(`
-    <p style="margin:0 0 10px;font-size:15px;line-height:1.55;">
+    <p style="margin:0 0 10px;font-size:14px;line-height:1.5;">
       The ${market.tracked} companies we track moved <strong style="color:${market.avgPct >= 0 ? '#1E7F4F' : '#B3261E'};">${pct(market.avgPct)}</strong> on average this week. Biggest moves:
     </p>
     ${market.movers.map(m => `
@@ -439,7 +440,7 @@ export function editedDigestEmail({ editionDate, bodyMarkdown, ...links }: Weekl
       image ?? null,
       titleLink.text.trim().charAt(0).toUpperCase(),
     ) : ''
-    return panel(header + blocks(content.slice(bodyStart), 'company'), 'support')
+    return panel(header + blocks(content.slice(bodyStart), 'company'), 'company')
   }
 
   const sections: { heading?: Token & { type: 'heading'; text: string; depth: number }; tokens: Token[] }[] = [{ tokens: [] }]
