@@ -34,7 +34,7 @@ export function briefingCoverageLabel(report: BriefingCoverage): string | null {
 // Older editions record their coverage month in the title only.
 const MONTH = '(January|February|March|April|May|June|July|August|September|October|November|December)'
 const LEGACY_MONTH_FIRST = new RegExp(`^${MONTH} (\\d{4}) (?:Localization Industry Report|Industry Intelligence Report)(?::.*)?$`, 'i')
-const LEGACY_REPORT_FIRST = new RegExp(`^Monthly (?:Report|Briefing): ${MONTH} (\\d{4})$`, 'i')
+const LEGACY_REPORT_FIRST = new RegExp(`^Monthly (?:Report|Briefing)(?::|\\s+[—–-]) ${MONTH} (\\d{4})$`, 'i')
 
 export function monthlyReportTitle(report: BriefingCoverage & { title: string }): string {
   const coverage = briefingCoverageLabel(report)

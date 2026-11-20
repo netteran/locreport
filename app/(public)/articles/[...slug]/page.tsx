@@ -9,6 +9,7 @@ import { marked } from 'marked'
 import { Article, ARTICLE_COLUMNS } from '@/lib/types'
 import { articleHref, estimateReadMinutes, safeImageUrl } from '@/lib/utils'
 import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { previousMonthlyReportSlug } from '@/lib/monthlyReportSlugs'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import { SIGNAL_MAP } from '@/lib/signals'
 import { ShareButton } from '@/components/ShareButton'
@@ -55,6 +56,18 @@ async function findArticle(slugParts: string[]) {
     .from('articles').select(ARTICLE_WITH_EMBEDDING).ilike('slug', `%/${bare}`)
     .order('published_at', { ascending: true }).order('id', { ascending: true }).limit(1))
   if (bySuffix?.length) return { article: bySuffix[0] as unknown as Article, shouldRedirect: slugParts.length > 1 }
+
+  // Serve canonical URLs during rollout, including databases that still have
+  // the old slug in a bare or date-prefixed row.
+  const previousSlug = previousMonthlyReportSlug(bare)
+  if (previousSlug) {
+    const previous = orThrow(await supabase.from('articles')
+      .select(ARTICLE_WITH_EMBEDDING)
+      .eq('article_type', 'monthly-summary')
+      .or(`slug.eq.${previousSlug},slug.like.%/${previousSlug}`)
+      .order('slug', { ascending: false }).limit(1))
+    if (previous?.length) return { article: previous[0] as unknown as Article, shouldRedirect: slugParts.length > 1 }
+  }
 
   // Legacy URLs (pre-migration Jekyll permalinks, RSS-title truncation) sometimes carry a
   // slug that's a truncated/un-deduped prefix of the current one (slugify() cuts titles to

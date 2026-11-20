@@ -172,7 +172,7 @@ test('weekly issue includes Monthly Briefings and practical blocks without publi
   const { composeIssue } = load('lib/email/digest.ts', {
     '@/lib/data/locstock': load('lib/data/locstock.ts'),
     '@/lib/data/directory': load('lib/data/directory.ts'),
-    '@/lib/utils': load('lib/utils.ts'),
+    '@/lib/utils': load('lib/utils.ts', { './monthlyReportSlugs': load('lib/monthlyReportSlugs.ts') }),
     '@/lib/email/send': { SITE_URL: 'https://locreport.com' }
   })
   const { digestEmail } = load('lib/email/templates.ts')

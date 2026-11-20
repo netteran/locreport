@@ -9,7 +9,7 @@ function load(file, dependencies = {}) {
   }).outputText)(m.exports, id => dependencies[id] || require(id), m)
   return m.exports
 }
-const generator = load('lib/feedGenerator.ts', { '@/lib/utils': load('lib/utils.ts'),
+const generator = load('lib/feedGenerator.ts', { '@/lib/utils': load('lib/utils.ts', { './monthlyReportSlugs': load('lib/monthlyReportSlugs.ts') }),
   '@/lib/feedUrl': { feedUrl: name => 'https://locreport.test/api/feeds/' + name } })
 const source = { id: 'source', name: 'Publisher', type: 'html', url: 'https://publisher.test/blog/',
   article_selector: '.old-card', title_selector: 'h2', link_selector: 'a', link_pattern: '/blog/',
