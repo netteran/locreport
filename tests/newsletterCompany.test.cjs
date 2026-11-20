@@ -265,3 +265,51 @@ test('the newsletter LocStock brief averages and ranks only language services co
   assert.equal(Math.round(market.avgPct), 4)
   assert.deepEqual(market.movers.map(mover => mover.symbol), ['RWS', 'ZOO'])
 })
+
+test('a saved edition can refresh only LocStock and discard its stale all-company figures', async () => {
+  const f = apiFixture(); f.authorize()
+  const periodStart = new Date('2026-11-13T13:00:00Z')
+  const periodEnd = new Date('2026-11-20T13:00:00Z')
+  const quote = (ticker, close) => ({ ticker, data: { history: [
+    { date: '2026-11-13', close: 100 }, { date: '2026-11-20', close },
+  ] } })
+  let admin = false
+  let marketQuotes = [quote('RWS.L', 114), quote('ZOO.L', 94), quote('NVDA', 150)]
+  const api = load('app/api/digest/locstock/route.ts', {
+    '@/lib/adminAuth': { requireAdmin: async () => admin ? {} : null },
+    '@/lib/supabase/server': { createServiceClient: () => ({ from(table) {
+      assert.equal(table, 'market_quotes')
+      return { select: async () => ({ data: marketQuotes, error: null }) }
+    } }) },
+    '@/lib/email/period': { currentPeriod: () => ({ periodStart, periodEnd }) },
+    '@/lib/email/weeklyNote': load('lib/email/weeklyNote.ts'),
+    '@/lib/email/digest': digest,
+    '@/lib/email/edition': f.edition,
+  })
+  assert.equal((await api.GET()).status, 401)
+  admin = true
+  const prefix = '## Company of the week\n\n[Beta](/compass/directory/beta)\n\nEdited company profile.\n\n'
+  const suffix = '## New in the directory\n\nKeep this section.'
+  const stale = prefix + '## LocStock\n\nThe 38 companies we track moved -5.5%.\n\n- AI C3.ai\n\n' + suffix
+  const initial = await (await f.get()).json()
+  assert.equal((await f.put({ ...initial, subject: 'Reviewed issue', body_markdown: stale })).status, 200)
+  const saved = await (await f.get()).json()
+  const { section } = await (await api.GET()).json()
+  assert.match(section, /2 language services companies/)
+  assert.match(section, /RWS Holdings/)
+  assert.doesNotMatch(section, /NVIDIA/)
+  const refreshed = companyLinks.replaceEditionLocStock(saved.body_markdown, section)
+  assert.equal(refreshed, prefix + section + '\n\n' + suffix)
+  assert.equal(editionCompanySlug(refreshed), 'beta')
+  assert.equal((await (await f.get()).json()).body_markdown, stale, 'refresh leaves stored copy alone until saved')
+  assert.equal((await f.put({ ...saved, body_markdown: refreshed })).status, 200)
+  const resolved = await f.edition.resolveEdition(f.service, f.periodStart, f.periodEnd)
+  assert.equal(resolved.bodyMarkdown, refreshed)
+  assert.equal(resolved.subject, 'Reviewed issue')
+
+  marketQuotes = [quote('NVDA', 150), quote('RWS.L', 101)]
+  const quiet = (await (await api.GET()).json()).section
+  assert.equal(quiet, null)
+  assert.equal(companyLinks.replaceEditionLocStock(stale, quiet), prefix + suffix)
+  assert.equal(companyLinks.replaceEditionLocStock(prefix + suffix, quiet), prefix + suffix)
+})

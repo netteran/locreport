@@ -25,6 +25,16 @@ export function editionCompanySlug(markdown: string): string | null {
 
 /** Update one section without regenerating or rewriting the rest of the edition. */
 export function replaceEditionCompany(markdown: string, section: string): string {
+  return replaceEditionSection(markdown, section, ['company of the week'],
+    ['fact flow', 'locstock', 'locstock brief', 'new in the directory', 'more from locreport', 'everything else this week'])
+}
+
+export function replaceEditionLocStock(markdown: string, section: string | null): string {
+  return replaceEditionSection(markdown, section, ['locstock', 'locstock brief'],
+    ['new in the directory', 'more from locreport', 'everything else this week'])
+}
+
+function replaceEditionSection(markdown: string, section: string | null, headings: string[], insertBefore: string[]): string {
   const body = markdown.replace(/\r\n?/g, '\n')
   // Marked can omit link definitions and expand leading tabs, so summing raw
   // token lengths would cut the original document at the wrong position.
@@ -51,24 +61,26 @@ export function replaceEditionCompany(markdown: string, section: string): string
       }],
     },
   })
-  let companyStart: number | undefined
+  let sectionStart: number | undefined
   let nextBlock: number | undefined
   for (const [index, token] of tokens.entries()) {
     if (token.type !== 'heading' || token.depth > 2) continue
     const offset = positions[index]
-    if (companyStart !== undefined) return insertCompany(body, companyStart, offset, section)
+    if (sectionStart !== undefined) return insertSection(body, sectionStart, offset, section)
     if (token.depth !== 2) continue
     const name = token.text.trim().toLowerCase()
-    if (name === 'company of the week') companyStart = offset
-    else if (nextBlock === undefined && ['fact flow', 'locstock', 'new in the directory', 'more from locreport'].includes(name)) nextBlock = offset
+    if (headings.includes(name)) sectionStart = offset
+    else if (nextBlock === undefined && insertBefore.includes(name)) nextBlock = offset
   }
-  const start = companyStart ?? nextBlock ?? body.length
-  return insertCompany(body, start, companyStart === undefined ? start : body.length, section)
+  if (section === null && sectionStart === undefined) return markdown
+  const start = sectionStart ?? nextBlock ?? body.length
+  return insertSection(body, start, sectionStart === undefined ? start : body.length, section)
 }
 
-function insertCompany(body: string, start: number, end: number, section: string): string {
+function insertSection(body: string, start: number, end: number, section: string | null): string {
   const before = body.slice(0, start)
   const after = body.slice(end)
+  if (section === null) return after ? before + after : before.trimEnd()
   const separator = before.endsWith('\n\n') || !before ? '' : before.endsWith('\n') ? '\n' : '\n\n'
   return before + separator + section + (after ? '\n\n' + after : '')
 }
