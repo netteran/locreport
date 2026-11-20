@@ -15,6 +15,7 @@ import type {
   DigestMarket,
 } from '@/lib/email/templates'
 import { SITE_URL } from '@/lib/email/send'
+import { emailCompanyLogo } from '@/lib/email/companyLogo'
 
 export interface DigestSourceArticle {
   id: string
@@ -116,13 +117,6 @@ function hash(s: string): number {
   return h >>> 0
 }
 
-// Email clients render PNG/JPEG/GIF reliably; SVG, AVIF and (in Outlook) WebP
-// break, so only those three count as a usable logo in the email.
-function emailSafeLogo(url: string | null | undefined): string | null {
-  if (!url || !/^https:\/\//i.test(url)) return null
-  return /\.(png|jpe?g|gif)(\?|#|$)/i.test(url) ? url : null
-}
-
 // Two or three sentences of what the company does, from the long description
 // when there is one.
 function companyBlurb(entry: DirectoryEntry): string {
@@ -150,7 +144,7 @@ const NOT_FEATURED_CATEGORIES = new Set(['tech-platform', 'bpo'])
 export interface CompanySelection { seed: string; excludeSlug?: string | null }
 
 function preferCompanyLogos(entries: DirectoryEntry[]) {
-  const withLogo = entries.filter(e => emailSafeLogo(e.logo_url))
+  const withLogo = entries.filter(e => emailCompanyLogo(e.logo_url, SITE_URL))
   return withLogo.length ? withLogo : entries
 }
 
@@ -177,7 +171,7 @@ export function digestCompanyFromEntry(pick: DirectoryEntry): DigestCompany {
   return {
     name: pick.name,
     url: `${SITE_URL}/compass/directory/${pick.slug}`,
-    logoUrl: emailSafeLogo(pick.logo_url),
+    logoUrl: emailCompanyLogo(pick.logo_url, SITE_URL),
     category: DIRECTORY_CATEGORIES.find(c => c.value === pick.category)?.label ?? null,
     hq: pick.hq || null,
     founded: pick.founded || null,
