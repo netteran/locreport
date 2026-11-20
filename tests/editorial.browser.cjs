@@ -67,11 +67,15 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await page.locator('.site-nav a[href="/compass"]').hover()
     await page.getByRole('menuitem', { name: 'Tech Directory', exact: true }).waitFor({ state: 'visible' })
 
-    for (const legacyPath of ['/reports/monthly', '/monthly-reports', '/reports/monthly/2026/10']) {
+    for (const legacyPath of ['/reports/monthly', '/monthly-reports', '/reports/monthly/2026/11']) {
       const redirect = await context.request.get(base + legacyPath, { maxRedirects: 0 })
       assert.equal(redirect.status(), 308)
       assert.equal(new URL(redirect.headers().location, base).pathname, '/reports')
     }
+
+    const oldEdition = await context.request.get(base + '/reports/monthly/2026/10', { maxRedirects: 0 })
+    assert.equal(oldEdition.status(), 308)
+    assert.equal(new URL(oldEdition.headers().location, base).pathname, '/articles/october-2026-localization-industry-report')
 
     await visit('/reports')
     await page.getByRole('heading', { name: 'Monthly Reports', exact: true }).waitFor()

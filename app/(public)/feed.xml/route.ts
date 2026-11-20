@@ -3,6 +3,7 @@ import { createPublicClient } from '@/lib/supabase/server'
 import { articleHref, safeImageUrl, imageMimeType, escapeXml } from '@/lib/utils'
 
 import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
+import { previousMonthlyReportSlug } from '@/lib/monthlyReportSlugs'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 
 type FeedArticle = BriefingCoverage & {
@@ -34,6 +35,9 @@ export async function GET() {
       const title = isReport ? monthlyReportTitle(a) : a.title
       const excerpt = isReport ? monthlyReportSubtitle(a.excerpt) : a.excerpt
       const link = `${BASE_URL}${articleHref(a.slug)}`
+      // Keep the original RSS ID for editions already delivered to subscribers.
+      const previousSlug = isReport ? previousMonthlyReportSlug(link.split('/').pop() ?? '') : undefined
+      const guid = previousSlug ? `${BASE_URL}/articles/${previousSlug}` : link
       // Readers show the lead image when the item carries an enclosure.
       const image = safeImageUrl(a.image_url)
       const imageAbs = image ? new URL(image, BASE_URL).toString() : null
@@ -41,7 +45,7 @@ export async function GET() {
     <item>
       <title>${escapeXml(title)}</title>
       <link>${escapeXml(link)}</link>
-      <guid isPermaLink="true">${escapeXml(link)}</guid>
+      <guid isPermaLink="true">${escapeXml(guid)}</guid>
       <pubDate>${new Date(a.published_at).toUTCString()}</pubDate>
       ${a.author ? `<dc:creator>${escapeXml(a.author)}</dc:creator>` : ''}
       ${excerpt ? `<description>${escapeXml(excerpt)}</description>` : ''}

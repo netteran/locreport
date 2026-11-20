@@ -9,7 +9,7 @@ function load(file, dependencies = {}) {
   }).outputText)(m.exports, id => dependencies[id] || require(id), m)
   return m.exports
 }
-const utils = load('lib/utils.ts')
+const utils = load('lib/utils.ts', { './monthlyReportSlugs': load('lib/monthlyReportSlugs.ts') })
 const digest = load('lib/email/digest.ts', {
   '@/lib/data/locstock': { LOCSTOCK_COMPANIES: [] },
   '@/lib/data/directory': { DIRECTORY_CATEGORIES: [{ value: 'lsp', label: 'LSPs' }] },

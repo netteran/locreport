@@ -111,7 +111,8 @@ ${CITATION_STYLE_GUIDANCE}` : citationWordingRepair(unclear)
       })
     }
     reportContent = reportContent.replace(/^#\s+(.+)$/m, () => `# ${title}`)
-    const slug = await uniqueSlug(`${period.key}-${slugify(title)}`, 'drafts', service)
+    const titleSlug = slugify(title)
+    const slug = await uniqueSlug(period.fullMonth ? titleSlug : `${period.key}-${titleSlug}`, 'drafts', service)
     const { data: draft, error: insertError } = await service.from('drafts').insert({
       title, slug, content: reportContent, article_type: 'monthly-summary', monthly_period: period.period,
       report_start_date: period.startDay, report_end_date: period.endDay,

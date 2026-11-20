@@ -672,3 +672,20 @@ test('distinct report ranges coexist, identical ranges conflict and publication 
   const row = await scalar('select report_start_date::text,report_end_date::text,monthly_period from articles where id=$1', [aid])
   assert.deepEqual(row, { report_start_date: '2026-11-01', report_end_date: '2026-11-15', monthly_period: '2026-11' })
 })
+
+test('monthly report slug migration renames existing editions in place and can be rerun', async () => {
+  const reportId = uid()
+  const unrelatedId = uid()
+  await db.query(`insert into articles(id,title,slug,article_type,published_at) values
+    ($1,'Monthly Report — September 2026','2026/10/01/monthly-report-september-2026','monthly-summary','2026-10-01T10:00:00Z'),
+    ($2,'Unrelated','monthly-report-january-2026','industry','2026-01-28T10:00:00Z')`, [reportId, unrelatedId])
+  const migration = fs.readFileSync('supabase/migrations/20261128_canonical_monthly_report_slugs.sql', 'utf8')
+  await db.exec(migration)
+  await db.exec(migration)
+  const report = (await db.query('select title,slug,published_at from articles where id=$1', [reportId])).rows[0]
+  assert.equal(report.title, 'September 2026 Localization Industry Report')
+  assert.equal(report.slug, 'september-2026-localization-industry-report')
+  assert.equal(report.published_at.toISOString(), '2026-10-01T10:00:00.000Z')
+  const unrelated = (await db.query('select title,slug from articles where id=$1', [unrelatedId])).rows[0]
+  assert.deepEqual(unrelated, { title: 'Unrelated', slug: 'monthly-report-january-2026' })
+})

@@ -73,6 +73,7 @@ test('legacy briefing archive without coverage records only identifies publicati
 
 test('legacy monthly titles normalize only when the edition states its month', () => {
   assert.equal(display.monthlyReportTitle({ title: 'Monthly Report: May 2026' }), 'May 2026 Localization Industry Report')
+  assert.equal(display.monthlyReportTitle({ title: 'Monthly Report — September 2026' }), 'September 2026 Localization Industry Report')
   assert.equal(display.monthlyReportTitle({ title: 'June 2026 Industry Intelligence Report' }), 'June 2026 Localization Industry Report')
   assert.equal(display.monthlyReportTitle({ title: 'Older briefing' }), 'Older briefing')
   assert.equal(display.monthlyReportTitle({ title: 'Monthly Report: May 2026',
