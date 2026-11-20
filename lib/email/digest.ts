@@ -166,7 +166,10 @@ export function pickCompanyOfWeek(entries: DirectoryEntry[], periodEnd: Date, se
     const alternatives = described.filter(e => e.slug !== previousSlug)
     if (alternatives.length) pool = preferCompanyLogos(alternatives)
   }
-  const pick = seededCompany(pool, selection?.seed || week)
+  return digestCompanyFromEntry(seededCompany(pool, selection?.seed || week))
+}
+
+export function digestCompanyFromEntry(pick: DirectoryEntry): DigestCompany {
   return {
     name: pick.name,
     url: `${SITE_URL}/compass/directory/${pick.slug}`,

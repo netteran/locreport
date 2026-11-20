@@ -131,7 +131,7 @@
 .admin-sources-table .admin-keywords-cell { max-width:100px; min-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .admin-weekly-form { display:grid; gap:16px; max-width:100%; }
 .admin-weekly-form label { display:flex; flex-direction:column; gap:6px; font-size:12px; font-weight:600; }
-.admin-weekly-form input, .admin-weekly-form textarea { width:100%; padding:12px; background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:7px; font:inherit; }
+.admin-weekly-form input, .admin-weekly-form textarea, .admin-weekly-form label select { width:100%; padding:12px; background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:7px; font:inherit; }
 .admin-weekly-form textarea { min-height:520px; resize:vertical; font:13px/1.7 var(--font-mono); }
 .admin-weekly-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 @media(max-width:700px) {

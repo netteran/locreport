@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Issue } from './digest'
+import type { DigestCompany } from './templates'
 import { buildIssue } from './issue'
 import { weeklyEditionDate } from './weeklyNote'
 import { articleHref } from '@/lib/utils'
@@ -34,6 +35,10 @@ export async function loadEdition(service: SupabaseClient, date: string, allowMi
 function plain(value: string | null | undefined) { return (value || '').replace(/([\\`*_{}\[\]<>!#|])/g, '\\$1') }
 function link(label: string, url: string) { return `[${plain(label)}](${url.replace(/\(/g, '%28').replace(/\)/g, '%29')})` }
 function signedPercent(value: number) { return `${value > 0 ? '+' : ''}${value.toFixed(1)}%` }
+export function companySectionMarkdown(c: DigestCompany): string {
+  return `## Company of the week\n\n${link(c.name, c.url)}${c.logoUrl ? `\n\n![${plain(c.name)}](${c.logoUrl})` : ''}\n\n${[c.category, c.hq, c.founded ? `est. ${c.founded}` : null].filter(Boolean).map(v => plain(String(v))).join(' · ')}\n\n${plain(c.blurb)}\n\n${link('See the profile on LocReport →', c.url)}`
+}
+
 export function issueMarkdown(issue: Issue): string {
   const sections: string[] = []
   if (issue.editorNote) sections.push(issue.editorNote)
@@ -41,10 +46,7 @@ export function issueMarkdown(issue: Issue): string {
     const a = issue.topStory
     sections.push(`## Top story\n\n${link(a.title, a.url)}${a.excerpt ? `\n\n${plain(a.excerpt)}` : ''}${a.business_implications?.length ? '\n\n**Why it matters**\n\n' + a.business_implications.map(p => `- ${plain(p)}`).join('\n') : ''}\n\n${link('Read the story →', a.url)}`)
   }
-  if (issue.company) {
-    const c = issue.company
-    sections.push(`## Company of the week\n\n${link(c.name, c.url)}${c.logoUrl ? `\n\n![${plain(c.name)}](${c.logoUrl})` : ''}\n\n${[c.category, c.hq, c.founded ? `est. ${c.founded}` : null].filter(Boolean).map(v => plain(String(v))).join(' · ')}\n\n${plain(c.blurb)}\n\n${link('See the profile on LocReport →', c.url)}`)
-  }
+  if (issue.company) sections.push(companySectionMarkdown(issue.company))
   if (issue.facts.length) sections.push('## Fact Flow\n\n' + issue.facts.map(f => `- ${link(f.content, f.url)}`).join('\n'))
   if (issue.market) {
     const m = issue.market
