@@ -56,9 +56,6 @@
   .editorial-home__opening .editorial-home__lead h1 {
     font-size: clamp(2rem, 3.25vw, 2.75rem);
   }
-  .editorial-home__opening .editorial-home__image img {
-    aspect-ratio: 5 / 4;
-  }
 }
 .editorial-home__lead {
   display: grid;
@@ -84,7 +81,15 @@
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
-.editorial-home__summary { color: var(--home-muted); max-width: 48ch; }
+.editorial-home__summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  max-width: 48ch;
+  color: var(--home-muted);
+  line-height: 1.5;
+}
 .editorial-home__byline, .editorial-home__fact-meta {
   color: var(--home-muted);
   font-size: .8125rem;
@@ -112,6 +117,19 @@
   object-fit: cover;
   background: var(--home-feature);
   border-radius: 15px;
+}
+@media (min-width: 691px) {
+  .editorial-home__image {
+    position: relative;
+    align-self: stretch;
+    min-height: clamp(220px, 24vw, 350px);
+  }
+  .editorial-home__image img {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    aspect-ratio: auto;
+  }
 }
 .editorial-home__below { margin-top: 28px; }
 .editorial-home__fact-flow {

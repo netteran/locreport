@@ -44,6 +44,9 @@ const previews = 'work/reading-preview'
           const image = rect('.editorial-home__image')
           const headline = rect('.editorial-home__lead h1')
           const summary = rect('.editorial-home__summary')
+          const leadStyle = getComputedStyle(document.querySelector('.editorial-home__lead'))
+          const summaryStyle = getComputedStyle(document.querySelector('.editorial-home__summary'))
+          const photo = rect('.editorial-home__image img')
           const logos = rect('.home-logo-ticker')
           const logoTrack = document.querySelector('.home-logo-ticker__track')
           return {
@@ -54,6 +57,10 @@ const previews = 'work/reading-preview'
             logosFillLeadHeight: logos.bottom >= lead.bottom,
             logosRespectReducedMotion: getComputedStyle(logoTrack).animationName === 'none',
             mobileImageOrder: image.top >= headline.bottom && image.bottom <= summary.top,
+            imageFillsColumn: Math.abs(image.top - lead.top - parseFloat(leadStyle.paddingTop)) < 1
+              && Math.abs(lead.bottom - image.bottom - parseFloat(leadStyle.paddingBottom)) < 1
+              && Math.abs(photo.height - image.height) < 1,
+            summaryFitsFourLines: summary.height <= parseFloat(summaryStyle.lineHeight) * 4 + 1,
             imageWidth: image.width,
             imageHeight: image.height,
           }
@@ -64,6 +71,8 @@ const previews = 'work/reading-preview'
         assert.ok(dimensions.logosFillLeadHeight, 'the ticker fills the remaining lead row height')
         assert.ok(dimensions.logosRespectReducedMotion, 'the ticker honors reduced motion')
         if (width <= 690) assert.ok(dimensions.mobileImageOrder, 'the mobile lead image sits between the headline and summary')
+        else assert.ok(dimensions.imageFillsColumn, 'the lead image fills its side from top to bottom')
+        assert.ok(dimensions.summaryFitsFourLines, 'homepage summary uses a compact teaser')
         metrics.push({ theme, width, ...dimensions })
 
         for (const card of await page.locator('.editorial-home__card').all()) {
