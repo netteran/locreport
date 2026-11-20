@@ -124,7 +124,7 @@ lib/
                            generator's atom:link and the admin "Add to Sources" button so they cannot disagree
   companyLinks.ts        — linkifyCompanyMentions(): at write time (approveDraft, ingest, rerun, direct, /api/articles,
                            podcasts) links the first case-sensitive whole-word mention of each directory company in an
-                           article body to /compass/directory/<slug>. Articles published before 2026-07-13 predate it
+                           article body to /directory/<slug>. Articles published before 2026-07-13 predate it
   companyArticles.ts     — getCompanyArticles(): the reverse direction, for the profile page. Same case-sensitive
                            whole-word rule, split into `coverage` (name in title/excerpt) and `mentions` (body only).
                            Monthly reports excluded. Degrades to empty lists on error
@@ -138,7 +138,7 @@ lib/
     directory.ts         — 31 localization tech vendors (hardcoded) + DIRECTORY_RENAMES: old/new-name pairs of the same
                            company (Acrolinx → Markup AI). Both profiles stay up and each shows a note linking the
                            other. A map, not a DirectoryEntry field, because a `directory` row replaces its static entry
-    locstock.ts          — LocStock company list (ticker → symbol/name/category); used by /compass/locstock
+    locstock.ts          — LocStock company list (ticker → symbol/name/category); used by /locstock
                            and The Weekly's market brief
     llm-pricing.ts       — LLM provider pricing (22 models tracked across 9 providers incl. OpenAI, Anthropic, Google, Meta, DeepSeek, Moonshot AI/Kimi, xAI, Alibaba/Qwen, Mistral); static values are the seed/fallback, overlaid at render time with live data from `llm_pricing_quotes`/`llm_pricing_history` (see `/api/llm-pricing`)
 
@@ -173,11 +173,10 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 | `/reports` | `reports/page.tsx` | Reports hub (annual + monthly) |
 | `/reports/2026-annual-global-market-report` | `reports/2026-annual.../page.tsx` | Hardcoded static annual report |
 | `/reports/monthly` | `reports/monthly/page.tsx` | Dynamic monthly reports from DB |
-| `/compass` | `compass/page.tsx` | Tools hub overview |
-| `/compass/locstock` | `compass/locstock/page.tsx` | Market index + Recharts |
-| `/compass/llm-pricing` | `compass/llm-pricing/page.tsx` | Interactive LLM pricing simulator + history chart |
-| `/compass/directory` | `compass/directory/page.tsx` | 31 localization tech vendors |
-| `/compass/directory/[slug]` | `compass/directory/[slug]/page.tsx` | Company profile (static array merged with the `directory` table), 1h ISR. Ends with **"<Company> in the news"** (every article naming it in title/excerpt) and **"Also mentioned in"** (body-only mentions, first 10 + a `/search` link) via `lib/companyArticles.ts` — the hub half of the article ↔ company link pair |
+| `/locstock` | `locstock/page.tsx` | Market index + Recharts |
+| `/llm-pricing` | `llm-pricing/page.tsx` | Interactive LLM pricing simulator + history chart |
+| `/directory` | `directory/page.tsx` | 31 localization tech vendors |
+| `/directory/[slug]` | `directory/[slug]/page.tsx` | Company profile (static array merged with the `directory` table), 1h ISR. Ends with **"<Company> in the news"** (every article naming it in title/excerpt) and **"Also mentioned in"** (body-only mentions, first 10 + a `/search` link) via `lib/companyArticles.ts` — the hub half of the article ↔ company link pair |
 | `/fact-flow` | `fact-flow/page.tsx` | Day-grouped stream of published facts — one per article. Shows only facts with an `article_id` |
 | `/fact-flow/feed.xml` | `fact-flow/feed.xml/route.ts` | Fact Flow RSS (latest 100 linked facts) |
 | `/search` | `search/page.tsx` | Hybrid semantic + full-text search (`?q=...`), RRF-ranked via `hybrid_search_articles` RPC with keyword/ilike fallbacks |
@@ -195,10 +194,10 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 
 ### Client Components (co-located with pages)
 
-Several Compass and other sections use co-located client components:
-- `compass/locstock/LocStockClient.tsx` + `LocStockChart.tsx`
-- `compass/llm-pricing/PricingClient.tsx` + `PricingHistoryChart.tsx`
-- `compass/directory/DirectoryClient.tsx`
+Several tools and other sections use co-located client components:
+- `locstock/LocStockClient.tsx` + `LocStockChart.tsx`
+- `llm-pricing/PricingClient.tsx` + `PricingHistoryChart.tsx`
+- `directory/DirectoryClient.tsx`
 - `search/SearchRefine.tsx`
 
 ### Admin Routes (`app/(public)/admin/`) — Auth-gated
@@ -527,7 +526,7 @@ array (a same-slug row is an edit, not a new company; static entries have no dat
 (The number boxes that used to open the issue were removed on 2026-09-25 at the owner's request.)
 
 **Company of the week** (`pickCompanyOfWeek` in `lib/email/digest.ts`) is one company from the tech
-directory — the curated array merged with the `directory` table, as `/compass/directory` shows it — with its
+directory — the curated array merged with the `directory` table, as `/directory` shows it — with its
 logo, category · HQ · founding year, two or three sentences from its `long_description`, and a link to its
 LocReport profile. The pick is pseudo-random but deterministic: each company's hash with the Monday-based
 week key decides, so it changes weekly, is the same for every subscriber, and **View sample** shows the
@@ -575,7 +574,7 @@ input / output numeric    — $ per 1M tokens
 created_at timestamptz
 UNIQUE(model_id, date)
 ```
-One row per price change per model (a new row is only inserted when the price differs from the latest stored value), powering the `/compass/llm-pricing` history chart alongside the static seed history in `lib/data/llm-pricing.ts`.
+One row per price change per model (a new row is only inserted when the price differs from the latest stored value), powering the `/llm-pricing` history chart alongside the static seed history in `lib/data/llm-pricing.ts`.
 
 ### Storage buckets
 
@@ -995,7 +994,7 @@ worked example) rather than reading the session on the server.
 
 These only take effect while the page avoids Dynamic APIs — see the client-selection note above. `/articles`
 and `/search` read `searchParams` and so are dynamic by nature no matter which client they use; the
-homepage, article pages, `/intelligence/*`, `/fact-flow`, `/reports/monthly` and `/compass/*` are cached.
+homepage, article pages, `/intelligence/*`, `/fact-flow`, `/reports/monthly` and the public tool pages are cached.
 `/articles/[...slug]` has no `generateStaticParams`, so the ~1,200 article pages are generated on first
 request and then cached, rather than at build time.
 
@@ -1143,10 +1142,11 @@ Pro upgrade.
   11 stories exist twice under different date prefixes; their shared clean URL serves the earliest copy
 - **Robots:** `app/robots.ts` → `/robots.txt` (blocks crawlers from admin, api, CLAUDE.md, /subscribe pages)
 - **RSS:** `/feed.xml` (all articles) + `/fact-flow/feed.xml` (facts); RSS alternate declared in root layout metadata
-- **301 Redirects:** `vercel.json` — preserves SEO from legacy Jekyll URLs and old route names:
-  - `/market` → `/compass/locstock`
-  - `/tools/llm-pricing` → `/compass/llm-pricing`
-  - `/tools/directory` → `/compass/directory`
+- **Permanent redirects:** `next.config.ts` and `vercel.json` preserve legacy Jekyll URLs and old route names:
+  - `/compass` → the homepage tools panel. The former tool and company paths lead to their top-level equivalents.
+  - `/market` → `/locstock`
+  - `/tools/llm-pricing` → `/llm-pricing`
+  - `/tools/directory` → `/directory`
   - `/research`, `/language-science` → `/articles`
   - `/language-science/:slug` → `/articles/:slug`
   - Legacy date-based paths `/articles/:year/:month/:day/:slug` → `/articles/:slug`

@@ -204,7 +204,7 @@ export default function AdminDirectoryPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Directory</h1>
         <Link
-          href="/compass/directory"
+          href="/directory"
           target="_blank"
           className="text-sm underline underline-offset-2"
           style={{ color: 'var(--muted)' }}
@@ -372,7 +372,7 @@ export default function AdminDirectoryPage() {
                     <p className="text-xs mt-0.5 line-clamp-2" style={{ color: 'var(--muted)' }}>{entry.description}</p>
                     <div className="flex gap-2 mt-1.5">
                       <Link
-                        href={`/compass/directory/${entry.slug || entry.name.toLowerCase().replace(/\s+/g, '-')}`}
+                        href={`/directory/${entry.slug || entry.name.toLowerCase().replace(/\s+/g, '-')}`}
                         target="_blank"
                         className="text-xs underline underline-offset-1"
                         style={{ color: 'var(--accent)' }}

@@ -9,7 +9,7 @@ new Function('exports', 'require', 'module', ts.transpileModule(fs.readFileSync(
 }).outputText)(moduleCopy.exports, require, moduleCopy)
 const { editionCompanySlug } = moduleCopy.exports
 const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
-const profile = slug => 'https://locreport.com/compass/directory/' + slug
+const profile = slug => 'https://locreport.com/directory/' + slug
 
 ;(async () => {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH,

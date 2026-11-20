@@ -44,11 +44,10 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               </ul>
             </div>
             <div className="footer-nav-col">
-              <h4 className="footer-nav-title">Compass</h4>
+              <h4 className="footer-nav-title">Tools</h4>
               <ul className="footer-links" aria-label="Footer tools links">
-                <li><Link href="/compass/locstock">LocStock</Link></li>
-                <li><Link href="/compass/llm-pricing">AI cost simulator</Link></li>
-                <li><Link href="/compass/directory">Tech directory</Link></li>
+                <li><Link href="/locstock">LocStock</Link></li>
+                <li><Link href="/directory">Directory</Link></li>
               </ul>
             </div>
             <div className="footer-nav-col">

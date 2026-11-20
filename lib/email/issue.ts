@@ -37,7 +37,7 @@ export async function buildIssue(
       .select('name, slug, category, description, created_at')
       .gte('created_at', periodStart.toISOString())
       .order('created_at', { ascending: true }),
-    // Curated array merged with the table, exactly as /compass/directory shows it.
+    // Curated array merged with the table, exactly as /directory shows it.
     fetchDirectoryEntries(service),
   ])
 

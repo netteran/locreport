@@ -15,7 +15,7 @@ export const ADSENSE_CLIENT = 'ca-pub-4411470587763033'
 export const SITE_NAME = 'LocReport'
 
 export const SITE_DESCRIPTION =
-  'Independent analysis of localization, language services and AI, with sourced news in Fact Flow, a Monthly Report and practical tools in Compass.'
+  'Independent analysis of localization, language services and AI, with sourced news in Fact Flow, monthly reports, a company directory and LocStock market tracking.'
 
 // Profiles that represent the same entity. Google uses these to resolve the
 // brand name to a single organization, so keep them in sync with the footer.

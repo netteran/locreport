@@ -280,7 +280,7 @@ export function AdminOperations({ area }: { area: 'daily' | 'monthly' | 'facts' 
           <ActionRow
             title="Refresh market quotes"
             summary="Update cached LocStock prices and recent history."
-            description="Pulls the latest price and 30-day history for every LocStock ticker from Yahoo Finance and caches them for /compass/locstock. Nothing schedules this — point a daily cron-job.org job at POST /api/market-quotes to automate it."
+            description="Pulls the latest price and 30-day history for every LocStock ticker from Yahoo Finance and caches them for /locstock. Nothing schedules this — point a daily cron-job.org job at POST /api/market-quotes to automate it."
             controls={
               <Button size="sm" variant="secondary" onClick={refreshQuotes} disabled={quotesRunning}>
                 {quotesRunning ? 'Refreshing…' : 'Refresh'}
@@ -292,7 +292,7 @@ export function AdminOperations({ area }: { area: 'daily' | 'monthly' | 'facts' 
           <ActionRow
             title="Refresh LLM pricing"
             summary="Update model prices and record pricing changes."
-            description="Pulls current per-token pricing for every tracked model from OpenRouter, updates the /compass/llm-pricing simulator, and writes a history row for any model whose price moved. Nothing schedules this — point a daily cron-job.org job at POST /api/llm-pricing to automate it."
+            description="Pulls current per-token pricing for every tracked model from OpenRouter, updates the /llm-pricing simulator, and writes a history row for any model whose price moved. Nothing schedules this — point a daily cron-job.org job at POST /api/llm-pricing to automate it."
             controls={
               <Button size="sm" variant="secondary" onClick={refreshPricing} disabled={pricingRunning}>
                 {pricingRunning ? 'Refreshing…' : 'Refresh'}

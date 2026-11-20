@@ -188,9 +188,9 @@ test('weekly issue includes Monthly Briefings and practical blocks without publi
         article_type: 'monthly-summary', impact_score: null, signal_ids: [], business_implications: [], published_at: '2026-11-20T10:00:00Z' }
     ],
     facts: Array.from({ length: 6 }, (_, i) => ({ id: `fact-${i}`, content: `Confirmed development ${i}.`, article_id: null })),
-    company: { name: 'Company of the week', url: 'https://locreport.com/compass/directory/company', logoUrl: null,
+    company: { name: 'Company of the week', url: 'https://locreport.com/directory/company', logoUrl: null,
       category: 'Language technology', hq: 'Warsaw', founded: 2020, blurb: 'Builds useful localization tools.' },
-    market: { avgPct: 4, tracked: 2, movers: [{ symbol: 'RWS', name: 'RWS Holdings', pct: 4 }], url: 'https://locreport.com/compass/locstock' },
+    market: { avgPct: 4, tracked: 2, movers: [{ symbol: 'RWS', name: 'RWS Holdings', pct: 4 }], url: 'https://locreport.com/locstock' },
     directory: [{ name: 'New company', slug: 'new-company', category: 'Language technology', description: 'A new directory entry.' }]
   })
   assert.equal(issue.storyCount, 3)
@@ -213,8 +213,8 @@ test('weekly issue includes Monthly Briefings and practical blocks without publi
   assert.equal($('a[href="https://locreport.com/articles/second"]').length, 1)
   assert.equal($('a[href="https://locreport.com/articles/october-briefing"]').text(), 'October Monthly Briefing')
   assert.equal($('a[href^="https://locreport.com/fact-flow#"]').length, 5)
-  assert.equal($('a[href="https://locreport.com/compass/locstock"]').length, 1)
-  assert.equal($('a[href="https://locreport.com/compass/directory/new-company"]').length, 1)
+  assert.equal($('a[href="https://locreport.com/locstock"]').length, 1)
+  assert.equal($('a[href="https://locreport.com/directory/new-company"]').length, 1)
   assert.ok(!$('body').text().includes('Confirmed development 5.'))
   assert.doesNotMatch(html, /Signal movement|Legacy signal|intelligence\/signals|previous four weeks|Quiet this week|Major impact|Disruptive impact|>MAJOR<|>DISRUPTIVE</)
 })

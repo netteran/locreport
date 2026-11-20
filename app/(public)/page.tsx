@@ -15,11 +15,10 @@ export const metadata: Metadata = {
   alternates: { canonical: '/' },
 }
 
-// Tools surfaced in the hero "Explore" panel — blog + tools focus
 const HERO_TOOLS = [
-  { href: '/compass/llm-pricing', name: 'AI Cost Simulator', desc: 'Compare LLM pricing for localization' },
-  { href: '/compass/locstock', name: 'LocStock', desc: 'Language-industry market tracker' },
-  { href: '/compass/directory', name: 'Tech Directory', desc: 'Language technology providers' },
+  { href: '/locstock', name: 'LocStock', desc: 'Language-industry market tracker' },
+  { href: '/directory', name: 'Directory', desc: 'Language services and technology providers' },
+  { href: '/llm-pricing', name: 'AI Cost Simulator', desc: 'Compare LLM pricing for localization' },
 ]
 
 const SOURCES = [
@@ -118,8 +117,8 @@ export default async function HomePage() {
               <Link href="/fact-flow" className="btn btn--hero-intel">Follow Fact Flow</Link>
             </div>
           </div>
-          <div className="hero-split__right" aria-label="Explore tools">
-            <div className="hero-intel-panel">
+          <div className="hero-split__right">
+            <nav id="tools" className="hero-intel-panel" aria-label="Explore tools">
               <div className="hero-tool-list">
                 {HERO_TOOLS.map(tool => (
                   <Link key={tool.href} href={tool.href} className="hero-tool-row">
@@ -131,8 +130,7 @@ export default async function HomePage() {
                   </Link>
                 ))}
               </div>
-              <Link href="/compass" className="hero-intel-panel__footer">All tools →</Link>
-            </div>
+            </nav>
           </div>
         </div>
       </section>
