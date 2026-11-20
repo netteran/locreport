@@ -255,6 +255,15 @@ function weeklySection(heading: string, kind: NewsletterSection, content: string
   return `<div data-newsletter-section="${kind}" style="margin:0 0 26px;">${block}</div>`
 }
 
+function factFlowSection(heading: string, content: string, count: number): string {
+  if (count === 0) return weeklySection(heading, 'facts', content)
+  const caption = count === 1 ? 'One update from this week' : `The week in ${count} facts`
+  return weeklySection(heading, 'facts', `
+    <p style="margin:0 0 12px;font-size:14px;line-height:1.5;color:${BRAND.muted};">${caption}</p>
+    ${content}
+    <a href="https://locreport.com/fact-flow" style="${CTA_LINK}">See all updates in Fact Flow →</a>`)
+}
+
 function editorIntro(content: string): string {
   return `<div style="margin:0 0 24px;">${eyebrow('From the editor', BRAND.muted)}${content}</div>`
 }
@@ -311,12 +320,12 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, facts,
     <p style="margin:0 0 10px;font-size:15px;line-height:1.55;">${escapeHtml(company.blurb)}</p>
     <a href="${escapeHtml(company.url)}" style="${CTA_LINK}">See the profile on LocReport →</a>`, 'company')) : ''
 
-  const factsHtml = facts.length ? weeklySection('Fact Flow', 'facts', `
+  const factsHtml = facts.length ? factFlowSection('Fact Flow', `
     <ul style="list-style:none;margin:0;padding:0;font-size:15px;line-height:1.55;">
       ${facts.map(f => `<li style="margin:0 0 11px;padding-left:12px;border-left:2px solid ${BRAND.accent};">
         <a href="${escapeHtml(f.url)}" style="${TITLE_LINK}">${escapeHtml(f.content)}&nbsp;<span aria-hidden="true" style="color:${BRAND.accent};font-weight:700;">→</span></a>
       </li>`).join('')}
-    </ul>`) : ''
+    </ul>`, facts.length) : ''
 
   const marketHtml = market ? weeklySection('LocStock brief', 'market', panel(`
     <p style="margin:0 0 10px;font-size:14px;line-height:1.5;">
@@ -453,9 +462,14 @@ export function editedDigestEmail({ editionDate, bodyMarkdown, ...links }: Weekl
       const lead = blocks(tokens)
       return lead ? editorIntro(lead) : ''
     }
-    const kind = SECTION_TYPES[heading.text.trim().toLowerCase()] || 'custom'
+    const headingKey = heading.text.trim().toLowerCase()
+    const kind = SECTION_TYPES[headingKey] || 'custom'
     if (kind === 'company') return weeklySection(heading.text, kind, companyCard(tokens))
     const body = blocks(kind === 'custom' ? [heading, ...tokens] : tokens, kind)
+    if (headingKey === 'fact flow') {
+      const count = tokens.reduce((sum, token) => sum + (token.type === 'list' && !token.ordered ? token.items.length : 0), 0)
+      return factFlowSection(heading.text, body, count)
+    }
     return weeklySection(heading.text, kind, kind === 'market' ? panel(body, 'support') : body)
   }).join('')
   const date = new Date(`${editionDate}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Warsaw' })

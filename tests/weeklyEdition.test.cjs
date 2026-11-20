@@ -108,7 +108,7 @@ test('section cards keep source HTML, unsafe images and credential-bearing URLs 
  const {editedDigestEmail}=load('lib/email/templates.ts')
  const $=htmlDocument(editedDigestEmail({editionDate:'2026-11-20',manageUrl:'https://locreport.com/manage',bodyMarkdown:'## Company of the week\n\n[Company](https://user:password@example.test)\n\n![Logo](javascript:alert(1))\n\n<img src=x onerror=alert(1)>\n\n## Fact Flow\n\n- [Unsafe](data:text/html,test)\n- Safe **copy**.'}))
  assert.equal($('.newsletter-content img,.newsletter-content script').length,0)
- assert.equal($('.newsletter-content a').length,0)
+ assert.deepEqual($('.newsletter-content a').map((_,e)=>$(e).attr('href')).get(),['https://locreport.com/fact-flow'])
  assert.match($.text(),/<img src=x onerror=alert\(1\)>/)
  assert.ok($.text().includes('Safe copy.'))
 })
@@ -186,4 +186,23 @@ test('preview and manual/cron sends use the same saved subject/body and reject a
  assert.equal((await send.POST(new NextRequest('http://localhost/api/digest/send',{method:'POST',headers:{Authorization:'Bearer fixture-cron'}}))).status,200)
  assert.equal(archive.size,2)
  assert.equal(await (await browser.GET(new Request(link),{params:Promise.resolve({id})})).text(), publicHtml)
+})
+
+test('Fact Flow shows an accurate weekly count and links to the full feed', () => {
+  const { digestEmail, editedDigestEmail } = load('lib/email/templates.ts')
+  const facts = Array.from({ length: 5 }, (_, i) => ({ content: 'Update ' + (i + 1), url: 'https://locreport.com/fact-flow#' + i }))
+  const issue = { ...generatedIssue, facts, editorNote: '' }
+  const automatic = digestEmail({ ...issue, periodLabel: '13–20 November 2026' })
+  const saved = editedDigestEmail({ editionDate: '2026-11-20', bodyMarkdown: edition.issueMarkdown(issue) })
+  for (const html of [automatic, saved]) {
+    const $ = htmlDocument(html)
+    const section = $('[data-newsletter-section="facts"]')
+    assert.match(section.text(), /The week in 5 facts/)
+    assert.equal(section.find('li').length, 5)
+    assert.equal(section.find('a').last().attr('href'), 'https://locreport.com/fact-flow')
+  }
+  const existingCopy = '## Fact Flow\n\n- [One update](https://locreport.com/fact-flow#one)'
+  assert.match(editedDigestEmail({ editionDate: '2026-11-20', bodyMarkdown: existingCopy }), /One update from this week/)
+  const fewerFacts = digestEmail({ ...issue, facts: facts.slice(0, 2), periodLabel: '13–20 November 2026' })
+  assert.match(fewerFacts, /The week in 2 facts/)
 })
