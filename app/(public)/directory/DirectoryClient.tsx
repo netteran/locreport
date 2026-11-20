@@ -116,7 +116,7 @@ export function DirectoryClient({ entries }: Props) {
         {results.map(entry => (
           <Link
             key={entry.slug || entry.name}
-            href={`/compass/directory/${entry.slug || entry.name.toLowerCase().replace(/\s+/g, '-')}`}
+            href={`/directory/${entry.slug || entry.name.toLowerCase().replace(/\s+/g, '-')}`}
             className="dir-card"
           >
             <div className="dir-card-header">

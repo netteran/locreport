@@ -1,7 +1,7 @@
 // The companies LocStock tracks: Yahoo Finance ticker (t), display symbol (s),
 // name (n), exchange, country, category, whether the chart features it, and the
 // slug of its Tech Directory profile (dir), which the LocStock card links to.
-// Shared by /compass/locstock and The Weekly's market brief (lib/email/digest.ts).
+// Shared by /locstock and The Weekly's market brief (lib/email/digest.ts).
 // The fetch list in app/api/market-quotes/route.ts must stay in step with it.
 export const LOCSTOCK_COMPANIES = [
   { t:'NVDA',      s:'NVDA',   n:'NVIDIA Corporation',      ex:'NASDAQ',         co:'US', cat:'aiplatform', ft:true, dir:'nvidia' },
@@ -46,7 +46,7 @@ export const LOCSTOCK_COMPANIES = [
 ] as const
 
 // The LocStock company whose Tech Directory profile has this slug, if any —
-// drives the market card on /compass/directory/[slug].
+// drives the market card on /directory/[slug].
 export function locstockByDirectorySlug(slug: string) {
   return LOCSTOCK_COMPANIES.find(c => c.dir === slug)
 }

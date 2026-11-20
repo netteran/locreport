@@ -8,7 +8,7 @@ export const revalidate = 3600
 export const metadata: Metadata = {
   title: 'LocStock — Localization Market Index',
   description: 'Live equity overview of 39 publicly traded companies with exposure to language services, AI translation, and localization technology.',
-  alternates: { canonical: '/compass/locstock' },
+  alternates: { canonical: '/locstock' },
 }
 
 export default async function LocStockPage() {

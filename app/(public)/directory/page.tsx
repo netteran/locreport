@@ -6,9 +6,9 @@ import { DirectoryClient } from './DirectoryClient'
 export const revalidate = 3600
 
 export const metadata: Metadata = {
-  title: 'Language Technology Directory | Compass',
+  title: 'Language Technology Directory',
   description: 'Comprehensive directory of language technology tools — TMS platforms, CAT tools, AI translation engines, LSPs, interpreting platforms, and more.',
-  alternates: { canonical: '/compass/directory' },
+  alternates: { canonical: '/directory' },
 }
 
 async function getEntries() {

@@ -118,7 +118,7 @@ export function LocStockClient({ quotes, updatedAt }: Props) {
             <div key={co.t} className={`market-card ${dir}${isFeatured ? ' featured' : ''}`}>
               <div className="market-card-ticker">{co.s}</div>
               <div className="market-card-name">
-                <Link href={`/compass/directory/${co.dir}`} className="market-card-name-link">{co.n}</Link>
+                <Link href={`/directory/${co.dir}`} className="market-card-name-link">{co.n}</Link>
               </div>
               {q ? (
                 <>

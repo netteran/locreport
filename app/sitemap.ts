@@ -21,10 +21,9 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/fact-flow` },
   { url: `${SITE_URL}/reports` },
   ...ANNUAL_REPORTS.map(report => ({ url: `${SITE_URL}${annualReportPath(report.slug)}` })),
-  { url: `${SITE_URL}/compass` },
-  { url: `${SITE_URL}/compass/locstock` },
-  { url: `${SITE_URL}/compass/llm-pricing` },
-  { url: `${SITE_URL}/compass/directory` },
+  { url: `${SITE_URL}/locstock` },
+  { url: `${SITE_URL}/llm-pricing` },
+  { url: `${SITE_URL}/directory` },
   { url: `${SITE_URL}/about` },
   { url: `${SITE_URL}/contact` },
   { url: `${SITE_URL}/privacy` },
@@ -76,7 +75,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   })
 
   const directoryUrls: MetadataRoute.Sitemap = directory.map((e) => ({
-    url: `${SITE_URL}/compass/directory/${e.slug}`,
+    url: `${SITE_URL}/directory/${e.slug}`,
   }))
 
   return [...STATIC_PAGES, ...directoryUrls, ...articleUrls]

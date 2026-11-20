@@ -15,7 +15,7 @@ export function editionCompanySlug(markdown: string): string | null {
       try {
         const url = new URL(child.href, 'https://locreport.com')
         if (!['https:', 'http:'].includes(url.protocol) || !['locreport.com', 'www.locreport.com'].includes(url.hostname)) return
-        slug = url.pathname.match(/^\/compass\/directory\/([a-z0-9_-]+)\/?$/i)?.[1] || null
+        slug = url.pathname.match(/^\/(?:compass\/)?directory\/([a-z0-9_-]+)\/?$/i)?.[1] || null
       } catch { /* A manually edited invalid URL cannot identify the current company. */ }
     })
     if (slug) return slug

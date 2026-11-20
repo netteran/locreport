@@ -69,7 +69,8 @@ test('empty and single-company pools remain usable without selecting ineligible 
 test('the current company comes only from real links inside its editable Markdown section', () => {
   const before = '[Intro profile](https://locreport.com/compass/directory/intro)\n\n'
   const after = '\n\n## New in the directory\n\n[Other](https://locreport.com/compass/directory/other)'
-  for (const link of ['[**Company**](https://locreport.com/compass/directory/chosen)',
+  for (const link of ['[**Company**](https://locreport.com/directory/chosen)',
+    '[Company](/directory/chosen/)', '[Company](https://locreport.com/compass/directory/chosen)',
     '[Company](/compass/directory/chosen/)', '[Company](https://www.locreport.com/compass/directory/chosen?from=weekly#profile)',
     '[Company][profile]\n\n[profile]: https://locreport.com/compass/directory/chosen']) {
     assert.equal(editionCompanySlug(before + '## Company of the week\n\n' + link + after), 'chosen')
@@ -78,7 +79,7 @@ test('the current company comes only from real links inside its editable Markdow
   for (const body of [before + after, before + '## Company of the week\n\nNo profile selected.' + after,
     '```md\n## Company of the week\n[Company](/compass/directory/code)\n```',
     '## Company of the week\n\n`[Company](/compass/directory/code)`' + after,
-    '## Company of the week\n\n[Company](https://locreport.com.evil.test/compass/directory/fake)' + after,
+    '## Company of the week\n\n[Company](https://locreport.com.evil.test/directory/fake)' + after,
     '## Company of the week\n\n![Logo](https://locreport.com/compass/directory/image)' + after]) {
     assert.equal(editionCompanySlug(body), null)
   }
@@ -228,7 +229,7 @@ test('choosing a company replaces only the real company section and preserves ot
   const { replaceEditionCompany } = companyLinks
   const top = '[story]: /articles/story\n\n\tA code example\n\n```md\n## Company of the week\nExample only\n```\n\n## Top story\n\n[Edited lead][story]\n\n'
   const end = '## Fact Flow\n\n- An edited fact\n\n## More from LocReport\n\nAn edited closing'
-  const selected = '## Company of the week\n\n[Beta](/compass/directory/beta)'
+  const selected = '## Company of the week\n\n[Beta](/directory/beta)'
   const expected = top + selected + '\n\n' + end
   assert.equal(replaceEditionCompany(top + '## Company of the week\n\n[Old](/compass/directory/old)\n\n' + end, selected), expected)
   assert.equal(replaceEditionCompany(top + end, selected), expected)

@@ -12,7 +12,7 @@ module.exports = {
   },
   company: {
     name: 'Atlas Language Systems',
-    url: 'https://locreport.com/compass/directory/atlas-language-systems',
+    url: 'https://locreport.com/directory/atlas-language-systems',
     logoUrl: 'https://locreport.com/icon.png',
     category: 'Translation management',
     hq: 'Warsaw, Poland',
@@ -27,9 +27,9 @@ module.exports = {
   market: {
     avgPct: 3.4, tracked: 12,
     movers: [{ symbol: 'ABC', name: 'Example Language Group', pct: 9.2 }, { symbol: 'XYZ', name: 'Global Content Systems', pct: -8.1 }],
-    url: 'https://locreport.com/compass/locstock',
+    url: 'https://locreport.com/locstock',
   },
-  directory: [{ name: 'Context & Review', category: 'Quality tools', description: 'Review tools that help language teams record evidence and resolve exceptions.', url: 'https://locreport.com/compass/directory/context-review' }],
+  directory: [{ name: 'Context & Review', category: 'Quality tools', description: 'Review tools that help language teams record evidence and resolve exceptions.', url: 'https://locreport.com/directory/context-review' }],
   more: [
     { id: 'more-one', title: 'What buyers need from an evaluation', url: 'https://locreport.com/articles/buyer-workflow-decision' },
     { id: 'more-two', title: 'Where language expertise changes the decision', url: 'https://locreport.com/articles/combined-analysis' },

@@ -96,7 +96,7 @@ export function summarizeMarket(rows: QuoteRow[], periodStart: Date, periodEnd: 
   const movers = [...moves]
     .sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))
     .slice(0, MARKET_MOVERS_SHOWN)
-  return { avgPct, tracked: moves.length, movers, url: `${SITE_URL}/compass/locstock` }
+  return { avgPct, tracked: moves.length, movers, url: `${SITE_URL}/locstock` }
 }
 
 // Monday-based week key ("2026-W39"-style, but any stable string will do), so
@@ -170,7 +170,7 @@ export function pickCompanyOfWeek(entries: DirectoryEntry[], periodEnd: Date, se
 export function digestCompanyFromEntry(pick: DirectoryEntry): DigestCompany {
   return {
     name: pick.name,
-    url: `${SITE_URL}/compass/directory/${pick.slug}`,
+    url: `${SITE_URL}/directory/${pick.slug}`,
     logoUrl: emailCompanyLogo(pick.logo_url, SITE_URL),
     category: DIRECTORY_CATEGORIES.find(c => c.value === pick.category)?.label ?? null,
     hq: pick.hq || null,
@@ -228,7 +228,7 @@ export function composeIssue({ articles, facts, market, company, directory }: Is
       name: d.name,
       category: d.category,
       description: d.description,
-      url: `${SITE_URL}/compass/directory/${d.slug}`,
+      url: `${SITE_URL}/directory/${d.slug}`,
     })),
     more: more.map(toDigestArticle),
     moreCount: rest.length - more.length,

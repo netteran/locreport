@@ -12,25 +12,16 @@ const NAV_LINKS = [
   { href: '/articles', label: 'Articles' },
   { href: '/fact-flow', label: 'Fact Flow', live: true },
   { href: '/reports', label: 'Reports' },
-  {
-    href: '/compass', label: 'Compass', dropdown: [
-      { href: '/compass/locstock', label: 'LocStock' },
-      { href: '/compass/llm-pricing', label: 'AI Cost Simulator' },
-      { href: '/compass/directory', label: 'Tech Directory' },
-    ]
-  },
+  { href: '/locstock', label: 'LocStock' },
+  { href: '/directory', label: 'Directory' },
 ]
-
-// Sentinel key for openDropdown — keeps the Admin menu on the exact same
-// hover-intent open/close state machine as the main nav dropdowns below.
-const ADMIN_MENU_KEY = '__admin-menu__'
 
 export function Nav() {
   const router = useRouter()
   const pathname = usePathname()
   const [isAdmin, setIsAdmin] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false)
   // Whether the primary input can hover (mouse/trackpad) vs. touch-only.
   // Drives the Admin menu: hover-intent open/close on desktop, tap-to-toggle
   // on touch — checked by input capability, not viewport width, so it holds
@@ -50,14 +41,14 @@ export function Nav() {
   const adminMenuRef = useRef<HTMLDivElement>(null)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  function openMenu(href: string) {
+  function openAdminMenu() {
     if (closeTimer.current) clearTimeout(closeTimer.current)
-    setOpenDropdown(href)
+    setAdminMenuOpen(true)
   }
 
   function scheduleClose() {
     if (closeTimer.current) clearTimeout(closeTimer.current)
-    closeTimer.current = setTimeout(() => setOpenDropdown(null), 150)
+    closeTimer.current = setTimeout(() => setAdminMenuOpen(false), 150)
   }
 
   useEffect(() => {
@@ -66,12 +57,12 @@ export function Nav() {
       const insideNav = navRef.current?.contains(target)
       const insideAdminMenu = adminMenuRef.current?.contains(target)
       if (!insideNav && !insideAdminMenu) {
-        setOpenDropdown(null)
+        setAdminMenuOpen(false)
         setMenuOpen(false)
       }
     }
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') { setOpenDropdown(null); setMenuOpen(false) }
+      if (e.key === 'Escape') { setAdminMenuOpen(false); setMenuOpen(false) }
     }
     document.addEventListener('mousedown', handleClick)
     document.addEventListener('keydown', handleEscape)
@@ -95,7 +86,7 @@ export function Nav() {
     }
     document.addEventListener('keydown', onKeyDown)
     const { overflow } = document.body.style
-    const isSheet = window.matchMedia('(max-width: 640px)').matches
+    const isSheet = window.matchMedia('(max-width: 767px)').matches
     if (isSheet) document.body.style.overflow = 'hidden'
     return () => {
       document.removeEventListener('keydown', onKeyDown)
@@ -171,7 +162,6 @@ export function Nav() {
     router.refresh()
   }
 
-  const allLinks = NAV_LINKS
   const current = (href: string) => (pathname === href ? 'page' as const : undefined)
 
   return (
@@ -182,7 +172,7 @@ export function Nav() {
           <Image src="/logodark.png" alt="LocReport" width={120} height={32} className="site-logo-img site-logo-img--dark" priority />
         </Link>
 
-        <nav ref={navRef} className={`site-nav${menuOpen ? ' is-open' : ''}`}>
+        <nav aria-label="Main navigation" ref={navRef} className={`site-nav${menuOpen ? ' is-open' : ''}`}>
           <button
             className="nav-toggle"
             id="nav-toggle"
@@ -200,44 +190,18 @@ export function Nav() {
           <div className="nav-backdrop" aria-hidden="true" onClick={() => setMenuOpen(false)} />
 
           <ul id="site-menu">
-            {allLinks.map(link => (
-              'dropdown' in link && link.dropdown ? (
-                <li key={link.href} className="nav-has-dropdown"
-                  onMouseEnter={() => openMenu(link.href)}
-                  onMouseLeave={scheduleClose}
-                >
-                  <div className="nav-dropdown-trigger">
-                    <Link href={link.href} aria-current={current(link.href)} onClick={() => setMenuOpen(false)}>{link.label}</Link>
-                    <button aria-haspopup="true" aria-expanded={openDropdown === link.href} aria-label={`Toggle ${link.label} menu`}>
-                      <svg className="nav-dropdown-chevron" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                        <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                  <ul className={`nav-dropdown-menu${openDropdown === link.href ? ' is-open' : ''}`} role="menu"
-                    onMouseEnter={() => openMenu(link.href)}
-                    onMouseLeave={scheduleClose}
-                  >
-                    {link.dropdown.map(child => (
-                      <li key={child.href} role="none">
-                        <Link href={child.href} role="menuitem" aria-current={current(child.href)} onClick={() => { setOpenDropdown(null); setMenuOpen(false) }}>{child.label}</Link>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ) : (
-                <li key={link.href}>
-                  <Link href={link.href} aria-current={current(link.href)} onClick={() => setMenuOpen(false)}>
-                    {link.label}
-                    {'live' in link && link.live && (
-                      <span className="nav-live-badge" title="Updated in real-time">
-                        <span className="nav-live-badge__dot" aria-hidden="true" />
-                        Live
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              )
+            {NAV_LINKS.map(link => (
+              <li key={link.href}>
+                <Link href={link.href} aria-current={current(link.href)} onClick={() => setMenuOpen(false)}>
+                  {link.label}
+                  {link.live && (
+                    <span className="nav-live-badge" title="Updated in real-time">
+                      <span className="nav-live-badge__dot" aria-hidden="true" />
+                      Live
+                    </span>
+                  )}
+                </Link>
+              </li>
             ))}
             {/* Mobile sheet only — hidden in the desktop bar. */}
             <li className="nav-menu-weekly">
@@ -310,16 +274,16 @@ export function Nav() {
           <div
             ref={adminMenuRef}
             className="nav-has-dropdown admin-menu"
-            onMouseEnter={canHover ? () => openMenu(ADMIN_MENU_KEY) : undefined}
+            onMouseEnter={canHover ? openAdminMenu : undefined}
             onMouseLeave={canHover ? scheduleClose : undefined}
           >
             <button
               onClick={() => {
-                if (canHover) openMenu(ADMIN_MENU_KEY)
-                else setOpenDropdown(v => v === ADMIN_MENU_KEY ? null : ADMIN_MENU_KEY)
+                if (canHover) openAdminMenu()
+                else setAdminMenuOpen(value => !value)
               }}
               aria-haspopup="true"
-              aria-expanded={openDropdown === ADMIN_MENU_KEY}
+              aria-expanded={adminMenuOpen}
               aria-label="Toggle admin menu"
             >
               Admin
@@ -335,17 +299,17 @@ export function Nav() {
               </svg>
             </button>
             <ul
-              className={`admin-menu-dropdown${openDropdown === ADMIN_MENU_KEY ? ' is-open' : ''}`}
+              className={`admin-menu-dropdown${adminMenuOpen ? ' is-open' : ''}`}
               role="menu"
             >
               {ADMIN_LINKS.map(({href, label}) => <li key={href} role="none">
-                <Link href={href} role="menuitem" aria-current={pathname.startsWith('/admin') && activeAdminLink(pathname).href === href ? 'page' : undefined} onClick={() => setOpenDropdown(null)}>{label}</Link>
+                <Link href={href} role="menuitem" aria-current={pathname.startsWith('/admin') && activeAdminLink(pathname).href === href ? 'page' : undefined} onClick={() => setAdminMenuOpen(false)}>{label}</Link>
               </li>)}
               <li role="none" className="admin-menu-divider">
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => { setOpenDropdown(null); signOut() }}
+                  onClick={() => { setAdminMenuOpen(false); signOut() }}
                 >
                   Log out
                 </button>

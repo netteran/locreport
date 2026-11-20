@@ -3,7 +3,7 @@ import { type DirectoryEntry } from '@/lib/data/directory'
 import { fetchDirectoryEntries } from '@/lib/directory'
 
 // Directory entries are seeded from lib/data/directory.ts and overridden by the
-// Supabase directory table — same merge used by /compass/directory and
+// Supabase directory table — same merge used by /directory and
 // /api/directory, so linkified mentions cover every company either layer knows.
 export async function getDirectoryEntries(supabase: SupabaseClient): Promise<DirectoryEntry[]> {
   return fetchDirectoryEntries(supabase)
@@ -30,7 +30,7 @@ function isProtectedSegment(segment: string): boolean {
 
 /**
  * Scans markdown body text for mentions of companies in the tech directory and
- * links the first mention of each one to its /compass/directory/[slug] page.
+ * links the first mention of each one to its /directory/[slug] page.
  * Longer, more specific names (e.g. "Google Translate") are matched before
  * shorter ones (e.g. "Google") so they aren't partially shadowed.
  */
@@ -54,7 +54,7 @@ export function linkifyCompanyMentions(markdown: string, entries: DirectoryEntry
         const slug = nameToSlug.get(match)
         if (!slug || linkedSlugs.has(slug)) return match
         linkedSlugs.add(slug)
-        return `[${match}](/compass/directory/${slug})`
+        return `[${match}](/directory/${slug})`
       })
     })
     .join('')

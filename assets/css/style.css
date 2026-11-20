@@ -328,46 +328,11 @@ article.page:has(.dir-grid) { max-width: var(--site-max-width); overflow-x: hidd
   flex-shrink: 0;
   opacity: 0.6;
 }
-.nav-dropdown-menu.is-open + * ,
-.nav-has-dropdown .nav-dropdown-menu.is-open ~ *,
-.nav-has-dropdown > button[aria-expanded="true"] .nav-dropdown-chevron,
-.nav-dropdown-trigger button[aria-expanded="true"] .nav-dropdown-chevron {
+.nav-has-dropdown > button[aria-expanded="true"] .nav-dropdown-chevron {
   transform: rotate(180deg);
   opacity: 1;
 }
-.nav-dropdown-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  min-width: 190px;
-  max-height: calc(100dvh - 100px);
-  overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 16px rgba(23, 24, 28, 0.10);
-  padding: var(--space-1);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-4px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  list-style: none;
-  margin: 0;
-}
-.nav-dropdown-menu.is-open {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-.nav-dropdown-menu li {
-  width: 100%;
-}
-.nav-has-dropdown > button,
-.nav-dropdown-trigger {
+.nav-has-dropdown > button {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -383,52 +348,12 @@ article.page:has(.dir-grid) { max-width: var(--site-max-width); overflow-x: hidd
   border-radius: var(--radius-sm);
   transition: color 0.2s ease, background 0.2s ease;
 }
-.nav-dropdown-trigger a {
-  color: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  letter-spacing: inherit;
-  text-decoration: none;
-  padding: 0;
-  background: none;
-}
-.nav-dropdown-trigger button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  color: inherit;
-}
-.nav-has-dropdown > button:hover,
-.nav-has-dropdown.is-open > button,
-.nav-has-dropdown:hover .nav-dropdown-trigger,
-.nav-has-dropdown.is-open .nav-dropdown-trigger {
+.nav-has-dropdown > button:hover {
   color: var(--text);
   background: var(--accent-soft);
 }
-.nav-dropdown-menu a {
-  display: flex;
-  width: 100%;
-  padding: 9px 14px;
-  font-size: 0.85rem;
-  border-radius: var(--radius-sm);
-  white-space: nowrap;
-}
-ul.nav-dropdown-menu {
-  padding: 9px;
-  margin: 8px;
-}
 
-/* ── Admin Menu ─────────────────────────────────────────────
-   Lives in .nav-actions rather than .site-nav (it's account-scoped,
-   not primary site nav), so it can't just share .nav-dropdown-menu —
-   that class gets restyled for the mobile hamburger panel at 640px,
-   and this control isn't part of that panel. Instead it clones the
-   desktop trigger/menu look 1:1 and reuses .nav-has-dropdown (for
-   position + the hover gap-bridge) and openMenu/scheduleClose (for
-   the identical hover-intent open/close timing) from the main nav. */
+/* ── Admin Menu ───────────────────────────────────────────── */
 .admin-menu {
   position: relative;
 }
@@ -2522,13 +2447,25 @@ article.page > h1 {
   .signal-modal-title { font-size: 1.05rem; }
 }
 
-@media (max-width: 640px) {
+@media (min-width: 768px) and (max-width: 1000px) {
+  .header-shell { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .site-nav a { padding-inline: 8px; white-space: nowrap; }
+  .search-inline.is-expanded { width: 28px; height: 28px; }
+  .search-inline.is-expanded .search-inline-field {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    z-index: 50;
+  }
+}
+
+@media (max-width: 767px) {
   /* ── Mobile header + menu dropdown ──
      Header reads logo · search · theme · menu: the hamburger is the last
      control on the right. The DOM keeps the toggle before its menu (so Tab
      goes toggle → items); only the visual order changes. The open menu is a
      compact dropdown card under the hamburger, styled like the Admin menu:
-     plain text rows, section children indented, hairlines between groups. */
+     plain text rows with a divider before the newsletter action. */
   .header-shell { display: flex; align-items: center; gap: var(--space-1); height: 56px; }
   .site-logo { margin-right: auto; }
   .nav-actions { order: 1; }
@@ -2557,8 +2494,7 @@ article.page > h1 {
   }
   .site-nav.is-open > #site-menu { display: flex; animation: nav-sheet-in 0.15s ease both; }
   .site-nav > #site-menu > li { width: 100%; }
-  /* A hairline before each section, like the Admin menu's divider. */
-  .site-nav > #site-menu > li.nav-has-dropdown,
+  /* Separate the newsletter action from navigation. */
   .site-nav > #site-menu > li.nav-menu-weekly {
     margin-top: var(--space-1); padding-top: var(--space-1);
     border-top: 1px solid var(--border);
@@ -2566,8 +2502,6 @@ article.page > h1 {
 
   /* Every row: the Admin menu's item look. */
   .site-nav > #site-menu > li > a,
-  .site-nav .nav-dropdown-trigger a,
-  .site-nav .nav-dropdown-menu a,
   .site-nav .nav-menu-weekly button {
     display: flex; align-items: center; width: 100%;
     padding: 9px 14px;
@@ -2577,24 +2511,7 @@ article.page > h1 {
     background: none; border: 0; border-radius: var(--radius-sm);
     transition: color 0.2s ease, background 0.2s ease;
   }
-  .site-nav .nav-dropdown-trigger { display: block; padding: 0; background: none; }
-  .site-nav .nav-dropdown-trigger > button { display: none; } /* desktop-only chevron */
-  .site-nav .nav-has-dropdown:hover .nav-dropdown-trigger,
-  .site-nav .nav-has-dropdown.is-open .nav-dropdown-trigger { background: none; }
   .site-nav .nav-live-badge { margin-left: 6px; }
-
-  /* Section children: indented, a step quieter. */
-  .site-nav ul.nav-dropdown-menu {
-    display: flex; flex-direction: column; gap: 1px;
-    position: static; opacity: 1; pointer-events: auto; transform: none;
-    min-width: 0; margin: 0; padding: 0;
-    background: none; border: 0; border-radius: 0; box-shadow: none;
-  }
-  .site-nav .nav-dropdown-menu a {
-    padding-left: 26px;
-    font-weight: 400;
-    color: color-mix(in srgb, var(--text) 72%, var(--muted));
-  }
 
   .site-nav > #site-menu a:hover,
   .site-nav > #site-menu a:active,
@@ -2605,6 +2522,13 @@ article.page > h1 {
   .site-nav .nav-menu-weekly { display: block; }
   .site-nav .nav-menu-weekly button { gap: var(--space-2); color: var(--accent); font-weight: 600; cursor: pointer; }
   .site-nav .nav-menu-weekly svg { width: 16px; height: 16px; flex: none; }
+  /* Leaves room for logo · theme · menu so the hamburger never gets pushed off-screen. */
+  .search-inline.is-expanded .search-inline-field { width: min(200px, calc(100vw - 2 * var(--page-gutter) - 220px)); }
+  .search-inline-dropdown { width: calc(100vw - 2 * var(--page-gutter)); right: calc(-1 * var(--space-3)); }
+  .search-inline-dropdown-footer-hint { display: none; }
+}
+
+@media (max-width: 640px) {
   h1 { font-size: 1.8rem; }
   article.post h1 { font-size: 2rem; }
   .post-content { font-size: 1rem; }
@@ -2615,10 +2539,6 @@ article.page > h1 {
   .footer-bottom { flex-direction: column; gap: var(--space-3); text-align: center; }
   .cta-inner { padding: var(--space-8) var(--space-5); }
   .cta-actions { flex-direction: column; align-items: center; }
-  /* Leaves room for logo · theme · menu so the hamburger never gets pushed off-screen. */
-  .search-inline.is-expanded .search-inline-field { width: min(200px, calc(100vw - 2 * var(--page-gutter) - 220px)); }
-  .search-inline-dropdown { width: calc(100vw - 2 * var(--page-gutter)); right: calc(-1 * var(--space-3)); }
-  .search-inline-dropdown-footer-hint { display: none; }
   .signal-accordion__summary { flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) var(--space-4); }
   .signal-accordion__meta { width: 100%; justify-content: space-between; }
   .signal-accordion__body { padding-left: var(--space-4); }
@@ -4878,6 +4798,7 @@ article.page > h1 {
 }
 .home-v1 .hero-split .hero-actions .btn { padding: 9px 16px; font-size: 0.8rem; }
 .home-v1 .hero-intel-panel {
+  scroll-margin-top: 80px;
   background: color-mix(in srgb, var(--surface) 85%, transparent);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
@@ -4892,18 +4813,6 @@ article.page > h1 {
 }
 [data-theme="dark"] .home-v1 .hero-intel-panel {
   background: color-mix(in srgb, var(--surface) 80%, transparent);
-}
-.home-v1 .hero-intel-panel__footer {
-  display: block;
-  margin-top: var(--space-3);
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--accent);
-  text-decoration: none;
-  text-align: center;
-}
-.home-v1 .hero-intel-panel__footer:hover {
-  text-decoration: underline;
 }
 .home-v1 .hero-tool-list {
   display: flex;
@@ -5568,18 +5477,6 @@ article.page > h1 {
   .search-sidebar { width: 100%; position: static; padding-top: 0; }
 }
 
-/* ── Compass ───────────────────────────────────────────────── */
-.compass-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-5); margin-top: var(--space-6); }
-.compass-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-6); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); text-decoration: none; color: var(--text); transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
-.compass-card:hover { transform: translateY(-3px); box-shadow: var(--card-shadow-hover); border-color: var(--accent); }
-.compass-card__icon { width: 44px; height: 44px; background: var(--accent-soft); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; }
-.compass-card__icon svg { width: 22px; height: 22px; fill: none; stroke: var(--accent); }
-.compass-card__badge { display: inline-block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 100px; background: var(--accent-soft); color: var(--accent); }
-.compass-card__title { font-size: 1.15rem; font-weight: 800; margin: 0; }
-.compass-card__subtitle { font-size: 0.78rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
-.compass-card__desc { font-size: 0.88rem; color: var(--muted); line-height: 1.6; margin: 0; flex: 1; }
-.compass-card__arrow { font-size: 0.85rem; color: var(--accent); font-weight: 700; margin-top: auto; }
-
 /* ── LocStock ──────────────────────────────────────────────── */
 .market-hero { padding: var(--space-6) 0 var(--space-4); }
 .market-hero h1 { margin: 0 0 var(--space-1); font-size: clamp(1.8rem, 4vw, 2.6rem); background: var(--gradient-accent); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
@@ -5841,8 +5738,6 @@ h1, h2, h3, h4,
 .intelligence-implications-title,
 .role-picker-title,
 .role-picker-inline-label,
-.compass-card__badge,
-.compass-card__subtitle,
 .dir-card-cat,
 .pricing-provider-chip,
 .report-card__type,
@@ -5869,14 +5764,11 @@ kbd, code {
 
 /* ── Warm pills — the only deliberately "in-colour" chips ── */
 .intel-link-card__eyebrow,
-.compass-card__badge,
 .dir-card-cat,
 .research-domain-tag {
   background: var(--warm-soft);
   color: var(--warm-strong);
 }
-.compass-card__icon { background: var(--warm-soft); }
-.compass-card__icon svg { stroke: var(--warm-strong); }
 
 /* ── Unified filter / segmented controls (one slick system) ── */
 .topic-pill,

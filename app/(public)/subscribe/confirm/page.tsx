@@ -51,7 +51,7 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
           <h1>{state === 'confirmed' ? 'You’re subscribed' : 'Already subscribed'}</h1>
           <p className="subscribe-status__text">
             The Weekly lands in your inbox every Friday with our articles, key Fact Flow developments
-            and useful updates from Compass. You can unsubscribe any time from the “Manage subscription” link in every issue.
+            and updates from the industry directory and LocStock. You can unsubscribe any time from the “Manage subscription” link in every issue.
           </p>
           <div className="subscribe-status__actions">
             <Link href="/articles" className="btn btn--primary">Browse articles</Link>

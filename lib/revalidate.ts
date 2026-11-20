@@ -67,7 +67,7 @@ export function revalidateFactSurfaces() {
 }
 
 /** The cached page that renders the whole directory listing. */
-const DIRECTORY_PATHS = ['/compass/directory']
+const DIRECTORY_PATHS = ['/directory']
 
 /**
  * A directory entry changed. Both public directory surfaces read through the
@@ -85,7 +85,7 @@ const DIRECTORY_PATHS = ['/compass/directory']
 export function revalidateDirectorySurfaces(...slugs: (string | null | undefined)[]) {
   const paths = new Set<string>(DIRECTORY_PATHS)
   for (const slug of slugs) {
-    if (slug) paths.add(`/compass/directory/${slug}`)
+    if (slug) paths.add(`/directory/${slug}`)
   }
   revalidateAll(paths)
 }

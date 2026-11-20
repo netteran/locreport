@@ -23,11 +23,11 @@ function renameNote(slug: string) {
   const nameOf = (s: string) => DIRECTORY.find(e => e.slug === s)?.name ?? s
   const renamed = DIRECTORY_RENAMES.find(r => r.from === slug)
   if (renamed) {
-    return { label: `Now ${nameOf(renamed.to)}`, note: renamed.note, href: `/compass/directory/${renamed.to}`, link: `See the ${nameOf(renamed.to)} profile` }
+    return { label: `Now ${nameOf(renamed.to)}`, note: renamed.note, href: `/directory/${renamed.to}`, link: `See the ${nameOf(renamed.to)} profile` }
   }
   const formerly = DIRECTORY_RENAMES.find(r => r.to === slug)
   if (formerly) {
-    return { label: `Formerly ${nameOf(formerly.from)}`, note: formerly.note, href: `/compass/directory/${formerly.from}`, link: `Earlier coverage is on the ${nameOf(formerly.from)} profile` }
+    return { label: `Formerly ${nameOf(formerly.from)}`, note: formerly.note, href: `/directory/${formerly.from}`, link: `Earlier coverage is on the ${nameOf(formerly.from)} profile` }
   }
   return null
 }
@@ -74,7 +74,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: `${entry.name} | Language Technology Directory`,
     description: entry.description,
-    alternates: { canonical: `/compass/directory/${slug}` },
+    alternates: { canonical: `/directory/${slug}` },
   }
 }
 
@@ -95,7 +95,7 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
       {/* Breadcrumb */}
       <div className="dir-breadcrumb-row">
         <nav className="dir-breadcrumb" aria-label="Breadcrumb">
-          <Link href="/compass/directory" className="dir-breadcrumb-link">Directory</Link>
+          <Link href="/directory" className="dir-breadcrumb-link">Directory</Link>
           <span className="dir-breadcrumb-sep" aria-hidden="true">›</span>
           <span className="dir-breadcrumb-current">{entry.name}</span>
         </nav>
@@ -204,7 +204,7 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
 
       {/* Back link */}
       <div style={{ marginTop: 'var(--space-8)' }}>
-        <Link href="/compass/directory" className="dir-entry-back">
+        <Link href="/directory" className="dir-entry-back">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polyline points="15 18 9 12 15 6"/>
           </svg>

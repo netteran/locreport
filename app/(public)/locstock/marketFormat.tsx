@@ -1,5 +1,5 @@
 // Quote formatting + sparkline shared by the LocStock page and the market card
-// on Tech Directory profiles (app/(public)/compass/directory/[slug]), so a
+// on Tech Directory profiles (app/(public)/directory/[slug]), so a
 // company's price reads the same in both places. No hooks, so it renders on
 // the server and inside the LocStock client component alike.
 

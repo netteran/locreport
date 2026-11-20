@@ -40,12 +40,12 @@ const LINKS = [
     ),
   },
   {
-    href: '/compass',
-    label: 'Compass',
-    desc: 'LocStock, LLM pricing, and industry directory — all in one place.',
+    href: '/directory',
+    label: 'Directory',
+    desc: 'Browse language services and technology providers.',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="10" /><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+        <rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" />
       </svg>
     ),
   },

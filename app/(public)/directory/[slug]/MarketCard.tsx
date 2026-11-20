@@ -67,7 +67,7 @@ export async function MarketCard({ company }: { company: LocStockCompany }) {
         <p className="dir-market-empty">Price data isn’t available yet.</p>
       )}
       {warn && <span className="dir-market-warn">{warn}</span>}
-      <Link href="/compass/locstock" className="dir-market-link">LocStock →</Link>
+      <Link href="/locstock" className="dir-market-link">LocStock →</Link>
     </section>
   )
 }

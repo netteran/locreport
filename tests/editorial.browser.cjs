@@ -50,9 +50,9 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     }
 
     await visit('/')
-    const navHrefs = await page.locator('#site-menu > li > a, #site-menu > li > .nav-dropdown-trigger > a')
+    const navHrefs = await page.locator('#site-menu > li > a')
       .evaluateAll(links => links.map(link => link.getAttribute('href')))
-    assert.deepEqual(navHrefs, ['/articles', '/fact-flow', '/reports', '/compass'])
+    assert.deepEqual(navHrefs, ['/articles', '/fact-flow', '/reports', '/locstock', '/directory'])
     assert.equal(await page.locator('.briefing__title').innerText(), 'Newest authored analysis', 'latest publication leads even when an older article scores higher')
     assert.equal(await page.locator('.article-row').count(), 4, 'continuous list retains articles spanning more than three publication days')
     assert.ok((await page.locator('.article-row__title').allTextContents()).includes('Older high-impact analysis'))
@@ -64,8 +64,9 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await noOverflow()
     await page.screenshot({ path: 'work/editorial-preview/home-desktop.png', fullPage: true, animations: 'disabled' })
 
-    await page.locator('.site-nav a[href="/compass"]').hover()
-    await page.getByRole('menuitem', { name: 'Tech Directory', exact: true }).waitFor({ state: 'visible' })
+    const toolLinks = await page.locator('#tools a').evaluateAll(links => links.map(link => link.getAttribute('href')))
+    assert.deepEqual(toolLinks, ['/locstock', '/directory', '/llm-pricing'])
+    assert.equal(await page.locator('a[href="/llm-pricing"]').count(), 1)
 
     for (const legacyPath of ['/reports/monthly', '/monthly-reports', '/reports/monthly/2026/11']) {
       const redirect = await context.request.get(base + legacyPath, { maxRedirects: 0 })
@@ -94,7 +95,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
 
     for (const path of ['/intelligence', '/intelligence/signals', '/intelligence/signals/quality-gap-closure', '/intelligence/signals/unknown-legacy-signal', '/intelligence/high-impact']) {
       await visit(path)
-      assert.equal(new URL(page.url()).pathname, '/intelligence')
+      await page.waitForURL(base + '/intelligence')
       await page.getByRole('heading', { name: /Intelligence and Signals Tracker have been retired/ }).waitFor()
       assert.match(await page.locator('meta[name="robots"]').getAttribute('content'), /noindex/)
       assert.equal(await page.locator('.recharts-wrapper, canvas').count(), 0)
@@ -104,6 +105,10 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     const sitemapXml = await sitemap.text()
     assert.doesNotMatch(sitemapXml, /<loc>[^<]*(?:\/intelligence|\/reports\/monthly)/)
     assert.match(sitemapXml, /<loc>https:\/\/locreport\.com\/reports<\/loc>/)
+    assert.doesNotMatch(sitemapXml, /<loc>[^<]*\/compass/)
+    for (const path of ['/locstock', '/directory', '/directory/rws', '/llm-pricing']) {
+      assert.ok(sitemapXml.includes(`<loc>https://locreport.com${path}</loc>`), path)
+    }
 
     await visit('/search?q=October')
     await page.locator('.search-main a[href="/articles/october-buyer-decisions-briefing"]').waitFor()
@@ -132,15 +137,47 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await page.getByRole('link', { name: 'A sourced industry announcement.', exact: true }).waitFor()
     assert.equal(await page.getByText('Private pending fact', { exact: true }).count(), 0)
 
+    for (const [from, to] of [
+      ['/compass', '/#tools'],
+      ['/compass/locstock', '/locstock'],
+      ['/compass/directory', '/directory'],
+      ['/compass/directory/rws?from=weekly', '/directory/rws?from=weekly'],
+      ['/compass/llm-pricing', '/llm-pricing'],
+      ['/tools/directory', '/directory'],
+      ['/market', '/locstock'],
+    ]) {
+      const response = await context.request.get(base + from, { maxRedirects: 0 })
+      assert.equal(response.status(), 308, from)
+      assert.equal(new URL(response.headers().location, base).href, base + to)
+    }
+
     for (const [path, heading] of [
-      ['/compass', 'The Language Services & AI Ecosystem Compass'],
-      ['/compass/directory', 'Language Technology Directory'],
-      ['/compass/llm-pricing', 'AI Translation Cost Simulator'],
-      ['/compass/locstock', 'LocStock'],
+      ['/directory', 'Language Technology Directory'],
+      ['/directory/rws', 'RWS'],
+      ['/llm-pricing', 'AI Translation Cost Simulator'],
+      ['/locstock', 'LocStock'],
     ]) {
       await visit(path)
       await page.getByRole('heading', { name: heading, exact: true }).first().waitFor()
+      assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), 'https://locreport.com' + path)
     }
+
+    await page.setViewportSize({ width: 641, height: 844 })
+    await visit('/')
+    await page.getByRole('button', { name: 'Open menu', exact: true }).click()
+    await page.locator('#site-menu a[href="/directory"]').waitFor({ state: 'visible' })
+    await page.getByRole('button', { name: 'Close menu', exact: true }).click()
+    await noOverflow()
+
+    await page.setViewportSize({ width: 768, height: 844 })
+    const logo = await page.locator('.site-logo').boundingBox()
+    const nav = await page.locator('#site-menu').boundingBox()
+    const actions = await page.locator('.nav-actions').boundingBox()
+    assert.ok(logo.x + logo.width <= nav.x && nav.x + nav.width <= actions.x, 'tablet header links have room')
+    await page.getByRole('button', { name: 'Open search', exact: true }).click()
+    await page.getByRole('textbox', { name: 'Search LocReport', exact: true }).fill('RWS')
+    await noOverflow()
+    await page.getByRole('button', { name: 'Close search', exact: true }).click()
 
     await page.setViewportSize({ width: 390, height: 844 })
     await visit('/')
@@ -148,6 +185,9 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await page.screenshot({ path: 'work/editorial-preview/home-mobile.png', fullPage: true, animations: 'disabled' })
     await page.getByRole('button', { name: 'Open menu', exact: true }).click()
     await page.locator('.site-nav a[href="/articles"]').waitFor({ state: 'visible' })
+    await page.locator('.site-nav a[href="/locstock"]').waitFor({ state: 'visible' })
+    await page.locator('.site-nav a[href="/directory"]').waitFor({ state: 'visible' })
+    assert.equal(await page.locator('.site-nav a[href="/llm-pricing"]').count(), 0)
     await page.locator('.site-nav a[href="/fact-flow"]').click()
     await page.waitForURL(base + '/fact-flow')
     assert.equal(await page.getByRole('button', { name: 'Open menu', exact: true }).getAttribute('aria-expanded'), 'false')
@@ -158,7 +198,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
       if (path === '/reports') await page.screenshot({ path: 'work/editorial-preview/monthly-mobile.png', fullPage: true, animations: 'disabled' })
     }
     assert.deepEqual(errors, [])
-    console.log('Editorial browser checks passed: newest article and continuous archive, desktop/mobile navigation, monthly coverage dates, annual archive, retired routes/noindex/sitemap, briefing search, article context, Fact Flow and all Compass tools; no live actions.')
+    console.log('Editorial browser checks passed: newest article and continuous archive, desktop/mobile navigation, monthly coverage dates, annual archive, retired routes/noindex/sitemap, briefing search, article context, Fact Flow, top-level tools and Compass redirects; no live actions.')
   } finally {
     await browser.close()
   }

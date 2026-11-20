@@ -21,10 +21,8 @@ const STATIC_PAGES = [
   { title: 'Monthly Report', href: '/reports', section: 'Reports', excerpt: 'What mattered in localization and language services, its practical implications and what to watch next.' },
   { title: 'Fact Flow', href: '/fact-flow', section: 'News', excerpt: 'The latest localization and language-services news with links to original sources.' },
   { title: '2026 Global Localization Market Report', href: '/reports/2026-annual-global-market-report', section: 'Report archive', excerpt: 'Archived annual analysis of market evolution, AI disruption, and competitive dynamics.' },
-  { title: 'LocStock — Localization Market Index', href: '/compass/locstock', section: 'Compass', excerpt: 'Live equity overview of 39 publicly traded companies in language services and AI translation.' },
-  { title: 'Compass — Industry Tools', href: '/compass', section: 'Compass', excerpt: 'Market intelligence tools: LocStock, industry directory, LLM pricing tracker.' },
-  { title: 'Industry Directory', href: '/compass/directory', section: 'Compass', excerpt: 'Directory of companies in language services, translation technology, and localization.' },
-  { title: 'LLM Pricing Tracker', href: '/compass/llm-pricing', section: 'Compass', excerpt: 'Comparative pricing for large language models used in translation and localization.' },
+  { title: 'LocStock — Localization Market Index', href: '/locstock', section: 'Tools', excerpt: 'Live equity overview of 39 publicly traded companies in language services and AI translation.' },
+  { title: 'Industry Directory', href: '/directory', section: 'Tools', excerpt: 'Directory of companies in language services, translation technology, and localization.' },
 ]
 
 interface ArticleResult extends BriefingCoverage {

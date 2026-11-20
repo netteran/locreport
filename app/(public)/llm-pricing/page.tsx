@@ -8,9 +8,9 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 3600
 
 export const metadata: Metadata = {
-  title: 'AI Translation Cost Simulator | Compass',
+  title: 'AI Translation Cost Simulator',
   description: 'Compare monthly API translation costs across GPT-5.5, Claude, Gemini, DeepSeek, Kimi, Qwen, Grok, Mistral and more. Build your language programme pair by pair.',
-  alternates: { canonical: '/compass/llm-pricing' },
+  alternates: { canonical: '/llm-pricing' },
 }
 
 export default async function LLMPricingPage() {
