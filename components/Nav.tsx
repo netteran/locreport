@@ -162,10 +162,11 @@ export function Nav() {
     router.refresh()
   }
 
+  const isHome = pathname === '/'
   const current = (href: string) => (pathname === href ? 'page' as const : undefined)
 
   return (
-    <header className="site-header">
+    <header className={isHome ? 'site-header site-header--editorial' : 'site-header'}>
       <div className="header-shell">
         <Link href="/" className="site-logo" aria-label="LocReport home">
           <Image src="/logolight.png" alt="LocReport" width={120} height={32} className="site-logo-img site-logo-img--light" priority />

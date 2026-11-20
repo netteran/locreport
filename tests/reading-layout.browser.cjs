@@ -36,34 +36,40 @@ const previews = 'work/reading-preview'
       for (const width of [1440, 1024, 768, 390, 320]) {
         await page.setViewportSize({ width, height: width > 768 ? 1000 : 844 })
         await visit('/')
-        await page.locator('.briefing__lead-image img').evaluate(image => image.decode())
+        await page.locator('.editorial-home__image img').evaluate(image => image.decode())
         const dimensions = await page.evaluate(() => {
           const rect = selector => document.querySelector(selector).getBoundingClientRect()
-          const image = rect('.briefing__lead-image')
-          return { hero: rect('.hero').height, analysisTop: rect('.briefing').top,
-            imageWidth: image.width, imageHeight: image.height,
-            excerptTop: rect('.briefing__excerpt').top, imageBottom: image.bottom }
+          const lead = rect('.editorial-home__lead')
+          const flow = rect('.editorial-home__fact-flow')
+          const image = rect('.editorial-home__image')
+          const headline = rect('.editorial-home__lead h1')
+          const summary = rect('.editorial-home__summary')
+          const sources = rect('.home-sources')
+          return {
+            beside: flow.left >= lead.right && Math.abs(flow.top - lead.top) < 1,
+            stacked: flow.top >= lead.bottom,
+            sourcesBelow: sources.top >= Math.max(lead.bottom, flow.bottom),
+            mobileImageOrder: image.top >= headline.bottom && image.bottom <= summary.top,
+            imageWidth: image.width,
+            imageHeight: image.height,
+          }
         })
-        assert.ok(dimensions.hero < 320, `${width}px hero should keep the analysis prominent`)
-        assert.ok(dimensions.imageWidth <= 240 && dimensions.imageHeight < 180, 'lead image stays compact')
-        assert.ok(dimensions.excerptTop >= dimensions.imageBottom, 'lead excerpt clears the image')
+        assert.equal(dimensions.beside, width >= 1024, 'Fact Flow is beside the lead on wide screens')
+        assert.equal(dimensions.stacked, width < 1024, 'Fact Flow follows the lead on smaller screens')
+        assert.ok(dimensions.sourcesBelow, 'the Sources strip follows the lead and Fact Flow')
+        if (width <= 690) assert.ok(dimensions.mobileImageOrder, 'the mobile lead image sits between the headline and summary')
         metrics.push({ theme, width, ...dimensions })
 
-        for (const row of await page.locator('.article-row').all()) {
-          const image = row.locator('.article-row__thumb img')
+        for (const card of await page.locator('.editorial-home__card').all()) {
+          const image = card.locator('.editorial-home__card-image img')
           if (await image.count()) {
             await image.scrollIntoViewIfNeeded()
             await image.evaluate(image => image.decode())
-            assert.equal(await image.evaluate(image => getComputedStyle(image).objectFit), 'contain', 'cover artwork is not cropped')
+            const photo = await image.boundingBox()
+            const copy = await card.locator('.editorial-home__card-copy').boundingBox()
+            assert.ok(Math.abs(photo.width / photo.height - 16 / 9) < 0.02, 'card image uses a 16:9 crop')
+            assert.ok(copy.y >= photo.y + photo.height - 1, 'card copy sits below its image')
           }
-          const layout = await row.evaluate(row => {
-            const content = row.querySelector('.article-row__excerpt').getBoundingClientRect()
-            const heading = row.querySelector('.article-row__heading').getBoundingClientRect()
-            return { content: content.toJSON(), heading: heading.toJSON(), card: row.getBoundingClientRect().toJSON() }
-          })
-          assert.ok(Math.abs(layout.content.width - layout.heading.width) < 1, 'excerpt spans the full width below the heading')
-          assert.ok(layout.content.top >= layout.heading.bottom - 1, 'excerpt has no empty thumbnail column beside it')
-          assert.ok(layout.content.left >= layout.card.left && layout.content.right <= layout.card.right)
         }
         await noOverflow()
         if ([1440, 390].includes(width)) {
@@ -100,7 +106,7 @@ const previews = 'work/reading-preview'
     }
     assert.deepEqual(errors, [])
     fs.writeFileSync(`${previews}/metrics.json`, JSON.stringify(metrics, null, 2))
-    console.log('Reading layout checks passed at 320, 390, 768, 1024 and 1440px in light/dark themes: compact hero/images, full-width excerpts, preserved quotes, native nested list markers, links and no overflow.')
+    console.log('Reading layout checks passed at 320, 390, 768, 1024 and 1440px in light/dark themes: responsive lead and article imagery, preserved quotes, native nested list markers, links and no overflow.')
   } finally {
     await browser.close()
   }
