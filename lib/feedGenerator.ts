@@ -472,7 +472,7 @@ async function collectRssCandidates(source: ScrapedSource): Promise<RawArticle[]
     const $el = $(el)
     const title = stripHtml($el.find('title').first().text())
     const link = $el.find('link').first().text().trim() || $el.find('guid').first().text().trim()
-    if (!title || !link) return
+    if (!title || !link || !matchesLinkPattern(link, source.link_pattern)) return
     results.push({
       title,
       link,
@@ -485,7 +485,7 @@ async function collectRssCandidates(source: ScrapedSource): Promise<RawArticle[]
     const $el = $(el)
     const title = stripHtml($el.find('title').first().text())
     const link = $el.find('link[href]').first().attr('href') || $el.find('link').first().text().trim() || $el.find('id').first().text().trim()
-    if (!title || !link) return
+    if (!title || !link || !matchesLinkPattern(link, source.link_pattern)) return
     results.push({
       title,
       link,
