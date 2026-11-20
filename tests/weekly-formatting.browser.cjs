@@ -29,8 +29,9 @@ const { issueMarkdown } = load('lib/email/edition.ts', {
     const output = 'work/weekly-preview'
     fs.mkdirSync(output, { recursive: true })
     const manageUrl = 'https://locreport.com/subscribe/manage?token=preview'
-    await page.setContent(digestEmail({ ...issue, periodLabel: '13–20 November 2026', manageUrl }), { waitUntil: 'networkidle' })
+    await page.setContent(digestEmail({ ...issue, periodLabel: '13–20 November 2026', manageUrl, browserUrl: 'https://locreport.com/the-weekly/' + 'a'.repeat(64) }), { waitUntil: 'networkidle' })
     await page.getByRole('heading', { name: 'The Weekly', exact: true }).waitFor()
+    assert.match(await page.getByRole('link', { name: 'View in browser', exact: true }).getAttribute('href'), /\/the-weekly\/[a-f0-9]{64}$/)
     await page.screenshot({ path: output + '/automatic-reference.png', fullPage: true })
     await page.setViewportSize({ width: 320, height: 1000 })
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'automatic newsletter overflows at 320px')

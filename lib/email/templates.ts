@@ -85,7 +85,12 @@ export function renderWeeklyNoteContent(markdown: string): string {
   }).join('')
 }
 
-function weeklyEmail(periodLabel: string, bodyHtml: string, manageUrl: string): string {
+interface WeeklyLinks {
+  manageUrl?: string
+  browserUrl?: string
+}
+
+function weeklyEmail(periodLabel: string, bodyHtml: string, { manageUrl, browserUrl }: WeeklyLinks): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -105,9 +110,15 @@ function weeklyEmail(periodLabel: string, bodyHtml: string, manageUrl: string): 
       <!--[if mso]><table role="presentation" align="center" width="620" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
       <table role="presentation" align="center" width="100%" cellpadding="0" cellspacing="0" bgcolor="${BRAND.surface}" style="max-width:620px;width:100%;background:${BRAND.surface};border:1px solid ${BRAND.border};border-radius:12px;overflow:hidden;table-layout:fixed;font-family:${FONT};">
         <tr><td bgcolor="${BRAND.masthead}" class="newsletter-masthead" style="background:${BRAND.masthead};padding:25px 36px 30px;border-top:4px solid ${BRAND.accent};">
-          <a href="https://locreport.com" style="display:inline-block;color:#FFFFFF;text-decoration:none;">
-            <img src="${WEEKLY_LOGO_URL}" alt="LocReport" width="112" height="32" style="display:block;width:112px;height:32px;border:0;color:#FFFFFF;">
-          </a>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr><td valign="middle">
+              <a href="https://locreport.com" style="display:inline-block;color:#FFFFFF;text-decoration:none;">
+                <img src="${WEEKLY_LOGO_URL}" alt="LocReport" width="112" height="32" style="display:block;width:112px;height:32px;border:0;color:#FFFFFF;">
+              </a>
+            </td>${browserUrl ? `<td align="right" valign="middle">
+              <a href="${escapeHtml(browserUrl)}" style="color:${BRAND.mastheadText};font-size:13px;line-height:1.35;text-decoration:underline;">View in browser</a>
+            </td>` : ''}</tr>
+          </table>
           <h1 style="margin:14px 0 5px;color:#FFFFFF;font-size:42px;line-height:1.1;font-weight:700;letter-spacing:-0.035em;">The Weekly</h1>
           <p style="margin:0;color:${BRAND.mastheadText};font-size:14px;line-height:1.45;">${escapeHtml(periodLabel)}</p>
         </td></tr>
@@ -116,8 +127,9 @@ function weeklyEmail(periodLabel: string, bodyHtml: string, manageUrl: string): 
         </td></tr>
         <tr><td class="newsletter-footer" bgcolor="${BRAND.panel}" style="padding:22px 35px;background:${BRAND.panel};border-top:1px solid ${BRAND.border};font-size:13px;line-height:1.55;color:${BRAND.muted};">
           <p style="margin:0 0 7px;font-weight:700;color:${BRAND.text};">LocReport</p>
-          <p style="margin:0 0 9px;">You’re receiving The Weekly because you subscribed to LocReport.</p>
-          <a href="${escapeHtml(manageUrl)}" style="color:${BRAND.accent};text-decoration:underline;">Manage subscription</a>
+          ${manageUrl ? `<p style="margin:0 0 9px;">You’re receiving The Weekly because you subscribed to LocReport.</p>
+          <a href="${escapeHtml(manageUrl)}" style="color:${BRAND.accent};text-decoration:underline;">Manage subscription</a>` :
+          `<a href="https://locreport.com" style="color:${BRAND.accent};text-decoration:underline;">Visit LocReport</a>`}
         </td></tr>
       </table>
       <!--[if mso]></td></tr></table><![endif]-->
@@ -267,7 +279,7 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n).trimEnd() + '…' : s
 }
 
-export function digestEmail({ periodLabel, editorNote, topStory, company, facts, market, directory, more, moreCount, manageUrl }: {
+export function digestEmail({ periodLabel, editorNote, topStory, company, facts, market, directory, more, moreCount, ...links }: WeeklyLinks & {
   periodLabel: string
   editorNote?: string
   topStory: DigestArticle | null
@@ -277,8 +289,6 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, facts,
   directory: DigestDirectoryEntry[]
   more: DigestArticle[]
   moreCount: number
-  /** The subscriber's /subscribe/manage page — where unsubscribing lives. */
-  manageUrl: string
 }): string {
   const topHtml = topStory ? weeklySection('Top story', 'story', `
     <h2 class="newsletter-story-title" style="${STORY_TITLE}"><a href="${escapeHtml(topStory.url)}" style="${TITLE_LINK}">${escapeHtml(topStory.title)}</a></h2>
@@ -333,7 +343,7 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, facts,
 
   return weeklyEmail(periodLabel, `
     ${editorNote?.trim() ? editorIntro(renderWeeklyNoteContent(editorNote)) : ''}
-    ${topHtml}${companyHtml}${factsHtml}${marketHtml}${directoryHtml}${moreHtml}`, manageUrl)
+    ${topHtml}${companyHtml}${factsHtml}${marketHtml}${directoryHtml}${moreHtml}`, links)
 }
 
 type NewsletterSection = 'story' | 'company' | 'facts' | 'market' | 'directory' | 'more' | 'custom'
@@ -360,7 +370,7 @@ function standaloneImage(token: Token) {
 }
 
 /** Style the saved document itself; never regenerate or replace an editor's copy. */
-export function editedDigestEmail({ editionDate, bodyMarkdown, manageUrl }: { editionDate: string; bodyMarkdown: string; manageUrl: string }): string {
+export function editedDigestEmail({ editionDate, bodyMarkdown, ...links }: WeeklyLinks & { editionDate: string; bodyMarkdown: string }): string {
   const p = (s: string, style = '') => `<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:${BRAND.text};${style}">${s}</p>`
   function blocks(tokens: Token[], section: NewsletterSection = 'custom', nested = false): string {
     let titleSeen = false
@@ -448,5 +458,5 @@ export function editedDigestEmail({ editionDate, bodyMarkdown, manageUrl }: { ed
     return weeklySection(heading.text, kind, kind === 'market' ? panel(body, 'support') : body)
   }).join('')
   const date = new Date(`${editionDate}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Warsaw' })
-  return weeklyEmail(date, content, manageUrl)
+  return weeklyEmail(date, content, links)
 }
