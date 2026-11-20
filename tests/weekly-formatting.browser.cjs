@@ -21,7 +21,7 @@ const { issueMarkdown } = load('lib/email/edition.ts', {
     const context = await browser.newContext({ viewport: { width: 640, height: 1000 }, reducedMotion: 'reduce' })
     await context.route('**/*', route => {
       const url = new URL(route.request().url())
-      if (url.hostname === 'locreport.com' && ['/icon.png', '/logolight.png'].includes(url.pathname)) return route.fulfill({ contentType: 'image/png', body: fs.readFileSync('public' + url.pathname) })
+      if (url.hostname === 'locreport.com' && ['/icon.png', '/logolight.png', '/logodark.png'].includes(url.pathname)) return route.fulfill({ contentType: 'image/png', body: fs.readFileSync('public' + url.pathname) })
       return ['127.0.0.1', 'localhost'].includes(url.hostname) ? route.continue() : route.abort()
     })
     const page = await context.newPage(), errors = []
@@ -30,7 +30,11 @@ const { issueMarkdown } = load('lib/email/edition.ts', {
     fs.mkdirSync(output, { recursive: true })
     const manageUrl = 'https://locreport.com/subscribe/manage?token=preview'
     await page.setContent(digestEmail({ ...issue, periodLabel: '13–20 November 2026', manageUrl }), { waitUntil: 'networkidle' })
+    await page.getByRole('heading', { name: 'The Weekly', exact: true }).waitFor()
     await page.screenshot({ path: output + '/automatic-reference.png', fullPage: true })
+    await page.setViewportSize({ width: 320, height: 1000 })
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'automatic newsletter overflows at 320px')
+    await page.setViewportSize({ width: 640, height: 1000 })
     const copy = issueMarkdown(issue).replace('https://publisher.example.test/review', 'https://publisher.example.test/reviewed-source')
     const base = process.env.TEST_BASE_URL
     if (base) {
@@ -51,7 +55,7 @@ const { issueMarkdown } = load('lib/email/edition.ts', {
     assert.equal(await page.locator('[data-newsletter-section]').count(), 6)
     assert.equal(await page.locator('[data-newsletter-section="story"] h2').textContent(), issue.topStory.title)
     const company = page.locator('[data-newsletter-section="company"]')
-    assert.equal(await company.locator('> table').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(245, 245, 247)')
+    assert.equal(await company.locator('> table').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(247, 249, 252)')
     assert.equal(await company.locator('img').evaluate(e => e.getBoundingClientRect().width), 56)
     assert.equal(await page.getByRole('link', { name: issue.facts[0].content, exact: true }).getAttribute('href'), 'https://publisher.example.test/reviewed-source')
     await page.getByRole('link', { name: 'Manage subscription', exact: true }).waitFor()
