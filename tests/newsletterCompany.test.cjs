@@ -13,7 +13,8 @@ const utils = load('lib/utils.ts', { './monthlyReportSlugs': load('lib/monthlyRe
 const digest = load('lib/email/digest.ts', {
   '@/lib/data/locstock': { LOCSTOCK_COMPANIES: [] },
   '@/lib/data/directory': { DIRECTORY_CATEGORIES: [{ value: 'lsp', label: 'LSPs' }] },
-  '@/lib/utils': utils, '@/lib/email/send': { SITE_URL: 'https://locreport.com' }
+  '@/lib/utils': utils, '@/lib/email/send': { SITE_URL: 'https://locreport.com' },
+  '@/lib/email/companyLogo': load('lib/email/companyLogo.ts'),
 })
 const companyLinks = load('lib/email/editionCompany.ts')
 const { editionCompanySlug } = companyLinks
@@ -168,6 +169,59 @@ test('refresh without a working-company parameter uses the saved profile and ign
     assert.equal(f.builds.at(-1).excludeSlug, slug)
   }
   assert.equal(f.writes.length, 1)
+})
+
+test('company selection keeps uploaded SVG logos as versioned PNG links in the edition', async t => {
+  const oldStorage = process.env.NEXT_PUBLIC_SUPABASE_URL
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://storage.example.test'
+  t.after(() => {
+    if (oldStorage === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = oldStorage
+  })
+
+  const storageLogo = 'https://storage.example.test/storage/v1/object/public/directory-logos/beta.svg?v=123'
+  const f = apiFixture()
+  const route = load('app/api/digest/companies/route.ts', {
+    '@/lib/adminAuth': { requireAdmin: async () => ({}) },
+    '@/lib/supabase/server': { createServiceClient: () => ({}) },
+    '@/lib/directory': { fetchDirectoryEntries: async () => [entry('beta', { logo_url: storageLogo })] },
+    '@/lib/email/digest': digest,
+    '@/lib/email/edition': f.edition,
+  })
+  const response = await route.GET(new NextRequest('http://localhost/api/digest/companies?slug=beta'))
+  assert.equal(response.status, 200)
+  const { section } = await response.json()
+  const logo = 'https://locreport.com/newsletter-assets/company/beta.svg.png?v=123'
+  assert.equal(editionCompanySlug(section), 'beta')
+  assert.ok(section.includes(logo))
+
+  const { editedDigestEmail } = load('lib/email/templates.ts')
+  assert.ok(editedDigestEmail({ editionDate: '2026-11-20', bodyMarkdown: section,
+    manageUrl: 'https://locreport.com/subscribe/manage' }).includes(`<img src="${logo}"`))
+
+  const sharp = require('sharp')
+  const converter = load('app/newsletter-assets/company/[file]/route.ts', {
+    sharp: { default: sharp },
+    '@/lib/email/companyLogo': load('lib/email/companyLogo.ts'),
+  })
+  const originalFetch = global.fetch
+  t.after(() => { global.fetch = originalFetch })
+  let requests = 0
+  global.fetch = async (url, options) => {
+    requests++
+    assert.equal(url.href, storageLogo)
+    assert.equal(options.redirect, 'error')
+    return new Response('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="40"><rect width="20" height="40" fill="blue"/></svg>',
+      { headers: { 'Content-Type': 'image/svg+xml' } })
+  }
+  const invalid = await converter.GET(new NextRequest(logo), { params: Promise.resolve({ file: '../beta.svg.png' }) })
+  assert.equal(invalid.status, 404)
+  assert.equal(requests, 0)
+  const png = await converter.GET(new NextRequest(logo), { params: Promise.resolve({ file: 'beta.svg.png' }) })
+  assert.equal(png.status, 200)
+  assert.equal(png.headers.get('Content-Type'), 'image/png')
+  const metadata = await sharp(Buffer.from(await png.arrayBuffer())).metadata()
+  assert.deepEqual([metadata.format, metadata.width, metadata.height], ['png', 112, 112])
 })
 
 test('choosing a company replaces only the real company section and preserves other edits', () => {

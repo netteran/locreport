@@ -70,12 +70,14 @@ test('saving the assembled newsletter keeps the story hierarchy, company card an
  const story=$('[data-newsletter-section="story"]')
  assert.equal(story.find('h2 a').text(),issue.topStory.title)
  assert.equal(story.find('h2 a').attr('href'),issue.topStory.url)
- assert.match(story.find('h2').attr('style'),/font-size:19px/)
- assert.match(story.children('p').first().attr('style'),/color:#B5740F/)
+ assert.match(story.find('h2').attr('style'),/font-size:30px/)
+ assert.match(story.find('.newsletter-lead > p').first().attr('style'),/color:#80520F/)
+ assert.match(story.find('a').last().attr('style'),/background:#3550F5/)
+ assert.equal($('.newsletter-masthead h1').text(),'The Weekly')
  assert.equal(story.text().includes('Why it matters'),true)
  assert.equal(story.find('a').last().text(),'Read the story →')
  const company=$('[data-newsletter-section="company"]')
- assert.match(company.children('table').attr('style'),/background:#F5F5F7/)
+ assert.match(company.children('table').attr('style'),/background:#EDF9F4/)
  assert.equal(company.find('img').attr('width'),'56')
  assert.equal(company.find('a').first().text(),issue.company.name)
  for(const text of [issue.company.blurb,'est. 2015',issue.company.hq])assert.ok(company.text().includes(text))
@@ -119,14 +121,38 @@ test('edition table is private and rejects non-Friday or empty content in Postgr
  await db.exec("insert into weekly_newsletter_editions values ('2026-11-20','Subject','Body','{}',now())")
  await assert.rejects(db.exec("insert into weekly_newsletter_editions values ('2026-11-19','Subject','Body','{}',now())"),/check constraint/)
  await assert.rejects(db.exec("update weekly_newsletter_editions set body_markdown=''"),/check constraint/)
+ await db.exec(fs.readFileSync('supabase/migrations/20261129_weekly_newsletter_web_editions.sql','utf8'))
+ for(const role of ['anon','authenticated']) {
+   assert.equal((await db.query(`select has_table_privilege('${role}','public.weekly_newsletter_web_editions','SELECT') allowed`)).rows[0].allowed,false)
+ }
+ await db.exec("insert into weekly_newsletter_web_editions(id, edition_date, html) values(repeat('a',64), '2026-11-20', 'Public copy')")
+ await assert.rejects(db.exec("insert into weekly_newsletter_web_editions(id, edition_date, html) values('invalid', '2026-11-20', 'Public copy')"),/check constraint/)
  }finally{await db.close()}
 })
 
 test('preview and manual/cron sends use the same saved subject/body and reject a stale revision before delivery',async()=>{
- const templates=load('lib/email/templates.ts'), sent=[], snapshots=[]
+ const templates=load('lib/email/templates.ts'), sent=[], snapshots=[], archive=new Map()
  process.env.ADMIN_EMAIL='editor@example.test';process.env.CRON_SECRET='fixture-cron'
  const resolved={editionDate:'2026-11-20',subject:'Reviewed subject',bodyMarkdown:'## Reviewed edition\n\nComplete edited copy and [link](https://example.test).',revision:'reviewed-v1',issue:{storyCount:0,articleIds:[]}}
- const service={from(table){const q={select(){return q},eq(){return q},update(){return q},insert:async value=>{snapshots.push(value);return {error:null}},then(resolve,reject){return Promise.resolve({data:table==='subscribers'?[{id:'90000000-0000-4000-8000-000000000001',email:'reader@example.test',manage_token:'token',last_sent_at:null}]:[],error:null}).then(resolve,reject)}};return q}}
+ const service={from(table){
+   let id
+   const q={
+     select(){return q},eq(_,value){id=value;return q},update(){return q},
+     insert:async value=>{snapshots.push(value);return {error:null}},
+     upsert:async (value, options)=>{
+       assert.equal(table,'weekly_newsletter_web_editions')
+       assert.equal(options.ignoreDuplicates,true)
+       archive.set(value.id,value)
+       return {error:null}
+     },
+     maybeSingle:async ()=>{
+       assert.equal(table,'weekly_newsletter_web_editions')
+       return {data:archive.get(id),error:null}
+     },
+     then(resolve,reject){return Promise.resolve({data:table==='subscribers'?[{id:'90000000-0000-4000-8000-000000000001',email:'reader@example.test',manage_token:'token',last_sent_at:null}]:[],error:null}).then(resolve,reject)}
+   }
+   return q
+ }}
  const dependencies={'@/lib/supabase/server':{createClient:async()=>({auth:{getUser:async()=>({data:{user:{email:'editor@example.test'}}})}}),createServiceClient:()=>service},'@/lib/email/templates':templates,'@/lib/email/send':{SITE_URL:'https://locreport.com',digestFrom:()=> 'editor@example.test',getResend:()=>({batch:{send:async batch=>{sent.push(...batch);return {data:{data:[{id:'fixture-send'}]},error:null}}}})},'@/lib/email/period':{currentPeriod:()=>({periodStart:new Date('2026-11-13'),periodEnd:new Date('2026-11-20'),periodLabel:'Test period'})},'@/lib/email/edition':{resolveEdition:async()=>resolved}}
  const preview=load('app/api/digest/preview/route.ts',dependencies), send=load('app/api/digest/send/route.ts',dependencies)
  assert.equal((await send.POST(new NextRequest('http://localhost/api/digest/send?revision=old',{method:'POST'}))).status,409)
@@ -134,10 +160,30 @@ test('preview and manual/cron sends use the same saved subject/body and reject a
  assert.equal(sent.length,0)
  const html=await (await preview.GET(new NextRequest('http://localhost/api/digest/preview?revision=reviewed-v1'))).text()
  const dry=await send.POST(new NextRequest('http://localhost/api/digest/send?dry=1&revision=reviewed-v1',{method:'POST'}))
- assert.equal((await dry.json()).recipients,1);assert.equal(sent.length,0)
+ assert.equal((await dry.json()).recipients,1);assert.equal(sent.length,0);assert.equal(archive.size,0)
  assert.equal((await send.POST(new NextRequest('http://localhost/api/digest/send?revision=reviewed-v1',{method:'POST'}))).status,200)
- assert.equal(sent[0].subject,'Reviewed subject');assert.equal(sent[0].html,html.replace('token=preview','token=token'))
+ assert.equal(sent[0].subject,'Reviewed subject')
+ const markup=htmlDocument(sent[0].html)
+ assert.equal(markup('.newsletter-content').html(),htmlDocument(html)('.newsletter-content').html())
+ assert.equal(markup('.newsletter-footer a').attr('href'),'https://locreport.com/subscribe/manage?token=token')
+ const link=markup('a').filter((_,element)=>markup(element).text()==='View in browser').attr('href')
+ assert.match(link,/^https:\/\/locreport\.com\/the-weekly\/[a-f0-9]{64}$/)
+ const id=new URL(link).pathname.split('/').pop()
+ const browser=load('app/the-weekly/[id]/route.ts',dependencies)
+ const web=await browser.GET(new Request(link),{params:Promise.resolve({id})})
+ assert.equal(web.status,200)
+ assert.equal(web.headers.get('X-Robots-Tag'),'noindex')
+ const publicHtml=await web.text()
+ const publicDoc=htmlDocument(publicHtml)
+ assert.equal(publicDoc('.newsletter-content').html(),markup('.newsletter-content').html())
+ assert.doesNotMatch(publicHtml,/token=|reader@example\.test|Manage subscription|View in browser/)
+ assert.equal((await browser.GET(new Request(link),{params:Promise.resolve({id:'wrong'})})).status,404)
  assert.equal(snapshots[0].html,sent[0].html);assert.match(sent[0].html,/Complete edited copy/)
  assert.equal((await send.POST(new NextRequest('http://localhost/api/digest/send',{method:'POST',headers:{Authorization:'Bearer fixture-cron'}}))).status,200)
  assert.equal(sent[1].html,sent[0].html)
+ assert.equal(archive.size,1)
+ resolved.bodyMarkdown='## Revised edition\n\nA later version.'
+ assert.equal((await send.POST(new NextRequest('http://localhost/api/digest/send',{method:'POST',headers:{Authorization:'Bearer fixture-cron'}}))).status,200)
+ assert.equal(archive.size,2)
+ assert.equal(await (await browser.GET(new Request(link),{params:Promise.resolve({id})})).text(), publicHtml)
 })

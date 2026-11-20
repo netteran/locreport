@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { digestEmail, editedDigestEmail } from '@/lib/email/templates'
@@ -83,58 +84,65 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'That subscriber is not active' }, { status: 400 })
   }
 
-  type Payload = {
-    from: string
-    to: string
-    subject: string
-    html: string
-    headers: Record<string, string>
-    subscriberId: string
-    articleIds: string[]
-  }
-  const payloads: Payload[] = []
-  let skipped = 0
+  const eligible = (subscribers ?? []).filter(sub =>
+    to || !sub.last_sent_at || !(periodEnd.getTime() - new Date(sub.last_sent_at).getTime() < MIN_RESEND_GAP_MS),
+  )
+  const skipped = (subscribers?.length ?? 0) - eligible.length
 
-  for (const sub of subscribers ?? []) {
-    // Idempotency: safe to re-run — anyone sent something too recently is skipped
-    if (!to && sub.last_sent_at && periodEnd.getTime() - new Date(sub.last_sent_at).getTime() < MIN_RESEND_GAP_MS) {
-      skipped++
-      continue
-    }
-
-    // The footer links to the manage page (unsubscribe lives there, behind a
-    // confirmation); the header keeps the one-click API target mail clients need.
-    const manageUrl = `${SITE_URL}/subscribe/manage?token=${sub.manage_token}`
-    const unsubscribeUrl = `${SITE_URL}/api/subscribe/unsubscribe?token=${sub.manage_token}`
-
-    payloads.push({
-      from: digestFrom(),
-      to: sub.email,
-      subject,
-      html: edition.bodyMarkdown !== null
-        ? editedDigestEmail({ editionDate: edition.editionDate, bodyMarkdown: edition.bodyMarkdown, manageUrl })
-        : digestEmail({ periodLabel, ...(issue as Issue), manageUrl }),
-      headers: {
-        'List-Unsubscribe': `<${unsubscribeUrl}>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-      },
-      subscriberId: sub.id,
-      articleIds: issue.articleIds,
-    })
-  }
-
-  if (dryRun) {
+  if (dryRun || eligible.length === 0) {
     return NextResponse.json({
       ok: true,
-      dryRun: true,
+      dryRun,
       revision: edition.revision,
-      recipients: payloads.length,
+      recipients: eligible.length,
       sent: 0,
       skipped,
       articles: issue.storyCount,
       errors: [],
     })
   }
+
+  const bodyMarkdown = edition.bodyMarkdown
+  const render = (links: { manageUrl?: string; browserUrl?: string } = {}) =>
+    bodyMarkdown !== null
+      ? editedDigestEmail({ editionDate: edition.editionDate, bodyMarkdown, ...links })
+      : digestEmail({ periodLabel, ...(issue as Issue), ...links })
+
+  // Write one immutable, recipient-free copy before sending so any recipient's
+  // web link works immediately. A changed edition receives its own link.
+  const browserHtml = render()
+  const archiveId = createHash('sha256').update(JSON.stringify([edition.editionDate, subject, browserHtml])).digest('hex')
+  const { error: archiveError } = await service.from('weekly_newsletter_web_editions').upsert({
+    id: archiveId, edition_date: edition.editionDate, html: browserHtml,
+  }, { onConflict: 'id', ignoreDuplicates: true })
+  // Allow the existing newsletter to send during rollout if its optional web
+  // archive migration has not been applied yet.
+  if (archiveError && !(
+    ['42P01', 'PGRST205'].includes(archiveError.code) &&
+    archiveError.message.includes('weekly_newsletter_web_editions')
+  )) {
+    console.error('Could not store weekly newsletter web edition', archiveError)
+    return NextResponse.json({ error: 'Could not publish the browser edition. Retry the send.' }, { status: 503 })
+  }
+  if (archiveError) console.warn('The Weekly sent without a browser link because the web edition table is missing.')
+  const browserUrl = archiveError ? undefined : `${SITE_URL}/the-weekly/${archiveId}`
+
+  const payloads = eligible.map(sub => {
+    const manageUrl = `${SITE_URL}/subscribe/manage?token=${sub.manage_token}`
+    const unsubscribeUrl = `${SITE_URL}/api/subscribe/unsubscribe?token=${sub.manage_token}`
+    return {
+      from: digestFrom(),
+      to: sub.email,
+      subject,
+      html: render({ manageUrl, browserUrl }),
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+      subscriberId: sub.id,
+      articleIds: issue.articleIds,
+    }
+  })
 
   const resend = getResend()
   let sent = 0

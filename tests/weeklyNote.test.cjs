@@ -170,6 +170,7 @@ test('weekly content query includes newly published Monthly Briefings in the exi
 
 test('weekly issue includes Monthly Briefings and practical blocks without public scores or tracker links', () => {
   const { composeIssue } = load('lib/email/digest.ts', {
+    '@/lib/email/companyLogo': load('lib/email/companyLogo.ts'),
     '@/lib/data/locstock': load('lib/data/locstock.ts'),
     '@/lib/data/directory': load('lib/data/directory.ts'),
     '@/lib/utils': load('lib/utils.ts', { './monthlyReportSlugs': load('lib/monthlyReportSlugs.ts') }),

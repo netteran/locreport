@@ -118,7 +118,11 @@ export function WeeklyEditionEditor() {
           {companies?.map(company => <option key={company.slug} value={company.slug}>{company.name}</option>)}
         </select>
       </label>
-      <p className="text-xs" style={{ color: 'var(--muted)' }}>Choosing a company updates only its section. Save the edition to use the selection in the preview and send.</p>
+      <div className="admin-weekly-actions">
+        {currentCompany && companies?.some(company => company.slug === currentCompany) &&
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => chooseCompany(currentCompany)}>Reload company profile</Button>}
+        <p className="text-xs" style={{ color: 'var(--muted)' }}>Reloading replaces the company section with its current directory profile. Save to update the preview and send.</p>
+      </div>
       {companyError && <p role="alert">{companyError} {!companies && <button onClick={loadCompanies}>Retry loading companies</button>}</p>}
       <label>Newsletter content<textarea aria-label="Newsletter content" value={copy.body_markdown} maxLength={60000} disabled={busy} onChange={e => edit('body_markdown', e.target.value)} /></label>
       <div className="admin-weekly-actions">
