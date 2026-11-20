@@ -68,6 +68,14 @@ const { issueMarkdown } = load('lib/email/edition.ts', {
       assert.deepEqual(callouts, issue.facts.map(() => '2px'))
       await page.screenshot({ path: output + '/saved-' + width + '.png', fullPage: true })
     }
+    if (base) {
+      const browserLink = page.getByRole('link', { name: 'View in browser', exact: true })
+      assert.match(await browserLink.getAttribute('href'), /browser=1&revision=/)
+      await browserLink.click()
+      await page.getByRole('link', { name: 'Visit LocReport', exact: true }).waitFor()
+      assert.equal(await page.getByRole('link', { name: 'Manage subscription', exact: true }).count(), 0)
+      assert.equal(await page.locator('[data-newsletter-section="story"] h2').textContent(), issue.topStory.title)
+    }
     assert.deepEqual(errors, [])
     console.log('Weekly formatting checks passed: styled story, company/logo card, facts, edited source, directory, custom copy and subscription footer at 320–640px' + (base ? '; real saved edition and preview verified.' : '.'))
   } finally { await browser.close() }
