@@ -182,7 +182,7 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
 
   const featured = initialPage === 1 && !archiveType
   const cards = featured ? feed.posts.slice(1) : feed.posts
-  const showHomeAds = featured && filter === 'all'
+  const showFeedAd = featured && filter === 'all' && cards.length > 3
   const showEmpty = !feed.posts.length && (!featured || filter !== 'all')
 
   return (
@@ -202,12 +202,13 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
         <div className="editorial-home__opening">
           <div className="editorial-home__lead-column">
             <LeadPost post={feed.posts[0]} />
-            {showHomeAds && <HomeFeedAd placement="home-briefing" />}
+            <HomeFeedAd placement="home-briefing" />
           </div>
           {companion}
         </div>
       )}
       <section className="editorial-home__below" aria-label="Stories" aria-busy={pending !== null}>
+        {archiveType && <HomeFeedAd placement="home-briefing" />}
         {cards.length > 0 && (
           <>
             <div className="editorial-home__section-heading">
@@ -237,7 +238,7 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
             ))}
           </nav>
         )}
-        {showHomeAds && cards.length > 3 && <HomeFeedAd />}
+        {showFeedAd && <HomeFeedAd />}
       </section>
     </>
   )

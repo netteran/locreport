@@ -14,13 +14,18 @@
   flex-direction: column;
   min-width: 0;
 }
-.editorial-home__lead-column > .home-ad-reservation {
+.home-ad-reservation[data-ad-placement='home-briefing'] {
   display: grid;
   margin-block: 0;
 }
-.editorial-home__lead-column .home-ad-reservation__slot { margin-block-start: 14px; }
+.home-ad-reservation[data-ad-placement='home-briefing'] > .home-ad-reservation__slot {
+  margin-block-end: 16px;
+}
+.editorial-home__lead-column > [data-ad-placement='home-briefing'] > .home-ad-reservation__slot {
+  margin-block: 14px 0;
+}
 /* Keep the outer width measurable while the empty slot collapses. */
-.editorial-home__lead-column .home-ad-reservation__slot:has(.adsbygoogle[data-ad-status='unfilled']) {
+.home-ad-reservation[data-ad-placement='home-briefing'] > .home-ad-reservation__slot:has(.adsbygoogle[data-ad-status='unfilled']) {
   display: none;
 }
 @media (min-width: 1024px) {
