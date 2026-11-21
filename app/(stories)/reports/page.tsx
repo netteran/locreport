@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { ContentBadge } from '@/components/ContentBadge'
+import { HomeFeedAd } from '@/components/HomeFeedAd'
 import type { Metadata } from 'next'
 import { ANNUAL_REPORTS, annualReportPath } from '@/lib/reports'
 import { getReportImage } from '@/lib/reportImage'
@@ -51,6 +52,7 @@ export default async function ReportsPage() {
       </header>
 
       <section aria-labelledby="monthly-reports" className="reports-section">
+        <HomeFeedAd placement="home-briefing" />
         <h2 id="monthly-reports">Monthly Reports</h2>
         {posts.length === 0 && <p style={{ color: 'var(--muted)' }}>No monthly reports have been published yet.</p>}
         <div className="reports-list">

@@ -6,6 +6,7 @@ const { chromium } = require('playwright')
 const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
 const site = 'https://locreport.com'
 const card = '.editorial-home__card'
+const leadAd = '[data-ad-placement="home-briefing"]'
 const report = '/reports/october-2026-localization-industry-report/'
 
 async function request(path) {
@@ -61,6 +62,8 @@ async function checkStaticRoutes() {
   for (const path of ['/briefs/', '/analysis/', '/reports/']) {
     const $ = await html(path)
     assert.equal($('link[rel="canonical"]').attr('href'), site + path)
+    assert.equal($(leadAd).length, 1, path)
+    assert.equal($(`.public-page-heading + section > ${leadAd}:first-child`).length, 1, path)
   }
 
   for (const [path, section, schema, label, colors] of [
@@ -106,12 +109,14 @@ async function checkEnhancedFeed() {
     await page.route('**/*', route => new URL(route.request().url()).origin === new URL(base).origin ? route.continue() : route.abort())
     await page.goto(base + '/', { waitUntil: 'networkidle' })
     const pills = page.getByRole('navigation', { name: 'Filter stories' })
+    const adBelowLead = page.locator(`.editorial-home__lead + ${leadAd}`)
     const count = number => page.waitForFunction(({ card, number }) => document.querySelectorAll(card).length === number, { card, number })
     const active = name => page.waitForFunction(name => document.querySelector('.content-filters [aria-current="true"]')?.textContent === name, name)
     for (const [name, label] of [['Briefs', 'INDUSTRY BRIEF'], ['Analysis', 'LOC ANALYSIS'], ['Reports', 'MONTHLY REPORT']]) {
       await pills.getByRole('link', { name, exact: true }).click()
       await active(name)
       assert.equal(page.url(), base + '/')
+      assert.equal(await adBelowLead.count(), 1, name)
       const badges = [...new Set(await page.locator('.content-badge').allTextContents())]
       assert.deepEqual(badges, [label])
       if (name === 'Briefs') {
@@ -123,6 +128,7 @@ async function checkEnhancedFeed() {
     }
     await pills.getByRole('link', { name: 'All', exact: true }).click()
     await count(11)
+    assert.equal(await adBelowLead.count(), 1, 'All')
 
     // The normal anchor is intercepted once React has hydrated. No document request is needed.
     const documentRequests = []
