@@ -45,13 +45,15 @@ export default async function LLMPricingPage() {
   })
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-12)' }}>
-      <h1 style={{ marginBottom: 'var(--space-2)' }}>AI Translation Cost Simulator</h1>
-      <p style={{ color: 'var(--muted)', marginBottom: 'var(--space-6)' }}>
-        Build your language programme pair by pair, set word volumes, and compare monthly API costs across leading LLMs.
-      </p>
+    <main className="container public-page">
+      <header className="public-page-heading">
+        <h1>AI Translation Cost Simulator</h1>
+        <p>
+          Build your language programme pair by pair, set word volumes, and compare monthly API costs across leading LLMs.
+        </p>
+      </header>
       <PricingClient models={models} />
       <PricingHistoryChart models={models} history={priceHistory} />
-    </div>
+    </main>
   )
 }

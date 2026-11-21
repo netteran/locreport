@@ -91,7 +91,7 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
   const { coverage, mentions } = await getCompanyArticles(createPublicClient(), entry.name)
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-12)' }}>
+    <main className="container public-page">
       {/* Breadcrumb */}
       <div className="dir-breadcrumb-row">
         <nav className="dir-breadcrumb" aria-label="Breadcrumb">
@@ -103,7 +103,7 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
       </div>
 
       {/* Hero */}
-      <div className="dir-entry-hero">
+      <div className="dir-entry-hero public-page-heading">
         <div className="dir-entry-hero-main">
           <div className="dir-entry-header">
             <h1 className="dir-entry-name">{entry.name}</h1>
@@ -211,6 +211,6 @@ export default async function DirectoryEntryPage({ params }: { params: Promise<{
           Back to directory
         </Link>
       </div>
-    </div>
+    </main>
   )
 }

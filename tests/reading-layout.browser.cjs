@@ -131,11 +131,39 @@ const previews = 'work/reading-preview'
           && animation.playState === 'running'
           && animation.currentTime > 100
       })
+      const readerPalette = await page.locator('.public-shell').evaluate(shell => getComputedStyle(shell).backgroundColor)
+      const homeColors = await page.evaluate(() => {
+        const color = (selector, property) => getComputedStyle(document.querySelector(selector))[property]
+        return {
+          factPanel: color('.editorial-home__fact-flow', 'backgroundColor'),
+          factMessage: color('.editorial-home__updates li', 'backgroundColor'),
+          weekly: color('.editorial-home__weekly', 'backgroundColor'),
+          weeklyHeading: color('.editorial-home__weekly h2', 'color'),
+          footerSpacing: color('.site-footer', 'marginTop'),
+        }
+      })
+      assert.notEqual(homeColors.factMessage, homeColors.factPanel, 'each homepage update has a tinted field')
+      assert.notEqual(homeColors.weekly, readerPalette, 'the signup has a defined surface')
+      assert.notEqual(homeColors.weeklyHeading, homeColors.weekly, 'the signup heading remains visible')
+      assert.equal(homeColors.footerSpacing, '0px', 'the footer follows the homepage without an extra spacer')
+
+      for (const path of ['/reports', '/fact-flow', '/directory', '/directory/rws', '/locstock', '/llm-pricing']) {
+        for (const width of [1440, 390]) {
+          await page.setViewportSize({ width, height: 900 })
+          await visit(path)
+          assert.equal(await page.locator('.public-shell').evaluate(shell => getComputedStyle(shell).backgroundColor), readerPalette)
+          assert.match(await page.locator('h1').first().evaluate(heading => getComputedStyle(heading).fontFamily), /Manrope/)
+          await noOverflow()
+        }
+      }
+      await visit('/fact-flow')
+      const message = await page.locator('.ff-bubble').first().evaluate(card => getComputedStyle(card).backgroundColor)
+      assert.notEqual(message, readerPalette, 'Fact Flow messages have their own surface')
       await context.close()
     }
     assert.deepEqual(errors, [])
     fs.writeFileSync(`${previews}/metrics.json`, JSON.stringify(metrics, null, 2))
-    console.log('Reading layout checks passed at 320, 390, 768, 1024 and 1440px in light/dark themes: responsive lead imagery, continuous logo ticker, preserved quotes, native nested list markers, links and no overflow.')
+    console.log('Reading layout checks passed at 320, 390, 768, 1024 and 1440px in light/dark themes: responsive lead imagery, continuous logo ticker, shared page styling, preserved quotes, native nested list markers, links and no overflow.')
   } finally {
     await browser.close()
   }

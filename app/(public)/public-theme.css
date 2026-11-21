@@ -1,0 +1,93 @@
+/* Reader-facing palette. The admin layout keeps its own styles. */
+.public-shell:not(:has(> .admin-shell)) {
+  --bg: #fafafa;
+  --bg-secondary: #f4f3f7;
+  --surface: #fff;
+  --surface-warm: #f0edf8;
+  --text: #21233a;
+  --muted: #545972;
+  --border: #e2e2e5;
+  --hairline: #ececf0;
+  --accent: #2c3cb8;
+  --accent-hover: #202d8d;
+  --accent-soft: color-mix(in srgb, var(--accent) 9%, transparent);
+  --editorial-action: #2838ac;
+  --editorial-action-hover: #202d8d;
+  --fact-surface: #fff1c4;
+  --fact-entry: #fff8e2;
+  --fact-border: #e4cd8d;
+  --fact-ink: #68490f;
+  --font-display: 'Manrope', var(--font-body);
+  --site-max-width: 1280px;
+  --page-gutter: clamp(18px, 4vw, 48px);
+  --editorial-top-space: clamp(20px, 3vw, 36px);
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 24px;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+}
+[data-theme='dark'] .public-shell:not(:has(> .admin-shell)) {
+  --bg: #161820;
+  --bg-secondary: #1a1d29;
+  --surface: #1d2130;
+  --surface-warm: #2b2840;
+  --text: #f0f2ff;
+  --muted: #b6bdd4;
+  --border: #373b53;
+  --hairline: #2c3045;
+  --accent: #b8c2ff;
+  --accent-hover: #d6ddff;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --editorial-action: #3548bb;
+  --editorial-action-hover: #4357c9;
+  --fact-surface: #382d1a;
+  --fact-entry: #443820;
+  --fact-border: #635332;
+  --fact-ink: #f4d58c;
+}
+
+.public-shell:not(:has(> .admin-shell)) > .site-header {
+  background: var(--bg);
+}
+.public-shell:not(:has(> .admin-shell)) > .site-footer {
+  margin-top: 0;
+  padding: 38px 0 24px;
+}
+.public-shell:not(:has(> .admin-shell)) .footer-top {
+  gap: 22px clamp(22px, 4vw, 48px);
+  margin-bottom: 24px;
+}
+.public-shell:not(:has(> .admin-shell)) .footer-bottom { padding-top: 16px; }
+.public-shell:not(:has(> .admin-shell)) :is(.btn--primary, .btn-submit) {
+  background: var(--editorial-action);
+  color: #fff;
+}
+.public-shell:not(:has(> .admin-shell)) :is(.btn--primary, .btn-submit):hover {
+  background: var(--editorial-action-hover);
+}
+
+.public-shell .public-page { padding-block: var(--editorial-top-space) 44px; }
+.public-shell :is(.public-page-heading, .all-articles-hero, .market-hero) {
+  padding: clamp(22px, 4vw, 40px);
+  margin-bottom: 24px;
+  background: var(--page-heading-surface, var(--surface-warm));
+  border-radius: var(--radius-xl);
+}
+.public-shell .all-articles-hero { margin-top: var(--editorial-top-space); }
+.public-shell :is(.public-page-heading, .all-articles-hero, .market-hero) h1 {
+  margin: 0;
+  color: var(--text);
+  font: 800 clamp(1.8rem, 5vw, 3.25rem)/1.08 var(--font-display);
+  letter-spacing: -.045em;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+.public-shell :is(.public-page-heading, .all-articles-hero, .market-hero) p {
+  max-width: 65ch;
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+.public-shell .dir-card { border-radius: var(--radius-lg); }
+.public-shell .dir-card-name { font-family: var(--font-display); }

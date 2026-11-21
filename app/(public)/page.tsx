@@ -195,28 +195,20 @@ export default async function HomePage() {
             )}
 
             <HomeFeedAd placement={hasAdditionalFeedArticles ? 'home-feed' : 'home-briefing'} />
-
-            {/* CTA — opens The Weekly popup; the popup stays the only signup form */}
-            <section className="cta-section">
-              <div className="cta-inner">
-                <p className="cta-eyebrow">The Weekly</p>
-                <h2>Get the week in five minutes.</h2>
-                <p>
-                  A quick Friday roundup of the best stories in translation &amp; AI.
-                  Clean, useful, and zero spam.
-                </p>
-                <div className="cta-actions">
-                  <DigestPopupTrigger className="btn btn--primary btn--lg cta-weekly-btn">
-                    Join The Weekly
-                  </DigestPopupTrigger>
-                  <Link href="/articles" className="cta-secondary-link">
-                    Or browse all articles <span aria-hidden="true">→</span>
-                  </Link>
-                </div>
-                <p className="cta-note">Free <span aria-hidden="true">•</span> Unsubscribe anytime</p>
-              </div>
-            </section>
           </div>
+          <section className="editorial-home__weekly" aria-labelledby="home-weekly">
+            <div className="editorial-home__weekly-copy">
+              <p className="editorial-home__label">The Weekly</p>
+              <h2 id="home-weekly">Get the week in five minutes</h2>
+              <p>A Friday roundup of the best stories in translation and AI.</p>
+            </div>
+            <div className="editorial-home__weekly-action">
+              <DigestPopupTrigger className="btn btn--primary">
+                Join The Weekly
+              </DigestPopupTrigger>
+              <p>Free · Unsubscribe anytime</p>
+            </div>
+          </section>
           <div className="editorial-home__resources">
             {latestReport && (
               <section className="editorial-home__report" aria-label="Monthly Report">

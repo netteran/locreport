@@ -1,24 +1,9 @@
 .article-reading {
-  --reading-paper: #fafafa;
-  --reading-ink: #21233a;
-  --reading-quiet: #545972;
-  --reading-line: #e2e2e5;
-  --reading-link: #2838ac;
-  --reading-note: #f0edf8;
-  --reading-heading: 'Manrope', var(--font-display);
   --reading-width: 720px;
   --reading-image-width: 960px;
-  padding: 32px clamp(18px, 4vw, 48px) 64px;
-  background: var(--reading-paper);
-  color: var(--reading-ink);
-}
-[data-theme='dark'] .article-reading {
-  --reading-paper: #161820;
-  --reading-ink: #f0f2ff;
-  --reading-quiet: #b6bdd4;
-  --reading-line: #373b53;
-  --reading-link: #b8c2ff;
-  --reading-note: #2b2840;
+  padding: var(--editorial-top-space) var(--page-gutter) 54px;
+  background: var(--bg);
+  color: var(--text);
 }
 .article-reading .post { max-width: 100%; margin-top: 0; }
 .article-reading .post > :is(.breadcrumb, .post-header, .post-content, .post-intel, .post-related) {
@@ -27,23 +12,23 @@
 }
 .article-reading .breadcrumb {
   margin-bottom: 24px;
-  color: var(--reading-quiet);
+  color: var(--muted);
 }
 .article-reading .post-header {
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--reading-line);
+  border-bottom: 1px solid var(--border);
 }
 .article-reading__label {
   margin: 0 0 8px;
-  color: var(--reading-link);
+  color: var(--accent);
   font-size: .875rem;
   font-weight: 700;
 }
 .article-reading .post-header h1 {
   margin: 0;
-  color: var(--reading-ink);
-  font: 800 clamp(2rem, 5.1vw, 3.625rem)/1.06 var(--reading-heading);
+  color: var(--text);
+  font: 800 clamp(2rem, 5.1vw, 3.625rem)/1.06 var(--font-display);
   letter-spacing: -.045em;
   text-wrap: balance;
   overflow-wrap: anywhere;
@@ -51,11 +36,11 @@
 .article-reading__deck {
   max-width: 57ch;
   margin: 15px 0 17px;
-  color: var(--reading-quiet);
+  color: var(--muted);
   font-size: clamp(1.0625rem, 2vw, 1.25rem);
   line-height: 1.5;
 }
-.article-reading .post-meta { color: var(--reading-quiet); }
+.article-reading .post-meta { color: var(--muted); }
 .article-reading .post-hero {
   max-width: var(--reading-image-width);
   margin: 0 auto;
@@ -76,18 +61,17 @@
   line-height: 1.75;
 }
 .article-reading .post-content :is(h2, h3) {
-  color: var(--reading-ink);
-  font-family: var(--reading-heading);
+  color: var(--text);
+  font-family: var(--font-display);
   font-weight: 800;
 }
 .article-reading .post-intel {
   padding: 20px;
-  border: 1px solid var(--reading-line);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background: var(--reading-note);
+  background: var(--surface-warm);
 }
 @media (max-width: 640px) {
-  .article-reading { padding-top: 20px; }
   .article-reading .breadcrumb { margin-bottom: 16px; }
   .article-reading .post-header { margin-bottom: 18px; padding-bottom: 12px; }
   .article-reading .post-hero img { aspect-ratio: 4 / 3; border-radius: 12px; }

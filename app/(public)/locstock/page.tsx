@@ -29,7 +29,7 @@ export default async function LocStockPage() {
   // Fallback to static JSON if Supabase table is empty
   if (!Object.keys(quotes).length) {
     return (
-      <div className="container" style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-12)' }}>
+      <div className="container public-page">
         <LocStockClient quotes={staticData.quotes as Record<string, unknown>} updatedAt={staticData.updated_at} />
       </div>
     )
@@ -45,7 +45,7 @@ export default async function LocStockPage() {
   }
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-12)' }}>
+    <div className="container public-page">
       <LocStockClient quotes={quotes} updatedAt={updatedAt} />
     </div>
   )
