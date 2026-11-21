@@ -14,7 +14,7 @@ type Episode = {
   duration: string | null
   youtubeUrl: string | null
   draft: { id: string; status: string } | null
-  article: { slug: string } | null
+  article: { slug: string; href: string } | null
 }
 
 // The Episodes panel under a podcast row on /admin/sources. Listing only reads
@@ -115,7 +115,7 @@ function EpisodeRow({ sourceId, episode, onGenerated }: { sourceId: string; epis
             {episode.duration && ` · ${episode.duration}`}
             {episode.youtubeUrl ? ' · video' : episode.audioUrl ? ' · audio' : ' · no video/audio (paste transcript)'}
             {episode.youtubeUrl && <> · <a href={episode.youtubeUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>watch</a></>}
-            {episode.article && <> · <Link href={`/articles/${episode.article.slug}`} style={{ color: 'var(--accent)' }}>published</Link></>}
+            {episode.article && <> · <Link href={episode.article.href} style={{ color: 'var(--accent)' }}>published</Link></>}
             {!episode.article && episode.draft && <> · <Link href={`/admin/drafts/${episode.draft.id}`} style={{ color: 'var(--accent)' }}>draft ({episode.draft.status})</Link></>}
             </span>
           </p>

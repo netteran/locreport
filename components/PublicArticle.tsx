@@ -4,152 +4,72 @@ import { DisplayAd } from '@/components/HomeFeedAd'
 import { splitArticleForAd } from '@/lib/articleAd'
 import AdminEditLink from '@/components/AdminEditLink'
 import { cache } from 'react'
-import { SITE_URL, ORG_ID, WEBSITE_ID, breadcrumbJsonLd } from '@/lib/seo'
+import { SITE_URL, ORG_ID, WEBSITE_ID, breadcrumbJsonLd, serializeJsonLd } from '@/lib/seo'
 import { marked } from 'marked'
 import { Article, ARTICLE_COLUMNS } from '@/lib/types'
-import { articleHref, estimateReadMinutes, safeImageUrl } from '@/lib/utils'
+import { estimateReadMinutes, safeImageUrl } from '@/lib/utils'
 import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
-import { previousMonthlyReportSlug } from '@/lib/monthlyReportSlugs'
+import { articleHref, CONTENT_TAXONOMY, getContentType, type ContentType } from '@/lib/contentTaxonomy'
+import { resolvePublicArticle } from '@/lib/articleLookup'
+import { withArticleReferences } from '@/lib/articleReferences'
+import { presentBrief } from '@/lib/editorialProtocol'
+import { ContentBadge } from './ContentBadge'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import { SIGNAL_MAP } from '@/lib/signals'
 import { ShareButton } from '@/components/ShareButton'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import './reading.css'
 
-export const revalidate = 86400
 
-// Generate article pages on first access, then reuse them through ISR.
-export async function generateStaticParams() {
-  return []
-}
+const fetchArticle = cache(async (slug: string, type: ContentType) => {
+  const reference = await resolvePublicArticle([slug], type)
+  if (!reference) return null
 
-type Props = { params: Promise<{ slug: string[] }> }
-
-async function findArticle(slugParts: string[]) {
-  const supabase = createPublicClient()
-  // Related reading passes this article's own vector to match_articles.
-  const ARTICLE_WITH_EMBEDDING = `${ARTICLE_COLUMNS}, embedding`
-  const joined = slugParts.join('/')
-  const bare = slugParts[slugParts.length - 1]
-
-  // A failed lookup must never be read as "no such article". Falling through
-  // on error would 404 a live article — and ISR would then cache that 404.
-  // Throwing instead keeps the last good render in place.
-  const orThrow = <T,>({ data, error }: { data: T; error: { message: string } | null }) => {
-    if (error) throw new Error(`article lookup failed for "${joined}": ${error.message}`)
-    return data
-  }
-
-  const exact = orThrow(await supabase
-    .from('articles').select(ARTICLE_WITH_EMBEDDING).eq('slug', joined).maybeSingle())
-  if (exact) return { article: exact as unknown as Article, shouldRedirect: slugParts.length > 1 }
-
-  const bareMatch = slugParts.length > 1
-    ? orThrow(await supabase.from('articles').select(ARTICLE_WITH_EMBEDDING).eq('slug', bare).maybeSingle())
-    : null
-  if (bareMatch) return { article: bareMatch as unknown as Article, shouldRedirect: true }
-
-  // A handful of stories were ingested twice under different date prefixes, so
-  // one clean URL can match several legacy rows. maybeSingle() errors on that,
-  // which took those URLs down entirely; serve the earliest copy instead.
-  const bySuffix = orThrow(await supabase
-    .from('articles').select(ARTICLE_WITH_EMBEDDING).ilike('slug', `%/${bare}`)
-    .order('published_at', { ascending: true }).order('id', { ascending: true }).limit(1))
-  if (bySuffix?.length) return { article: bySuffix[0] as unknown as Article, shouldRedirect: slugParts.length > 1 }
-
-  // Serve canonical URLs during rollout, including databases that still have
-  // the old slug in a bare or date-prefixed row.
-  const previousSlug = previousMonthlyReportSlug(bare)
-  if (previousSlug) {
-    const previous = orThrow(await supabase.from('articles')
-      .select(ARTICLE_WITH_EMBEDDING)
-      .eq('article_type', 'monthly-summary')
-      .or(`slug.eq.${previousSlug},slug.like.%/${previousSlug}`)
-      .order('slug', { ascending: false }).limit(1))
-    if (previous?.length) return { article: previous[0] as unknown as Article, shouldRedirect: slugParts.length > 1 }
-  }
-
-  // Legacy URLs (pre-migration Jekyll permalinks, RSS-title truncation) sometimes carry a
-  // slug that's a truncated/un-deduped prefix of the current one (slugify() cuts titles to
-  // 80 chars and appends "-2", "-3", ... on collision). Redirect to the unique DB slug this
-  // one is a prefix of, rather than 404ing on every retitle/dedup drift.
-  const byPrefix = orThrow(await supabase
-    .from('articles').select(ARTICLE_WITH_EMBEDDING).ilike('slug', `${bare}%`).limit(2))
-  if (byPrefix?.length === 1) return { article: byPrefix[0] as unknown as Article, shouldRedirect: true }
-
-  // The Jekyll site collapsed runs of hyphens ("chatbot-lets") where the DB slug
-  // kept them ("chatbot---lets", from a dropped " - " or "&" in the title), so
-  // old inbound links and Google's index 404ed. Widen each hyphen to "-%", then
-  // keep only candidates that are equal once hyphen runs are collapsed.
-  if (bare.includes('-')) {
-    const collapse = (s: string) => s.replace(/-+/g, '-')
-    const wanted = collapse(bare)
-    const loose = orThrow(await supabase
-      .from('articles').select(ARTICLE_WITH_EMBEDDING)
-      .ilike('slug', `%${wanted.replace(/-/g, '-%')}`).limit(5))
-    const hits = ((loose ?? []) as unknown as Article[]).filter(r => collapse(r.slug.split('/').pop()!) === wanted)
-    if (hits.length === 1) return { article: hits[0], shouldRedirect: true }
-  }
-
-  return null
-}
-
-// Share the article and its display metadata across page and metadata rendering.
-const fetchArticle = cache(async (slugParts: string[]) => {
-  const result = await findArticle(slugParts)
-  if (!result || result.shouldRedirect || result.article.article_type !== 'monthly-summary') return result
+  const { data, error: articleError } = await createPublicClient().from('articles')
+    .select(`${ARTICLE_COLUMNS}, embedding`).eq('id', reference.id).maybeSingle()
+  if (articleError) throw new Error(`Article lookup failed: ${articleError.message}`)
+  if (!data) return null
+  const article = data as unknown as Article
+  if (getContentType(article) !== 'report') return article
 
   const supabase = createPublicClient()
-  const { data, error } = await withOptionalBriefingCoverage(columns => supabase
-    .from('articles').select('id' + columns).eq('id', result.article.id)
+  const { data: coverage, error } = await withOptionalBriefingCoverage(columns => supabase
+    .from('articles').select('id' + columns).eq('id', article.id)
     .returns<BriefingCoverage[]>().maybeSingle())
   if (error) throw new Error(`Monthly report coverage lookup failed: ${error.message}`)
 
-  const article = result.article
   return {
-    ...result,
-    article: {
-      ...article,
-      title: monthlyReportTitle({ ...data, title: article.title }),
-      excerpt: monthlyReportSubtitle(article.excerpt),
-    },
+    ...article,
+    title: monthlyReportTitle({ ...coverage, title: article.title }),
+    excerpt: monthlyReportSubtitle(article.excerpt),
   }
 })
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params
-  const result = await fetchArticle(slug)
-  if (!result) return {}
-  const { article: a } = result
+export async function articleMetadata(slug: string, contentType: ContentType): Promise<Metadata> {
+  const a = await fetchArticle(slug, contentType)
+  if (!a) return {}
   // Only override the site-wide OG image when this article has its own.
   const image = safeImageUrl(a.image_url)
   return {
     title: a.title,
     description: a.excerpt ?? undefined,
-    alternates: { canonical: articleHref(a.slug) },
-    ...(image ? { openGraph: { images: [{ url: image }] }, twitter: { images: [image] } } : {}),
+    alternates: { canonical: articleHref(a) },
+    openGraph: { type: 'article', url: articleHref(a), ...(image ? { images: [{ url: image }] } : {}) },
+    ...(image ? { twitter: { images: [image] } } : {}),
   }
 }
 
-export default async function ArticlePage({ params }: Props) {
-  const { slug } = await params
-  const result = await fetchArticle(slug)
-  if (!result) notFound()
+export async function PublicArticle({ slug, contentType }: { slug: string; contentType: ContentType }) {
+  const a = await fetchArticle(slug, contentType)
+  if (!a) notFound()
+  const path = articleHref(a)
+  const taxonomy = CONTENT_TAXONOMY[getContentType(a)]
+  if (path !== `${CONTENT_TAXONOMY[contentType].path}${encodeURIComponent(slug)}/`) permanentRedirect(path)
 
-  const { article, shouldRedirect } = result!
-
-  // Permanent, so Google moves the old URL's signals onto the clean one.
-  if (shouldRedirect) {
-    permanentRedirect(articleHref(article.slug))
-  }
-
-  const a = article as Article
-
-  // Strip leading H1 — title is already rendered in the page header
+  // Strip leading H1; the article header already shows it.
   const content = a.content.replace(/^#\s+[^\n]+\n?/, '').trimStart()
-
-  const rawHtml = marked.parse(content) as string
+  const body = contentType === 'brief' ? presentBrief(content, a.source_url, a.business_implications ?? []) : content
+  const rawHtml = marked.parse(body) as string
   // Add target/_blank + rel=noopener to all external links in rendered content
   const html = rawHtml.replace(/<a (href="https?:\/\/)/g, '<a target="_blank" rel="noopener" $1')
   const articleParts = splitArticleForAd(html)
@@ -184,7 +104,7 @@ export default async function ArticlePage({ params }: Props) {
   if (relatedArticles.length === 0 && articleSignals.length > 0) {
     const { data: related } = await supabase
       .from('articles')
-      .select('id, title, slug, publisher, published_at, signal_ids')
+      .select('id, title, slug, publisher, published_at, signal_ids, article_type, content_type, content_slug')
       .neq('slug', a.slug)
       .overlaps('signal_ids', a.signal_ids)
       .order('published_at', { ascending: false })
@@ -194,7 +114,7 @@ export default async function ArticlePage({ params }: Props) {
   if (relatedArticles.length < 3) {
     const { data: recent } = await supabase
       .from('articles')
-      .select('id, title, slug, publisher, published_at, signal_ids')
+      .select('id, title, slug, publisher, published_at, signal_ids, article_type, content_type, content_slug')
       .neq('slug', a.slug)
       .order('published_at', { ascending: false })
       .limit(5 - relatedArticles.length)
@@ -203,14 +123,17 @@ export default async function ArticlePage({ params }: Props) {
     relatedArticles = [...relatedArticles, ...extra]
   }
 
-  const hasImplications = a.business_implications?.length > 0
+  relatedArticles = await withArticleReferences(supabase, relatedArticles)
+
+  const hasImplications = contentType !== 'brief' && a.business_implications?.length > 0
   const hasRelated = relatedArticles.length > 0
 
-  const articleUrl = `${SITE_URL}${articleHref(a.slug)}`
+  const articleUrl = `${SITE_URL}${path}`
 
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': contentType === 'brief' ? 'NewsArticle' : 'Article',
+    articleSection: taxonomy.section,
     headline: a.title,
     description: a.excerpt ?? undefined,
     url: articleUrl,
@@ -225,7 +148,7 @@ export default async function ArticlePage({ params }: Props) {
 
   const breadcrumbLd = breadcrumbJsonLd([
     { name: 'Home', url: `${SITE_URL}/` },
-    { name: 'Articles', url: `${SITE_URL}/articles` },
+    { name: taxonomy.name, url: `${SITE_URL}${taxonomy.path}` },
     { name: a.title },
   ])
 
@@ -233,25 +156,23 @@ export default async function ArticlePage({ params }: Props) {
     <main className="article-reading">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbLd) }}
       />
       <article className="post">
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <ol>
             <li><Link href="/">Home</Link></li>
-            <li><Link href="/articles">Articles</Link></li>
+            <li><Link href={taxonomy.path}>{taxonomy.name}</Link></li>
             <li aria-current="page">{a.title}</li>
           </ol>
         </nav>
 
         <header className="post-header">
-          {(a.article_type === 'industry' || a.article_type === 'monthly-summary') && (
-            <p className="article-reading__label">{a.article_type === 'industry' ? 'Analysis' : 'Monthly Report'}</p>
-          )}
+          <p className="article-reading__label"><ContentBadge contentType={contentType} /></p>
           <h1>{a.title}</h1>
           {a.excerpt && <p className="article-reading__deck">{a.excerpt}</p>}
 
@@ -310,7 +231,7 @@ export default async function ArticlePage({ params }: Props) {
             <h2 className="post-section-label">Related Reading</h2>
             <div className="post-related__grid">
               {relatedArticles.map(r => (
-                <Link key={r.id} href={articleHref(r.slug)} className="post-related__card">
+                <Link key={r.id} href={articleHref(r)} className="post-related__card">
                   <span className="post-related__card-title">{r.title}</span>
                   <span className="post-related__card-date">
                     {new Date(r.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

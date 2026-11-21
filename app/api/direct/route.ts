@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
 import { classifyArticle } from '@/lib/classify'
+import { isContentType } from '@/lib/contentTaxonomy'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 
@@ -13,14 +14,15 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { title, content, contentType, sourceUrl, sourceName, extraUrl1, extraSourceName1, extraUrl2, extraSourceName2 } = body
+  const { title, content, contentType = 'analysis', sourceUrl, sourceName, extraUrl1, extraSourceName1, extraUrl2, extraSourceName2 } = body
 
   if (!title?.trim() || !content?.trim()) {
     return NextResponse.json({ error: 'title and content are required' }, { status: 400 })
   }
 
-  const openai = getOpenAI()
-  const classification = await classifyArticle(openai, content)
+  if (!isContentType(contentType) || contentType === 'report') {
+    return NextResponse.json({ error: 'Choose brief or analysis. Create reports in the monthly reporting workspace.' }, { status: 400 })
+  }
 
   const sources = [
     sourceUrl?.trim() ? { url: sourceUrl.trim(), name: sourceName?.trim() || null } : null,
@@ -28,7 +30,11 @@ export async function POST(req: NextRequest) {
     extraUrl2?.trim() ? { url: extraUrl2.trim(), name: extraSourceName2?.trim() || null } : null,
   ].filter(Boolean) as { url: string; name: string | null }[]
 
+  if (contentType === 'brief' && sources.length !== 1) {
+    return NextResponse.json({ error: 'An industry brief needs one original source.' }, { status: 400 })
+  }
   const primarySourceUrl = sources[0]?.url ?? null
+  const classification = await classifyArticle(getOpenAI(), content)
 
   const db = createServiceClient()
   const slug = await uniqueSlug(slugify(title.trim()), 'drafts', db)
@@ -41,6 +47,7 @@ export async function POST(req: NextRequest) {
       slug,
       content: linkedContent,
       source_url: primarySourceUrl,
+      content_type: contentType,
       status: 'pending',
     })
     .select()

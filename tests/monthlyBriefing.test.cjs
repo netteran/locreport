@@ -1,15 +1,8 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
-const ts = require('typescript')
 const { NextRequest } = require('next/server')
-function load(file, dependencies = {}) {
-  const m = { exports: {} }
-  new Function('exports', 'require', 'module', ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX }
-  }).outputText)(m.exports, id => dependencies[id] || require(id), m)
-  return m.exports
-}
+const { load } = require('./fixtures/typescript.cjs')
 const monthly = load('lib/monthlyBriefing.ts')
 const prompts = load('lib/prompts.ts')
 const citationStyle = load('lib/citationStyle.ts')
@@ -59,7 +52,7 @@ test('briefings can draw on facts and waiting evidence with no published article
   assert.deepEqual(evidence.counts, { articles: 0, facts: 1, sources: 2 })
   assert.match(evidence.context.source_evidence[1].timing, /background only/)
   assert.match(evidence.context.source_evidence[0].evidence_status, /not independently verified/)
-  assert.equal(evidence.context.previous_briefing.url, '/articles/earlier')
+  assert.equal(evidence.context.previous_briefing.url, '/reports/earlier/')
   const factsQuery = db.calls.find(c => c.table === 'facts')
   assert.ok(factsQuery.filters.some(([k, v]) => k === 'status' && v === 'published'))
   for (const c of db.calls.filter(c => c.table === 'source_candidates')) {
@@ -198,7 +191,8 @@ test('explicit approval preserves report identity, reviewed text and caches with
   assert.equal(calls[0].args.p_article.content, edited)
   assert.equal(calls[0].args.p_article.title, 'Reviewed briefing')
   assert.equal(calls[0].args.p_article.slug, draft.slug)
-  assert.equal(cache[0].monthlyReport, true)
+  assert.equal(calls[0].args.p_article.content_type, 'report')
+  assert.deepEqual(cache[0], { slug: draft.slug, content_type: 'report' })
 })
 
 

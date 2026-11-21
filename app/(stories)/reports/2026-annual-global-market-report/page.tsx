@@ -1,9 +1,14 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getReportImage } from '@/lib/reportImage'
+import { annualReportPath } from '@/lib/reports'
+import { CONTENT_TAXONOMY } from '@/lib/contentTaxonomy'
+import { SITE_URL, ORG_ID, breadcrumbJsonLd, serializeJsonLd } from '@/lib/seo'
 
 const SLUG = '2026-annual-global-market-report'
 const TITLE = '2026 Global Localization Market Report'
+const PATH = annualReportPath(SLUG)
+const DESCRIPTION = 'LocReport’s 2026 annual report on market size, AI adoption, competition, and the localization industry outlook through 2030.'
 
 // The lead image is set from /admin/reports, which revalidates this page on save.
 export const revalidate = 86400
@@ -13,8 +18,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const image = await getReportImage(SLUG)
   return {
     title: TITLE,
-    description: "LocReport's 2026 annual report on the localization and translation industry: market size, AI impact, competitive landscape, regional analysis, and outlook through 2030+.",
-    alternates: { canonical: `/reports/${SLUG}` },
+    description: DESCRIPTION,
+    alternates: { canonical: PATH },
     ...(image ? { openGraph: { images: [{ url: image.url }] }, twitter: { images: [image.url] } } : {}),
   }
 }
@@ -23,16 +28,32 @@ export default async function AnnualReport2026() {
   const image = await getReportImage(SLUG)
   return (
     <div className="container" style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-12)' }}>
-      <nav style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 'var(--space-5)', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd({
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: TITLE,
+        description: DESCRIPTION,
+        articleSection: CONTENT_TAXONOMY.report.section,
+        mainEntityOfPage: `${SITE_URL}${PATH}`,
+        publisher: { '@id': ORG_ID },
+        author: { '@type': 'Organization', name: 'LocReport Editorial Desk' },
+        ...(image ? { image: [new URL(image.url, SITE_URL).href] } : {}),
+      }) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd([
+        { name: 'Home', url: `${SITE_URL}/` },
+        { name: 'Reports', url: `${SITE_URL}/reports/` },
+        { name: TITLE },
+      ])) }} />
+      <nav aria-label="Breadcrumb" style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 'var(--space-5)', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
         <Link href="/" style={{ color: 'var(--muted)' }}>Home</Link>
         <span>›</span>
-        <Link href="/reports" style={{ color: 'var(--muted)' }}>Reports</Link>
+        <Link href="/reports/" style={{ color: 'var(--muted)' }}>Reports</Link>
         <span>›</span>
         <span aria-current="page" style={{ color: 'var(--text)' }}>{TITLE}</span>
       </nav>
 
       <p className="all-articles-subtitle">
-        From the report archive · Published April 2026. For current coverage, read the <Link href="/reports">Monthly Report</Link>.
+        From the report archive · Published April 2026. For current coverage, read the <Link href="/reports/">Monthly Report</Link>.
       </p>
 
       {image && (

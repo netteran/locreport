@@ -10,6 +10,7 @@ import type { Composition } from '@/lib/researchTypes'
 import { randomUUID } from 'node:crypto'
 import { CITATION_STYLE_GUIDANCE } from '@/lib/prompts'
 import { writeWithNaturalLinks } from '@/lib/citationStyle'
+import { ANALYSIS_PROTOCOL } from '@/lib/editorialProtocol'
 
 export const maxDuration = 300
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             role: 'system',
             content:
               DEFAULT_SYNTHESIS_PROMPT +
-              (custom?.value ? `\nAdditional house style:\n${custom.value}` : '') + `\n\n${CITATION_STYLE_GUIDANCE}`
+              (custom?.value ? `\nAdditional house style:\n${custom.value}` : '') + `\n\n${CITATION_STYLE_GUIDANCE}\n\n${ANALYSIS_PROTOCOL}`
           },
           { role: 'user', content: JSON.stringify(input) },
           ...(repair ? [{ role: 'assistant' as const, content: JSON.stringify(repair.previous) }, { role: 'user' as const, content: repair.instruction }] : [])

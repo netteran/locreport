@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { marked } from 'marked'
+import { ContentTypeField } from '@/components/ContentTypeField'
+import { type ContentType } from '@/lib/contentTaxonomy'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,7 +27,7 @@ export default function DirectComposePage() {
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [publisher, setPublisher] = useState('LocReport')
   const [content, setContent] = useState('')
-  const [contentType] = useState('industry')
+  const [contentType, setContentType] = useState<ContentType>('analysis')
   const [sourceUrl, setSourceUrl] = useState('')
   const [sourceName, setSourceName] = useState('')
   const [extraUrl1, setExtraUrl1] = useState('')
@@ -59,9 +61,9 @@ export default function DirectComposePage() {
           contentType,
           sourceUrl,
           sourceName,
-          extraUrl1,
+          extraUrl1: contentType === 'analysis' ? extraUrl1 : undefined,
           extraSourceName1,
-          extraUrl2,
+          extraUrl2: contentType === 'analysis' ? extraUrl2 : undefined,
           extraSourceName2,
         }),
       })
@@ -133,6 +135,8 @@ export default function DirectComposePage() {
           </div>
         </div>
 
+        <ContentTypeField value={contentType} onChange={setContentType} />
+
         <div>
           <div className="flex items-center justify-between mb-1">
             <Label htmlFor="content">Article content <span className="text-red-500">*</span></Label>
@@ -174,7 +178,7 @@ export default function DirectComposePage() {
         </div>
 
         <div className="border-t pt-4" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-sm font-medium mb-3" style={{ color: 'var(--text)' }}>Sources (up to 3)</p>
+          <p className="text-sm font-medium mb-3" style={{ color: 'var(--text)' }}>{contentType === 'brief' ? 'Original source' : 'Sources (up to 3)'}</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
@@ -187,6 +191,7 @@ export default function DirectComposePage() {
             </div>
           </div>
 
+          {contentType === 'analysis' && <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <Label htmlFor="extra-url-1">Source URL 2</Label>
@@ -208,6 +213,7 @@ export default function DirectComposePage() {
               <Input id="extra-name-2" value={extraSourceName2} onChange={e => setExtraSourceName2(e.target.value)} placeholder="Optional" className="mt-1" />
             </div>
           </div>
+          </>}
         </div>
 
         {error && (

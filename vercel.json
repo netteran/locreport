@@ -4,8 +4,6 @@
   "framework": "nextjs",
   "redirects": [
     { "source": "/admin/scraped-sources", "destination": "/admin/scraped-feeds", "permanent": true },
-    { "source": "/topics/:topic", "destination": "/articles", "permanent": true },
-    { "source": "/topics/:topic/", "destination": "/articles", "permanent": true },
     { "source": "/intelligence/signals", "destination": "/intelligence", "permanent": true },
     { "source": "/intelligence/signals/:id", "destination": "/intelligence", "permanent": true },
     { "source": "/intelligence/high-impact", "destination": "/intelligence", "permanent": true },
@@ -13,65 +11,6 @@
     { "source": "/intelligence/correlations/", "destination": "/intelligence", "permanent": true },
     { "source": "/dashboard", "destination": "/", "permanent": true },
     { "source": "/dashboard/", "destination": "/", "permanent": true },
-    {
-      "source": "/reports/2026-Annual-Global-Market-Report",
-      "destination": "/reports/2026-annual-global-market-report",
-      "permanent": true
-    },
-    {
-      "source": "/reports/2026-Annual-Global-Market-Report/",
-      "destination": "/reports/2026-annual-global-market-report",
-      "permanent": true
-    },
-    {
-      "source": "/all-articles",
-      "destination": "/articles",
-      "permanent": true
-    },
-    {
-      "source": "/all-articles/",
-      "destination": "/articles",
-      "permanent": true
-    },
-    {
-      "source": "/articles/enterprise-cms-localization-governance-workflow-and-risk-control-at-scale-mq554wuk",
-      "destination": "/articles/enterprise-cms-localization-governance-workflow-and-risk-control-at-scale",
-      "permanent": true
-    },
-    {
-      "source": "/articles/should-you-build-or-buy-your-localization-infrastructure-mq552v16",
-      "destination": "/articles/should-you-build-or-buy-your-localization-infrastructure",
-      "permanent": true
-    },
-    {
-      "source": "/articles/what-happens-when-ai-translates-for-an-audience-not-just-a-language-mq5502ba",
-      "destination": "/articles/what-happens-when-ai-translates-for-an-audience-not-just-a-language",
-      "permanent": true
-    },
-    {
-      "source": "/articles/forcing-the-fit-mqm-in-the-age-of-automated-evaluation-mq1exsjs",
-      "destination": "/articles/forcing-the-fit-mqm-in-the-age-of-automated-evaluation",
-      "permanent": true
-    },
-    {
-      "source": "/articles/designing-ai-enabled-localization-workflows-for-enterprise-operations-mq1afbro",
-      "destination": "/articles/designing-ai-enabled-localization-workflows-for-enterprise-operations",
-      "permanent": true
-    },
-    {
-      "source": "/articles/every-market-is-a-new-market-mq1abdr4",
-      "destination": "/articles/every-market-is-a-new-market",
-      "permanent": true
-    },
-    {
-      "source": "/articles/international-search-summit-new-york-mq12u088",
-      "destination": "/articles/international-search-summit-new-york",
-      "permanent": true
-    },
-    { "source": "/research", "destination": "/articles", "permanent": true },
-    { "source": "/research/", "destination": "/articles", "permanent": true },
-    { "source": "/language-science", "destination": "/articles", "permanent": true },
-    { "source": "/language-science/", "destination": "/articles", "permanent": true },
     { "source": "/login/", "destination": "/login", "permanent": true },
     { "source": "/cdn-cgi/l/email-protection", "destination": "/", "permanent": true },
     { "source": "/support", "destination": "/contact", "permanent": true },
@@ -80,16 +19,6 @@
     { "source": "/newsletter", "destination": "/", "permanent": true },
     { "source": "/newsletter/:path*", "destination": "/", "permanent": true },
     { "source": "/thank-you", "destination": "/", "permanent": true },
-    { "source": "/thank-you/", "destination": "/", "permanent": true },
-    { "source": "/articles/humanx-2026-what-vistatec-took-away-from-ais-most-talked-ab", "destination": "/articles/humanx-2026--what-vistatec-took-away-from-ais-most-talked-ab", "permanent": true },
-    { "source": "/articles/smartling-achieves-iso-27001-certification-strengthening-sec", "destination": "/articles/smartling-achieves-iso-27001-certification-strengthening-sec-1", "permanent": true },
-    { "source": "/articles/measuring-translation-quality-when-you-dont-speak-the-langua", "destination": "/articles/measuring-translation-quality-when-you-dont-speak-the-langua-1", "permanent": true },
-    { "source": "/articles/industry-lingopal-wins-2026-nab-show-product-of-the-year-awa", "destination": "/articles/lingopal-wins-2026-nab-show-product-of-the-year-award", "permanent": true },
-    { "source": "/articles/the-future-of-language-intelligence-a-conversation-with-xtm", "destination": "/articles/the-future-of-language-intelligence-a-conversation-with-xtm-1", "permanent": true },
-    { "source": "/articles/the-2026-slator-", "destination": "/articles/the-2026-slator-index", "permanent": true },
-    { "source": "/articles/broadcasting-ai-dubbing-for-broadcasters-what-teams-need-now", "destination": "/articles/ai-dubbing-for-broadcasters-what-teams-need-now", "permanent": true },
-    { "source": "/articles/mastering-social-media-moves", "destination": "/articles/mastering-social-media-moves-1", "permanent": true },
-    { "source": "/articles/how-to-turn-technical-documentation-into-multilingual-videos", "destination": "/articles/how-to-turn-technical-documentation-into-multilingual-videos-1", "permanent": true },
-    { "source": "/articles/finalmente-facebook-makes-it-easier-to-post-status-updates-i", "destination": "/articles/finalmente-facebook-makes-it-easier-to-post-status-updates-i-1", "permanent": true }
+    { "source": "/thank-you/", "destination": "/", "permanent": true }
   ]
 }

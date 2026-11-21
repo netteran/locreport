@@ -72,7 +72,7 @@ before(async () => {
       source_feed_id uuid references rss_sources(id),source_published_at timestamptz,extracted_facts text,status text default 'pending',created_at timestamptz default now(),updated_at timestamptz default now());
     create table articles(id uuid primary key default gen_random_uuid(),title text,slug text unique,content text,excerpt text,source_url text,publisher text,
       image_url text,image_alt text,draft_id uuid references drafts(id),article_type text,author text,impact_score integer,time_horizon text,
-      signal_ids text[],business_implications jsonb,affected_segments text[],published_at timestamptz default now());`)
+      signal_ids text[],business_implications jsonb,affected_segments text[],published_at timestamptz default now(),updated_at timestamptz default now());`)
   await db.exec(fs.readFileSync('supabase/migrations/20260624_create_facts.sql', 'utf8'))
   await db.exec(`insert into articles(id,title) values('00000000-0000-4000-8000-000000000001','Legacy article');
     insert into facts(content,article_id) values('Already public','00000000-0000-4000-8000-000000000001');
@@ -100,12 +100,56 @@ before(async () => {
   await db.exec(fs.readFileSync('supabase/migrations/20261121_monthly_report_drafts.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261123_monthly_report_date_range.sql', 'utf8'))
   await db.exec(fs.readFileSync('supabase/migrations/20261123_monthly_report_date_range.sql', 'utf8'))
+  await db.exec(`insert into articles(slug,title,article_type,content,source_url,business_implications,published_at) values
+    ('2026/10/01/old-news','Historical copy','industry',repeat('news ',220),'https://publisher.example/news','["First takeaway","Second takeaway"]','2026-10-01'),
+    ('old-news','Canonical news','industry',repeat('news ',220),'https://publisher.example/news','["First takeaway","Second takeaway"]','2026-10-02'),
+    ('long-form','Long-form analysis','industry',repeat('analysis ',650),'https://publisher.example/analysis','["First takeaway","Second takeaway"]','2026-10-03'),
+    ('the-2026-slator-','Alias with older short copy','industry',repeat('news ',220),'https://publisher.example/news','["First takeaway","Second takeaway"]','2026-10-03'),
+    ('the-2026-slator-index','The index analysis','industry',repeat('analysis ',650),'https://publisher.example/analysis',null,'2026-10-04'),
+    ('monthly-report-november-2025','November 2025 report','monthly-summary','Briefing evidence',null,null,'2025-12-02');`)
+  await db.exec(fs.readFileSync('supabase/migrations/20261130_content_taxonomy.sql', 'utf8'))
   await db.exec(
     'grant usage on schema public to anon,authenticated,service_role;grant select on all tables in schema public to anon,authenticated;grant all on all tables in schema public to service_role;'
   )
 })
 after(async () => {
   if (db) await db.close()
+})
+
+test('taxonomy classifies and deduplicates historical publications while preserving slugs', async () => {
+  const { rows } = await db.query(
+    `select content_slug, content_type, slug from public_article_index
+     where content_slug in ('old-news','long-form','november-2025-localization-industry-report','the-2026-slator-index')
+     order by content_slug`
+  )
+  assert.deepEqual(rows, [
+    { content_slug: 'long-form', content_type: 'analysis', slug: 'long-form' },
+    { content_slug: 'november-2025-localization-industry-report', content_type: 'report', slug: 'monthly-report-november-2025' },
+    { content_slug: 'old-news', content_type: 'brief', slug: 'old-news' },
+    { content_slug: 'the-2026-slator-index', content_type: 'analysis', slug: 'the-2026-slator-index' },
+  ])
+  assert.equal((await scalar("select content_type from articles where slug='2026/10/01/old-news'")).content_type, 'brief')
+  assert.equal((await scalar("insert into articles(slug,article_type) values('compatible-writer','industry') returning content_type")).content_type, 'analysis')
+  await assert.rejects(db.query("insert into articles(slug,content_type) values('invalid-type','news')"), /invalid input value for enum/)
+  await db.exec('set role anon')
+  try {
+    assert.equal((await scalar("select title from public_article_index where content_slug='old-news'")).title, 'Canonical news')
+    await assert.rejects(db.query('select publish_editorial_draft($1,$2)', [uid(), '{}']), /permission denied/)
+  } finally {
+    await db.exec('reset role')
+  }
+})
+
+test('editorial approval persists the selected type atomically', async () => {
+  const draft = uid()
+  await db.query('insert into drafts(id,title,content) values($1,$2,$3)', [draft, 'Industry news', 'Draft body'])
+  const payload = JSON.stringify({ title: 'Industry news', slug: 'published-brief', content: 'Draft body', content_type: 'brief' })
+  const { id } = await scalar('select publish_editorial_draft($1,$2) as id', [draft, payload])
+  assert.deepEqual(await scalar('select content_type,content_slug from public_article_index where id=$1', [id]),
+    { content_type: 'brief', content_slug: 'published-brief' })
+  assert.deepEqual(await scalar('select status,content_type from drafts where id=$1', [draft]),
+    { status: 'approved', content_type: 'brief' })
+  assert.equal((await scalar('select publish_editorial_draft($1,$2) as id', [draft, payload])).id, id)
 })
 
 test('migration preserves public facts and keeps parked facts private', async () => {

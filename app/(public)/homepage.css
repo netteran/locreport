@@ -288,3 +288,30 @@
 @media (prefers-reduced-motion: reduce) {
   .home-logo-ticker__track { animation: none; }
 }
+
+.content-filters, .content-pagination, .content-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.content-filters { margin-bottom: 18px; }
+.content-filters a {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: .875rem;
+  font-weight: 700;
+}
+.content-filters a[aria-current='true'] {
+  background: var(--editorial-action);
+  border-color: var(--editorial-action);
+  color: #fff;
+}
+.content-pagination {
+  margin-top: 24px;
+  justify-content: center;
+}
+.content-pagination [aria-disabled='true'] { opacity: .65; }
+.content-feed-status { margin-block: 12px; color: var(--muted); }

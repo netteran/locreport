@@ -1,6 +1,7 @@
 import { requireAdmin, unauthorized } from '@/lib/adminAuth'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { isContentType } from '@/lib/contentTaxonomy'
 import { slugify, uniqueSlug } from '@/lib/slugify'
 
 export async function GET() {
@@ -16,14 +17,17 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   if (!await requireAdmin()) return unauthorized()
-  const { content, source_url, title: providedTitle } = await req.json()
+  const { content, source_url, title: providedTitle, contentType = 'analysis' } = await req.json()
+  if (typeof content !== 'string' || !isContentType(contentType) || contentType === 'report') {
+    return NextResponse.json({ error: 'Provide content and choose brief or analysis. Create reports in the monthly reporting workspace.' }, { status: 400 })
+  }
   const titleMatch = content.match(/^#\s+(.+)$/m)
   const title = titleMatch?.[1]?.trim() || providedTitle?.trim() || 'Untitled'
   const supabase = createServiceClient()
   const slug = await uniqueSlug(slugify(title), 'drafts', supabase)
   const { data, error } = await supabase
     .from('drafts')
-    .insert({ title, slug, content, source_url: source_url ?? null, status: 'pending' })
+    .insert({ title, slug, content, source_url: source_url ?? null, content_type: contentType, status: 'pending' })
     .select()
     .single()
 

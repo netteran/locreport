@@ -1,16 +1,7 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const fs = require('node:fs')
-const ts = require('typescript')
 
-function load(file, dependencies = {}) {
-  const m = { exports: {} }
-  const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
-  }).outputText
-  new Function('exports', 'require', 'module', code)(m.exports, id => dependencies[id] || require(id), m)
-  return m.exports
-}
+const { load } = require('./fixtures/typescript.cjs')
 
 for (const urls of [['https://a.example/news'], ['https://a.example/news', 'https://b.example/news']]) {
   test(`publishes an uncited ${urls.length}-source article while retaining its evidence`, async () => {

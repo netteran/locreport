@@ -1,17 +1,10 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
-const ts = require('typescript')
 const { NextRequest } = require('next/server')
 const { PGlite } = require('@electric-sql/pglite')
 
-function load(file, dependencies = {}) {
-  const m = { exports: {} }
-  new Function('exports', 'require', 'module', ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
-  }).outputText)(m.exports, id => dependencies[id] || require(id), m)
-  return m.exports
-}
+const { load } = require('./fixtures/typescript.cjs')
 const notes = load('lib/email/weeklyNote.ts')
 
 test('weekly editions roll over on Saturday in Warsaw, including DST and year boundaries', () => {
@@ -209,9 +202,9 @@ test('weekly issue includes Monthly Briefings and practical blocks without publi
     'Company of the week', 'Fact Flow', 'LocStock brief', 'New in the directory', 'Second analysis', 'Manage subscription']) {
     assert.ok($('body').text().includes(text), text)
   }
-  assert.equal($('a[href="https://locreport.com/articles/analysis"]').length, 2)
-  assert.equal($('a[href="https://locreport.com/articles/second"]').length, 1)
-  assert.equal($('a[href="https://locreport.com/articles/october-briefing"]').text(), 'October Monthly Briefing')
+  assert.equal($('a[href="https://locreport.com/analysis/analysis/"]').length, 2)
+  assert.equal($('a[href="https://locreport.com/analysis/second/"]').length, 1)
+  assert.equal($('a[href="https://locreport.com/reports/october-briefing/"]').text(), 'October Monthly Briefing')
   assert.equal($('a[href^="https://locreport.com/fact-flow#"]').length, 5)
   assert.equal($('a[href="https://locreport.com/locstock"]').length, 1)
   assert.equal($('a[href="https://locreport.com/directory/new-company"]').length, 1)

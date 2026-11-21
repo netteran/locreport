@@ -91,3 +91,14 @@
 }
 .public-shell .dir-card { border-radius: var(--radius-lg); }
 .public-shell .dir-card-name { font-family: var(--font-display); }
+
+.content-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .045em;
+  line-height: 1.45;
+  white-space: nowrap;
+}

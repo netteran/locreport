@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type CompanyArticle = {
+import type { PostReference } from './contentTaxonomy'
+
+export type CompanyArticle = PostReference & {
   id: string
   title: string
   slug: string
@@ -16,7 +18,7 @@ export type CompanyCoverage = {
   mentions: CompanyArticle[]
 }
 
-const COLUMNS = 'id, title, slug, excerpt, publisher, published_at'
+const COLUMNS = 'id, title, slug, excerpt, publisher, published_at, article_type, content_type, content_slug'
 
 /**
  * Postgres (ARE) pattern matching the company name as a whole word,

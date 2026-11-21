@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { isArticlePath } from '@/lib/contentTaxonomy'
 
 export function ReadingProgress() {
   const [pct, setPct] = useState(0)
   const pathname = usePathname()
-  const isArticle = pathname.startsWith('/articles/') && pathname.split('/').length > 2
+  const isArticle = isArticlePath(pathname)
 
   useEffect(() => {
     if (!isArticle) { setPct(0); return }

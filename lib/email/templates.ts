@@ -349,7 +349,7 @@ export function digestEmail({ periodLabel, editorNote, topStory, company, facts,
     ${more.map(a => `<p style="margin:0 0 9px;font-size:15px;line-height:1.5;">
       <a href="${escapeHtml(a.url)}" style="${MORE_LINK}">${escapeHtml(a.title)}</a>
     </p>`).join('')}
-    ${moreCount > 0 ? `<a href="https://locreport.com/articles" style="${CTA_LINK}">+ ${moreCount} more on LocReport →</a>` : ''}`) : ''
+    ${moreCount > 0 ? `<a href="https://locreport.com/" style="${CTA_LINK}">+ ${moreCount} more on LocReport →</a>` : ''}`) : ''
 
   return weeklyEmail(periodLabel, `
     ${editorNote?.trim() ? editorIntro(renderWeeklyNoteContent(editorNote)) : ''}

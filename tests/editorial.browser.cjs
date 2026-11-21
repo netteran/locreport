@@ -14,13 +14,14 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
   })
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1100 } })
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, reducedMotion: 'reduce' })
     // External fonts, advertising and analytics are irrelevant to these checks.
     await context.route('**/*', route => {
       const host = new URL(route.request().url()).hostname
       return ['127.0.0.1', 'localhost'].includes(host) ? route.continue() : route.abort()
     })
     const page = await context.newPage()
+    await page.addInitScript(() => localStorage.setItem('locreport.digest', JSON.stringify({ status: 'dismissed', at: Date.now() })))
     fs.mkdirSync('work/editorial-preview', { recursive: true })
     const errors = []
     page.on('pageerror', error => errors.push(error.message))
@@ -39,11 +40,11 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     }
 
     if (process.env.TEST_SCHEMA === 'legacy') {
-      for (const path of ['/', '/articles', '/reports', '/search', '/search?q=Monthly']) {
+      for (const path of ['/', '/analysis/', '/reports/', '/search', '/search?q=Monthly']) {
         await visit(path)
         await noRetiredLinks()
       }
-      await page.locator('.search-main a[href="/reports"]').waitFor()
+      await page.locator('.search-main a[href="/reports/"]').waitFor()
       assert.deepEqual(errors, [])
       console.log('Legacy editorial browser checks passed: homepage, article archive, monthly briefings and search remain readable when optional coverage columns are missing.')
       return
@@ -52,14 +53,14 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await visit('/')
     const navHrefs = await page.locator('#site-menu > li > a')
       .evaluateAll(links => links.map(link => link.getAttribute('href')))
-    assert.deepEqual(navHrefs, ['/articles', '/fact-flow', '/reports', '/locstock', '/directory'])
-    assert.equal(await page.locator('.editorial-home__lead h1').innerText(), 'Newest authored analysis', 'latest publication leads even when an older article scores higher')
-    assert.equal(await page.locator('.editorial-home__card').count(), 4, 'analysis grid retains articles spanning more than three publication days')
+    assert.deepEqual(navHrefs, ['/briefs/', '/analysis/', '/fact-flow', '/reports/', '/locstock', '/directory'])
+    assert.equal(await page.locator('.editorial-home__lead h1').innerText(), 'October 2026 Localization Industry Report', 'latest publication leads across all editorial formats')
+    assert.ok(await page.locator('.editorial-home__card').count() >= 6, 'feed retains articles spanning more than three publication days')
     assert.ok((await page.locator('.editorial-home__card h3').allTextContents()).includes('Older high-impact analysis'))
     assert.equal(await page.locator('.impact-badge, .impact-dot, .briefing__signal-chip, .sidebar-signal').count(), 0)
     await page.getByRole('link', { name: 'A sourced industry announcement.', exact: true }).waitFor()
-    await page.getByText('October 2026 Localization Industry Report', { exact: true }).waitFor()
-    assert.equal(await page.locator('.editorial-home__analysis-grid a[href="/articles/october-buyer-decisions-briefing"]').count(), 0, 'briefing stays separate from authored industry article list')
+    await page.locator('.editorial-home__report').getByText('October 2026 Localization Industry Report', { exact: true }).waitFor()
+    assert.equal(await page.locator('.editorial-home__analysis-grid a[href="/reports/october-2026-localization-industry-report/"]').count(), 0, 'the newest report is the featured story')
     await noRetiredLinks()
     await noOverflow()
     await page.screenshot({ path: 'work/editorial-preview/home-desktop.png', fullPage: true, animations: 'disabled' })
@@ -70,28 +71,28 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
 
     for (const legacyPath of ['/reports/monthly', '/monthly-reports', '/reports/monthly/2026/11']) {
       const redirect = await context.request.get(base + legacyPath, { maxRedirects: 0 })
-      assert.equal(redirect.status(), 308)
-      assert.equal(new URL(redirect.headers().location, base).pathname, '/reports')
+      assert.equal(redirect.status(), 301)
+      assert.equal(new URL(redirect.headers().location, base).pathname, '/reports/')
     }
 
     const oldEdition = await context.request.get(base + '/reports/monthly/2026/10', { maxRedirects: 0 })
-    assert.equal(oldEdition.status(), 308)
-    assert.equal(new URL(oldEdition.headers().location, base).pathname, '/articles/october-2026-localization-industry-report')
+    assert.equal(oldEdition.status(), 301)
+    assert.equal(new URL(oldEdition.headers().location, base).pathname, '/reports/october-2026-localization-industry-report/')
 
-    await visit('/reports')
+    await visit('/reports/')
     await page.getByRole('heading', { name: 'Monthly Reports', exact: true }).waitFor()
     const latest = page.locator('#monthly-reports + .reports-list .report-card').first()
     assert.match(await latest.innerText(), /October 2026 Localization Industry Report/)
     assert.match(await latest.innerText(), /Published Nov 17, 2026/)
-    assert.equal(await latest.getAttribute('href'), '/articles/october-buyer-decisions-briefing')
+    assert.equal(await latest.getAttribute('href'), '/reports/october-2026-localization-industry-report/')
     await page.getByRole('heading', { name: 'Annual Reports', exact: true }).waitFor()
     await page.getByText('Archived annual report', { exact: true }).waitFor()
     await noRetiredLinks()
     await page.screenshot({ path: 'work/editorial-preview/monthly-desktop.png', fullPage: true, animations: 'disabled' })
 
-    await visit('/reports/2026-annual-global-market-report')
+    await visit('/reports/2026-annual-global-market-report/')
     assert.match(await page.locator('.all-articles-subtitle').innerText(), /From the report archive · Published April 2026/)
-    await page.locator('.all-articles-subtitle a[href="/reports"]').waitFor()
+    await page.locator('.all-articles-subtitle a[href="/reports/"]').waitFor()
 
     for (const path of ['/intelligence', '/intelligence/signals', '/intelligence/signals/quality-gap-closure', '/intelligence/signals/unknown-legacy-signal', '/intelligence/high-impact']) {
       await visit(path)
@@ -104,29 +105,26 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     assert.equal(sitemap.status(), 200)
     const sitemapXml = await sitemap.text()
     assert.doesNotMatch(sitemapXml, /<loc>[^<]*(?:\/intelligence|\/reports\/monthly)/)
-    assert.match(sitemapXml, /<loc>https:\/\/locreport\.com\/reports<\/loc>/)
+    assert.match(sitemapXml, /<loc>https:\/\/locreport\.com\/reports\/<\/loc>/)
     assert.doesNotMatch(sitemapXml, /<loc>[^<]*\/compass/)
     for (const path of ['/locstock', '/directory', '/directory/rws', '/llm-pricing']) {
       assert.ok(sitemapXml.includes(`<loc>https://locreport.com${path}</loc>`), path)
     }
 
     await visit('/search?q=October')
-    await page.locator('.search-main a[href="/articles/october-buyer-decisions-briefing"]').waitFor()
+    await page.locator('.search-main a[href="/reports/october-2026-localization-industry-report/"]').waitFor()
     assert.equal(await page.getByText('Signals', { exact: true }).count(), 0)
     await noRetiredLinks()
 
-    await visit('/articles')
-    assert.equal(await page.locator('select#impact-filter, select#impact-select').count(), 0)
-    await page.getByLabel('Topic', { exact: true }).selectOption('quality')
-    await page.waitForURL(/topic=quality/)
-    await page.locator('.article-card .article-tag--quality').first().waitFor()
-    await page.getByLabel('Category', { exact: true }).selectOption('monthly-summary')
-    await page.waitForURL(/category=monthly-summary/)
-    await page.waitForFunction(() => document.querySelectorAll('.all-articles-feed > a.article-card').length === 1)
-    assert.equal(await page.locator('.all-articles-feed > a.article-card').count(), 1)
-    await page.locator('.all-articles-feed a[href="/articles/october-buyer-decisions-briefing"]').waitFor()
+    await visit('/analysis/')
+    await page.getByRole('heading', { name: 'Localization Analysis', exact: true }).waitFor()
+    const analysisPaths = await page.locator('.editorial-home__card h3 a').evaluateAll(links => links.map(link => link.getAttribute('href')))
+    assert.ok(analysisPaths.length > 0 && analysisPaths.every(href => href.startsWith('/analysis/')))
+    await visit('/briefs/')
+    await page.getByRole('heading', { name: 'Industry Briefs', exact: true }).waitFor()
+    await page.locator('.editorial-home__card h3 a[href="/briefs/platform-announcement/"]').waitFor()
 
-    await visit('/articles/newest-authored-analysis')
+    await visit('/analysis/newest-authored-analysis/')
     await page.getByRole('heading', { name: 'Newest authored analysis', exact: true }).waitFor()
     await page.getByRole('heading', { name: 'Why this matters', exact: true }).waitFor()
     assert.equal(await page.locator('.impact-badge, .time-horizon-badge, .post-intel__signal').count(), 0)
@@ -184,7 +182,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await noOverflow()
     await page.screenshot({ path: 'work/editorial-preview/home-mobile.png', fullPage: true, animations: 'disabled' })
     await page.getByRole('button', { name: 'Open menu', exact: true }).click()
-    await page.locator('.site-nav a[href="/articles"]').waitFor({ state: 'visible' })
+    await page.locator('.site-nav a[href="/analysis/"]').waitFor({ state: 'visible' })
     await page.locator('.site-nav a[href="/locstock"]').waitFor({ state: 'visible' })
     await page.locator('.site-nav a[href="/directory"]').waitFor({ state: 'visible' })
     assert.equal(await page.locator('.site-nav a[href="/llm-pricing"]').count(), 0)
@@ -192,10 +190,10 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
     await page.waitForURL(base + '/fact-flow')
     assert.equal(await page.getByRole('button', { name: 'Open menu', exact: true }).getAttribute('aria-expanded'), 'false')
     await noOverflow()
-    for (const path of ['/reports', '/intelligence', '/articles/newest-authored-analysis']) {
+    for (const path of ['/reports/', '/intelligence', '/analysis/newest-authored-analysis/']) {
       await visit(path)
       await noOverflow()
-      if (path === '/reports') await page.screenshot({ path: 'work/editorial-preview/monthly-mobile.png', fullPage: true, animations: 'disabled' })
+      if (path === '/reports/') await page.screenshot({ path: 'work/editorial-preview/monthly-mobile.png', fullPage: true, animations: 'disabled' })
     }
     assert.deepEqual(errors, [])
     console.log('Editorial browser checks passed: newest article and continuous archive, desktop/mobile navigation, monthly coverage dates, annual archive, retired routes/noindex/sitemap, briefing search, article context, Fact Flow, top-level tools and Compass redirects; no live actions.')

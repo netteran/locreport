@@ -1,14 +1,7 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const fs = require('node:fs'), ts = require('typescript')
 const { NextRequest } = require('next/server')
-function load(file, dependencies = {}) {
-  const m = { exports: {} }
-  new Function('exports', 'require', 'module', ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
-  }).outputText)(m.exports, id => dependencies[id] || require(id), m)
-  return m.exports
-}
+const { load } = require('./fixtures/typescript.cjs')
 const utils = load('lib/utils.ts', { './monthlyReportSlugs': load('lib/monthlyReportSlugs.ts') })
 const digest = load('lib/email/digest.ts', {
   '@/lib/data/locstock': load('lib/data/locstock.ts'),
@@ -89,14 +82,14 @@ function apiFixture() {
   const editions = new Map(), writes = [], builds = []
   let admin = false
   const periodEnd = new Date(), periodStart = new Date(periodEnd.getTime() - 7 * 86400000)
-  const article = { id: 'story', slug: 'story', title: 'The story', published_at: periodEnd.toISOString() }
+  const article = { id: 'story', slug: 'story', content_slug: 'story', content_type: 'analysis', title: 'The story', published_at: periodEnd.toISOString() }
   const service = { from(table) {
     let selectedDate
     const q = { select() { return q }, eq(_key, value) { selectedDate = value; return q }, in() { return q },
-      gte() { return q }, lt() { return q }, order() { return q }, limit() { return q }, or() { return q },
+      gte() { return q }, lt() { return q }, order() { return q }, limit() { return q }, returns() { return q },
       async maybeSingle() { return { data: table === 'weekly_newsletter_editions' ? editions.get(selectedDate) || null : null, error: null } },
       async upsert(row) { assert.equal(table, 'weekly_newsletter_editions'); writes.push(row); editions.set(row.edition_date, row); return { error: null } },
-      then(resolve, reject) { return Promise.resolve({ data: table === 'articles' ? [article] : [], error: null }).then(resolve, reject) }
+      then(resolve, reject) { return Promise.resolve({ data: table === 'public_article_index' ? [article] : [], error: null }).then(resolve, reject) }
     }
     return q
   } }

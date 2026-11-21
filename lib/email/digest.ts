@@ -6,7 +6,8 @@
 // Every subscriber receives the same issue, with no per-subscriber filters.
 import { LOCSTOCK_COMPANIES } from '@/lib/data/locstock'
 import { DIRECTORY_CATEGORIES, type DirectoryEntry } from '@/lib/data/directory'
-import { articleHref, splitSentences } from '@/lib/utils'
+import { articleHref, type PostReference } from '@/lib/contentTaxonomy'
+import { splitSentences } from '@/lib/utils'
 import type {
   DigestArticle,
   DigestCompany,
@@ -17,7 +18,7 @@ import type {
 import { SITE_URL } from '@/lib/email/send'
 import { emailCompanyLogo } from '@/lib/email/companyLogo'
 
-export interface DigestSourceArticle {
+export interface DigestSourceArticle extends PostReference {
   id: string
   title: string
   slug: string
@@ -41,7 +42,7 @@ export function toDigestArticle(a: DigestSourceArticle): DigestArticle {
   return {
     id: a.id,
     title: a.title,
-    url: `${SITE_URL}${articleHref(a.slug)}`,
+    url: `${SITE_URL}${articleHref(a)}`,
     excerpt: a.excerpt,
     business_implications: a.business_implications,
   }

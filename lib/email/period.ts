@@ -31,7 +31,7 @@ export function formatPeriodRange(start: Date, end: Date): string {
 export function fetchPeriodArticles(service: ReturnType<typeof createServiceClient>, periodStart: Date) {
   return service
     .from('articles')
-    .select('id, title, slug, excerpt, impact_score, business_implications, published_at')
+    .select('id, title, slug, content_type, article_type, content_slug, excerpt, impact_score, business_implications, published_at')
     .in('article_type', ['industry', 'monthly-summary'])
     .gte('published_at', periodStart.toISOString())
     .order('published_at', { ascending: false })

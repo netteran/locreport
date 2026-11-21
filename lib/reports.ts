@@ -31,5 +31,5 @@ export function reportImageKey(slug: string): string {
 }
 
 export function annualReportPath(slug: string): string {
-  return `/reports/${slug}`
+  return `/reports/${slug}/`
 }

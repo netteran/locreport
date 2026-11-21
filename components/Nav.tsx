@@ -9,9 +9,10 @@ import { ADMIN_LINKS, activeAdminLink } from '@/lib/adminNav'
 import { OPEN_DIGEST_EVENT } from '@/components/DigestPopup'
 
 const NAV_LINKS = [
-  { href: '/articles', label: 'Articles' },
+  { href: '/briefs/', label: 'Briefs' },
+  { href: '/analysis/', label: 'Analysis' },
   { href: '/fact-flow', label: 'Fact Flow', live: true },
-  { href: '/reports', label: 'Reports' },
+  { href: '/reports/', label: 'Reports' },
   { href: '/locstock', label: 'LocStock' },
   { href: '/directory', label: 'Directory' },
 ]
@@ -162,7 +163,7 @@ export function Nav() {
     router.refresh()
   }
 
-  const current = (href: string) => (pathname === href ? 'page' as const : undefined)
+  const current = (href: string) => pathname.replace(/\/$/, '') === href.replace(/\/$/, '') ? 'page' as const : undefined
 
   return (
     <header className="site-header">

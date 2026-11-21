@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { articleHref, type PostReference } from '@/lib/contentTaxonomy'
 import { missingPublicationColumns, RESEARCH_MIGRATION } from '@/lib/researchSchema'
 
 export interface AdminFact {
@@ -13,7 +14,7 @@ export interface AdminFact {
   event_id: string | null
   article_id: string | null
   created_at: string
-  articles: { slug: string }[] | null
+  articles: { slug: string; href: string }[] | null
 }
 
 export async function loadAdminFacts(client: SupabaseClient): Promise<AdminFact[]> {
@@ -33,9 +34,9 @@ export async function loadAdminFacts(client: SupabaseClient): Promise<AdminFact[
   const links = await client.from('fact_article_links').select('fact_id,article_id').in('fact_id', facts.map(f => f.id))
   if (links.error) throw new Error(`Could not load Fact Flow article links: ${links.error.message}`)
   const ids = [...new Set([...facts.map(f => f.article_id), ...(links.data || []).map(l => l.article_id)].filter(Boolean))] as string[]
-  const byId = new Map<string, { slug: string; published_at?: string }>()
+  const byId = new Map<string, PostReference & { published_at?: string }>()
   if (ids.length) {
-    const articles = await client.from('articles').select('id,slug,published_at').in('id', ids)
+    const articles = await client.from('articles').select('id,slug,published_at,article_type,content_type,content_slug').in('id', ids)
     if (articles.error) throw new Error(`Could not load Fact Flow article links: ${articles.error.message}`)
     for (const article of articles.data ?? []) byId.set(article.id, article)
   }
@@ -43,7 +44,10 @@ export async function loadAdminFacts(client: SupabaseClient): Promise<AdminFact[
     const associated = (links.data || []).filter(l => l.fact_id === f.id).map(l => l.article_id)
       .sort((a,b) => (byId.get(b)?.published_at || '').localeCompare(byId.get(a)?.published_at || ''))
     const articleIds = [...new Set([f.article_id, ...associated].filter(Boolean))]
-    const articles = articleIds.flatMap(id => byId.has(id) ? [{ slug: byId.get(id)!.slug }] : [])
+    const articles = articleIds.flatMap(id => {
+      const article = byId.get(id)
+      return article ? [{ slug: article.slug, href: articleHref(article) }] : []
+    })
     return { ...f, articles: articles.length ? articles : null }
   })
 }

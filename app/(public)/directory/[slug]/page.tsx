@@ -8,7 +8,7 @@ import { AdminEditButton } from './AdminEditButton'
 import { MarketCard } from './MarketCard'
 import { locstockByDirectorySlug } from '@/lib/data/locstock'
 import { getCompanyArticles, type CompanyArticle } from '@/lib/companyArticles'
-import { articleHref } from '@/lib/utils'
+import { articleHref } from '@/lib/contentTaxonomy'
 
 export const revalidate = 3600
 
@@ -37,7 +37,7 @@ function ArticleList({ articles }: { articles: CompanyArticle[] }) {
     <ul className="dir-entry-articles">
       {articles.map(a => (
         <li key={a.id} className="dir-entry-article">
-          <Link href={articleHref(a.slug)} className="dir-entry-article-title">{a.title}</Link>
+          <Link href={articleHref(a)} className="dir-entry-article-title">{a.title}</Link>
           <span className="dir-entry-article-meta">
             <time dateTime={a.published_at}>
               {new Date(a.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

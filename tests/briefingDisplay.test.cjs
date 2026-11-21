@@ -1,17 +1,9 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const fs = require('node:fs')
-const ts = require('typescript')
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 
-function load(file, dependencies = {}) {
-  const m = { exports: {} }
-  new Function('exports', 'require', 'module', ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX }
-  }).outputText)(m.exports, id => dependencies[id] || require(id), m)
-  return m.exports
-}
+const { load } = require('./fixtures/typescript.cjs')
 
 const display = load('lib/briefingDisplay.ts')
 const coverage = load('lib/briefingCoverage.ts')
@@ -39,12 +31,12 @@ test('legacy reports use a valid recorded month but unknown coverage is never gu
 })
 
 function reportsPage(posts) {
-  const query = { select() { return query }, eq() { return query }, order() { return query }, returns: async () => ({ data: posts, error: null }) }
-  return load('app/(public)/reports/page.tsx', {
+  const query = { select() { return query }, eq() { return query }, order() { return query }, returns: async () => ({ data: posts.map(post => ({ ...post, content_type: 'report' })), error: null }) }
+  return load('app/(stories)/reports/page.tsx', {
     'next/link': { default: ({ children, ...props }) => React.createElement('a', props, children) },
     '@/lib/supabase/server': { createPublicClient: () => ({ from: () => query }) },
     '@/lib/supabase/required': { required: result => result.data },
-    '@/lib/utils': { articleHref: slug => `/articles/${slug}`, safeImageUrl: () => null },
+    '@/lib/utils': { safeImageUrl: () => null },
     '@/lib/briefingDisplay': display,
     '@/lib/briefingCoverage': coverage,
     '@/lib/reports': load('lib/reports.ts'),
@@ -60,8 +52,8 @@ test('monthly archive distinguishes a delayed briefing coverage from its publica
   assert.match(html, /October 2026 Localization Industry Report/)
   assert.match(html, /Published Nov 5, 2026/)
   assert.doesNotMatch(html, /Coverage: November 2026|legacy-signal/)
-  assert.match(html, /href="\/articles\/october-briefing"/)
-  assert.match(html, /href="\/reports\/2026-annual-global-market-report"/)
+  assert.match(html, /href="\/reports\/october-briefing\/"/)
+  assert.match(html, /href="\/reports\/2026-annual-global-market-report\/"/)
 })
 
 test('legacy briefing archive without coverage records only identifies publication timing', async () => {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
+import { getContentType, isContentType } from '@/lib/contentTaxonomy'
+import { BRIEF_PROTOCOL, ANALYSIS_PROTOCOL } from '@/lib/editorialProtocol'
 import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, CITATION_STYLE_GUIDANCE, todayLine } from '@/lib/prompts'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import { isYouTubeUrl, parsePodcastConfig, writePodcastArticle, type PodcastConfig } from '@/lib/podcast'
@@ -45,8 +47,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // Optional body — a plain "re-run as is" may send nothing at all.
   let instruction = ''
+  let requestedType: unknown
   try {
     const body = await req.json()
+    requestedType = body?.contentType
     if (typeof body?.instruction === 'string') instruction = body.instruction.trim()
   } catch {
     // no/invalid body — treat as an unmodified re-run
@@ -68,6 +72,13 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   if (draft.article_type === 'monthly-summary') return NextResponse.json({ error: 'Monthly reports use a multi-source briefing. Edit this draft directly, or reject it and generate a new monthly report draft from the dashboard.' }, { status: 409 })
   if (draft.composition_id) return NextResponse.json({ error:'Use the composition workspace to regenerate from all sources and your editorial brief', composition_id:draft.composition_id },{ status:409 })
+  const contentType: unknown = requestedType ?? getContentType(draft)
+  if (!isContentType(contentType) || contentType === 'report') {
+    return NextResponse.json({ error: 'Choose brief or analysis for this story.' }, { status: 400 })
+  }
+  if (contentType === 'brief' && !draft.source_url) {
+    return NextResponse.json({ error: 'Save the original source URL before regenerating a brief.' }, { status: 400 })
+  }
   if (!draft.content) {
     return NextResponse.json({ error: 'Draft has no content to re-run' }, { status: 400 })
   }
@@ -89,7 +100,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
   }
 
-  if (!podcastConfig) sourceName = await draftSourceName(service, draft)
+  if (!podcastConfig || contentType === 'brief') sourceName = await draftSourceName(service, draft)
 
   // Mark as rerunning
   await service.from('drafts').update({ status: 'rerunning' }).eq('id', id)
@@ -123,7 +134,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Podcast drafts re-run through the podcast writer so the episode format
     // and the allow-listed LinkedIn/Spotify/YouTube links survive the re-run.
-    if (podcastConfig) {
+    if (podcastConfig && contentType === 'analysis') {
       const { title, content } = await writePodcastArticle(service, podcastConfig, {
         episodeTitle: draft.title,
         episodeYouTubeUrl: draft.source_url && isYouTubeUrl(draft.source_url) ? draft.source_url : null,
@@ -159,6 +170,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           ? [{ role: 'system' as const, content: buildInstructionMessage(instruction) }]
           : []),
         { role: 'system' as const, content: CITATION_STYLE_GUIDANCE },
+        { role: 'system' as const, content: 'Follow this editorial format. ' + (contentType === 'brief' ? BRIEF_PROTOCOL : ANALYSIS_PROTOCOL) },
         { role: 'user' as const, content: generateInput },
       ],
     })
@@ -170,6 +182,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       .from('drafts')
       .update({
         content: newContent,
+        content_type: contentType,
         status: 'rerun',
         // Pin the fact sheet on first re-run so every later re-run profiles the same facts.
         ...(factsReused ? {} : { extracted_facts: facts }),

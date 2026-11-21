@@ -1,21 +1,8 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const fs = require('node:fs'),
-  ts = require('typescript')
 const { createClient } = require('@supabase/supabase-js')
 const { createFixtureServer } = require('./fixtures/supabase.cjs')
-function load(file, dependencies = {}) {
-  const m = { exports: {} }
-  const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
-  }).outputText
-  new Function('exports', 'require', 'module', code)(
-    m.exports,
-    (id) => dependencies[id] || require(id),
-    m
-  )
-  return m.exports
-}
+const { load } = require('./fixtures/typescript.cjs')
 const schema = load('lib/researchSchema.ts')
 const { loadPublishedFacts } = load('lib/publicFacts.ts', { '@/lib/researchSchema': schema })
 async function fixture(t, mode) {

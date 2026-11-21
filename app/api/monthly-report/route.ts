@@ -114,7 +114,7 @@ ${CITATION_STYLE_GUIDANCE}` : citationWordingRepair(unclear)
     const titleSlug = slugify(title)
     const slug = await uniqueSlug(period.fullMonth ? titleSlug : `${period.key}-${titleSlug}`, 'drafts', service)
     const { data: draft, error: insertError } = await service.from('drafts').insert({
-      title, slug, content: reportContent, article_type: 'monthly-summary', monthly_period: period.period,
+      title, slug, content: reportContent, article_type: 'monthly-summary', content_type: 'report', monthly_period: period.period,
       report_start_date: period.startDay, report_end_date: period.endDay,
       source_url: null, status: 'pending', research_only: false,
       extracted_facts: JSON.stringify({ context: evidence.context, allowed_urls: [...evidence.allowedUrls], counts: evidence.counts })

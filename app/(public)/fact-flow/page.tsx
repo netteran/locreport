@@ -1,6 +1,6 @@
 import { createPublicClient } from '@/lib/supabase/server'
 import { loadPublishedFacts, httpUrl, factMainLink, type PublishedFact } from '@/lib/publicFacts'
-import { articleHref } from '@/lib/utils'
+import { articleHref } from '@/lib/contentTaxonomy'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { ShareButton } from '@/components/ShareButton'
@@ -123,7 +123,7 @@ export default async function FactFlowPage() {
                       )}
                       <a href={`#${fact.id}`}>Permalink</a>
                       {fact.analyses.map(analysis => (
-                        <Link key={analysis.id} href={articleHref(analysis.slug)}>LocReport analysis: {analysis.title} →</Link>
+                        <Link key={analysis.id} href={articleHref(analysis)}>LocReport coverage: {analysis.title} →</Link>
                       ))}
                     </div>
                     {fact.sources.length > 1 && (
