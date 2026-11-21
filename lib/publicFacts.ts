@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { articleHref, type PostReference } from '@/lib/contentTaxonomy'
 import { missingPublicationColumns } from '@/lib/researchSchema'
 
 export interface PublishedFact {
@@ -12,7 +13,7 @@ export interface PublishedFact {
   created_at: string
   published_at: string
   sources: { source_url: string; source_name: string | null; title: string }[]
-  analyses: { id: string; slug: string; title: string }[]
+  analyses: (PostReference & { id: string; title: string })[]
 }
 export function factPermalink(id: string) {
   return `https://locreport.com/fact-flow#${id}`
@@ -30,7 +31,7 @@ export function httpUrl(value: string | null | undefined) {
 /** Published analysis takes precedence; original attribution is kept separately. */
 export function factMainLink(fact: Pick<PublishedFact, 'analyses' | 'source_url'>): { href: string; external: boolean } | null {
   const analysis = fact.analyses.find(a => a?.slug)
-  if (analysis) return { href: `/articles/${analysis.slug.split('/').pop()}`, external: false }
+  if (analysis) return { href: articleHref(analysis), external: false }
   const source = httpUrl(fact.source_url)
   return source ? { href: source, external: true } : null
 }
@@ -58,13 +59,13 @@ export async function loadPublishedFacts(
       .from('public_fact_sources')
       .select('fact_id,source_url,source_name,title')
       .in('fact_id', ids),
-    client.from('fact_article_links').select('fact_id,articles(id,slug,title,published_at)').in('fact_id', ids)
+    client.from('fact_article_links').select('fact_id,articles(id,slug,title,published_at,article_type,content_type,content_slug)').in('fact_id', ids)
   ])
   if (sources.error || links.error) throw new Error(sources.error?.message || links.error?.message)
   // Manual and older facts may have a direct article_id without an association row.
   const linkedIds = new Set((links.data || []).flatMap(l => l.articles ? (Array.isArray(l.articles) ? l.articles : [l.articles]) : []).map(a => a.id))
   const missingIds = [...new Set(result.data.map(f => f.article_id).filter(id => id && !linkedIds.has(id)))] as string[]
-  const direct = missingIds.length ? await client.from('articles').select('id,slug,title,published_at').in('id', missingIds) : { data: [], error: null }
+  const direct = missingIds.length ? await client.from('articles').select('id,slug,title,published_at,article_type,content_type,content_slug').in('id', missingIds) : { data: [], error: null }
   if (direct.error) throw new Error(`Fact Flow article links: ${direct.error.message}`)
   const articleMap = new Map([...(links.data || []).flatMap(l => l.articles ? (Array.isArray(l.articles) ? l.articles : [l.articles]) : []), ...(direct.data || [])].map(a => [a.id, a]))
   return result.data.map(f => {
@@ -90,7 +91,7 @@ async function loadLegacyPublishedFacts(
   if (error) throw new Error(`Fact Flow (legacy): ${error.message}`)
   if (!data?.length) return []
   const articleIds = [...new Set(data.map((f) => f.article_id).filter(Boolean))] as string[]
-  const articles = await client.from('articles').select('id,slug,title').in('id', articleIds)
+  const articles = await client.from('articles').select('id,slug,title,article_type,content_type,content_slug').in('id', articleIds)
   if (articles.error) throw new Error(`Fact Flow article links: ${articles.error.message}`)
   const articleMap = new Map((articles.data || []).map((a) => [a.id, a]))
   return data.map((f) => ({

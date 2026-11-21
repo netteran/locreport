@@ -25,15 +25,14 @@ export async function deleteArticles(
   // dropped too, rather than serving a ghost for another 24h.
   const { data: existing } = await supabase
     .from('articles')
-    .select('id, slug, article_type')
+    .select('id, slug, article_type, content_type, content_slug')
     .in('id', ids)
 
   const { error } = await supabase.from('articles').delete().in('id', ids)
   if (error) throw new Error(error.message)
 
   const rows = existing ?? []
-  revalidateArticleSurfaces({ monthlyReport: rows.some((r) => r.article_type === 'monthly-summary') })
-  for (const row of rows) revalidateArticleSurfaces({ slug: row.slug })
+  revalidateArticleSurfaces(...rows)
 
   return { deleted: rows.length, factsDeleted: 0 }
 }

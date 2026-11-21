@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
+import { articleHref } from '@/lib/contentTaxonomy'
+import { revalidateArticleSurfaces } from '@/lib/revalidate'
 
 const BROKEN_LINK_PATTERN = /internal_article_url/i
 
@@ -18,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   let reportQuery = service
     .from('articles')
-    .select('id, slug, title, content, published_at')
+    .select('id, slug, title, content, published_at, article_type, content_type, content_slug')
     .eq('article_type', 'monthly-summary')
 
   reportQuery = slug
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
 
   const { data: sourceArticles, error: sourceError } = await service
     .from('articles')
-    .select('title, publisher, excerpt, slug, published_at')
+    .select('title, publisher, excerpt, slug, published_at, article_type, content_type, content_slug')
     .eq('article_type', 'industry')
     .gte('published_at', startDate.toISOString())
     .lt('published_at', endDate.toISOString())
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
   }
 
   const linkList = sourceArticles.map((a, i) => (
-    `${i + 1}. Title: ${a.title}\n   Publisher: ${a.publisher || 'Unknown'}\n   Internal Link: /articles/${a.slug}\n   Summary: ${a.excerpt || ''}`
+    `${i + 1}. Title: ${a.title}\n   Publisher: ${a.publisher || 'Unknown'}\n   Internal Link: ${articleHref(a)}\n   Summary: ${a.excerpt || ''}`
   )).join('\n\n')
 
   const systemPrompt = `You are a precise text-editing tool. You will be given a markdown article and a list of valid internal links. Your ONLY job is to fix broken internal hyperlink targets — do not change anything else.
@@ -96,6 +98,8 @@ Do not alter any other text, wording, punctuation, formatting, headings, or alre
     .eq('id', report.id)
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+
+  revalidateArticleSurfaces(report)
 
   const beforeLinks = report.content.match(/\[[^\]]+\]\([^)]+\)/g) ?? []
   const afterLinks = fixedContent.match(/\[[^\]]+\]\([^)]+\)/g) ?? []

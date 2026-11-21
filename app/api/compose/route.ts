@@ -3,6 +3,8 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
 import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, CITATION_STYLE_GUIDANCE, todayLine } from '@/lib/prompts'
 import { classifyArticle } from '@/lib/classify'
+import { isContentType } from '@/lib/contentTaxonomy'
+import { BRIEF_PROTOCOL, ANALYSIS_PROTOCOL } from '@/lib/editorialProtocol'
 
 async function getPrompt(key: string, fallback: string): Promise<string> {
   try {
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { stage, articleContent, sourceUrl, extraPrompt, contentType } = body
+  const { stage, articleContent, sourceUrl, extraPrompt, contentType = 'analysis' } = body
 
   const openai = getOpenAI()
 
@@ -45,13 +47,17 @@ export async function POST(req: NextRequest) {
   }
 
   if (stage === 'generate') {
+    if (!isContentType(contentType) || contentType === 'report') {
+      return NextResponse.json({ error: 'Choose brief or analysis for this story.' }, { status: 400 })
+    }
     const { facts, title, sourceName, extraUrl1, extraSourceName1, extraUrl2, extraSourceName2 } = body
     const basePrompt = await getPrompt('prompt_industry', DEFAULT_INDUSTRY_PROMPT)
 
     const editorialPrompt = extraPrompt
       ? `${basePrompt}\n\nADDITIONAL INSTRUCTIONS:\n${extraPrompt}`
       : basePrompt
-    const systemPrompt = `${editorialPrompt}\n\n${CITATION_STYLE_GUIDANCE}`
+    const format = contentType === 'brief' ? BRIEF_PROTOCOL : ANALYSIS_PROTOCOL
+    const systemPrompt = `${editorialPrompt}\n\n${CITATION_STYLE_GUIDANCE}\n\nFollow this editorial format: ${format}`
 
     const sources = [
       sourceUrl ? { url: sourceUrl, name: sourceName?.trim() || null } : null,
@@ -59,6 +65,9 @@ export async function POST(req: NextRequest) {
       extraUrl2?.trim() ? { url: extraUrl2.trim(), name: extraSourceName2?.trim() || null } : null,
     ].filter(Boolean) as { url: string; name: string | null }[]
 
+    if (contentType === 'brief' && sources.length !== 1) {
+      return NextResponse.json({ error: 'An industry brief needs one original source.' }, { status: 400 })
+    }
     const sourcesBlock = sources.length
       ? sources.map((s, i) =>
           `Source ${i + 1}: ${s.name ? `${s.name} — ` : ''}${s.url}`

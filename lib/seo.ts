@@ -15,7 +15,7 @@ export const ADSENSE_CLIENT = 'ca-pub-4411470587763033'
 export const SITE_NAME = 'LocReport'
 
 export const SITE_DESCRIPTION =
-  'Independent analysis of localization, language services and AI, with sourced news in Fact Flow, monthly reports, a company directory and LocStock market tracking.'
+  'Independent briefs, analysis, and reports on localization, language services, and AI. Follow sourced updates in Fact Flow, browse the company directory, and track the market with LocStock.'
 
 // Profiles that represent the same entity. Google uses these to resolve the
 // brand name to a single organization, so keep them in sync with the footer.
@@ -82,4 +82,9 @@ export function breadcrumbJsonLd(items: BreadcrumbItem[]) {
       ...(item.url ? { item: item.url } : {}),
     })),
   }
+}
+
+/** Prevent a title or excerpt from closing the JSON-LD script element. */
+export function serializeJsonLd(value: object) {
+  return JSON.stringify(value).replace(/</g, '\\u003c')
 }

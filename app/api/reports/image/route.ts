@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     : await service.from('settings').delete().eq('key', key)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  for (const path of [annualReportPath(slug), '/reports']) {
+  for (const path of [annualReportPath(slug), '/reports/']) {
     try {
       revalidatePath(path)
     } catch (err) {

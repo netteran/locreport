@@ -4,7 +4,10 @@ import type { Issue } from './digest'
 import type { DigestCompany, DigestMarket } from './templates'
 import { buildIssue } from './issue'
 import { weeklyEditionDate } from './weeklyNote'
-import { articleHref } from '@/lib/utils'
+import { marked } from 'marked'
+import { articleHref, contentTypeFromPath, type PostReference } from '@/lib/contentTaxonomy'
+import { canonicalLegacyArticleSlug } from '@/lib/legacyArticleSlugs'
+import { canonicalMonthlyReportSlug } from '@/lib/monthlyReportSlugs'
 import { SITE_URL } from './send'
 
 export const EDITION_MIGRATION = '20261124_weekly_newsletter_editions.sql'
@@ -55,15 +58,41 @@ export function issueMarkdown(issue: Issue): string {
   if (issue.market) sections.push(marketSectionMarkdown(issue.market))
   if (issue.directory.length) sections.push('## New in the directory\n\n' + issue.directory.map(c => `${link(c.name, c.url)}${c.category ? ` · ${plain(c.category)}` : ''}\n\n${plain(c.description)}`).join('\n\n'))
   if (issue.more.length) sections.push('## More from LocReport\n\n' + issue.more.map(a => `- ${link(a.title, a.url)}`).join('\n'))
-  if (issue.moreCount) sections.push(link(`Browse ${issue.moreCount} more articles`, `${SITE_URL}/articles`))
+  if (issue.moreCount) sections.push(link(`Browse ${issue.moreCount} more articles`, `${SITE_URL}/`))
   return sections.join('\n\n')
 }
 export async function linkedArticleIds(service: SupabaseClient, markdown: string): Promise<string[]> {
-  const slugs = [...new Set([...markdown.matchAll(/https?:\/\/(?:www\.)?locreport\.com\/articles\/([a-z0-9_-]+)/gi)].map(m => m[1]))].slice(0, 200)
-  if (!slugs.length) return []
-  const { data, error } = await service.from('articles').select('id,slug').or(slugs.flatMap(slug => [`slug.eq.${slug}`, `slug.ilike.%/${slug}`]).join(','))
-  if (error) throw new Error(`Could not resolve newsletter article links: ${error.message}`)
-  return (data || []).map(a => a.id)
+  const routes = new Set<string>()
+  marked.walkTokens(marked.lexer(markdown), token => {
+    if (token.type !== 'link' || routes.size >= 200) return
+    try {
+      const url = new URL(token.href, SITE_URL)
+      if (!['http:', 'https:'].includes(url.protocol) || !['locreport.com', 'www.locreport.com'].includes(url.hostname)
+        || url.port || url.username || url.password) return
+      const [section, ...parts] = url.pathname.split('/').filter(Boolean)
+      const type = contentTypeFromPath(section)
+      if (section !== 'articles' && (!type || parts.length !== 1)) return
+      const slug = decodeURIComponent(parts.at(-1) ?? '').toLowerCase().replace(/\.html$/, '')
+      if (!/^[\p{L}\p{N}][\p{L}\p{N}_.-]{0,239}$/u.test(slug)) return
+      const target = canonicalLegacyArticleSlug(slug)
+      const canonical = section === 'articles' || type === 'report' ? canonicalMonthlyReportSlug(target) : target
+      routes.add(`${section}/${canonical}`)
+    } catch { /* Ignore malformed URLs in the working copy. */ }
+  })
+  const slugs = [...new Set([...routes].map(route => route.split('/')[1]))]
+  const articleIds = new Set<string>()
+  for (let from = 0; from < slugs.length; from += 40) {
+    const { data, error } = await service.from('public_article_index')
+      .select('id,slug,article_type,content_type,content_slug')
+      .in('content_slug', slugs.slice(from, from + 40))
+      .returns<(PostReference & { id: string })[]>()
+    if (error) throw new Error(`Could not resolve newsletter article links: ${error.message}`)
+    for (const article of data ?? []) {
+      const path = decodeURIComponent(articleHref(article)).slice(1, -1)
+      if (routes.has(path) || routes.has(`articles/${article.content_slug}`)) articleIds.add(article.id)
+    }
+  }
+  return [...articleIds]
 }
 export async function resolveEdition(service: SupabaseClient, periodStart: Date, periodEnd: Date) {
   const editionDate = weeklyEditionDate(periodEnd)

@@ -1,25 +1,21 @@
-import { MetadataRoute } from 'next'
+import type { MetadataRoute } from 'next'
 import { createPublicClient } from '@/lib/supabase/server'
 import { required } from '@/lib/supabase/required'
 import { fetchDirectoryEntries } from '@/lib/directory'
-import { articleHref } from '@/lib/utils'
+import { articleHref, CONTENT_TYPES, CONTENT_TAXONOMY, type PostReference } from '@/lib/contentTaxonomy'
+import { FEED_PAGE_SIZE, feedPagePath } from '@/lib/feedPagination'
 import { SITE_URL } from '@/lib/seo'
 import { ANNUAL_REPORTS, annualReportPath } from '@/lib/reports'
-import { redirects } from '@/vercel.json'
 
-// Cookie-free client keeps this cacheable; an hour matches the listing pages.
 export const revalidate = 3600
 
-// PostgREST caps a response at 1,000 rows, so a single select silently dropped
-// the oldest articles once the archive grew past that.
-const PAGE_SIZE = 1000
-const REDIRECT_SOURCES = new Set(redirects.map(rule => rule.source))
+// The PostgREST response limit applies even when the archive exceeds 1,000 rows.
+const QUERY_LIMIT = 1000
 
 const STATIC_PAGES: MetadataRoute.Sitemap = [
-  { url: SITE_URL },
-  { url: `${SITE_URL}/articles` },
+  { url: `${SITE_URL}/` },
+  ...CONTENT_TYPES.map(type => ({ url: `${SITE_URL}${CONTENT_TAXONOMY[type].path}` })),
   { url: `${SITE_URL}/fact-flow` },
-  { url: `${SITE_URL}/reports` },
   ...ANNUAL_REPORTS.map(report => ({ url: `${SITE_URL}${annualReportPath(report.slug)}` })),
   { url: `${SITE_URL}/locstock` },
   { url: `${SITE_URL}/llm-pricing` },
@@ -30,24 +26,23 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/terms` },
 ]
 
-type Row = { slug: string; published_at: string; updated_at: string | null }
+type Row = PostReference & { published_at: string; updated_at: string | null }
 
 async function fetchAllArticles(): Promise<Row[]> {
   const supabase = createPublicClient()
   const rows: Row[] = []
-  for (let from = 0; ; from += PAGE_SIZE) {
-    // Primary content: throw rather than publish a sitemap missing every article.
+  for (let from = 0; ; from += QUERY_LIMIT) {
     const page = required(
       await supabase
-        .from('articles')
-        .select('slug, published_at, updated_at')
-        .order('published_at', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, from + PAGE_SIZE - 1),
+        .from('public_article_index')
+        .select('slug, content_type, content_slug, article_type, published_at, updated_at')
+        .order('published_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, from + QUERY_LIMIT - 1),
       'sitemap articles'
     ) as Row[] | null
     rows.push(...(page ?? []))
-    if (!page || page.length < PAGE_SIZE) return rows
+    if (!page || page.length < QUERY_LIMIT) return rows
   }
 }
 
@@ -56,27 +51,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     fetchAllArticles(),
     fetchDirectoryEntries(createPublicClient()),
   ])
-
-  // Match the detail route: a bare slug wins over a dated slug, otherwise
-  // the earliest dated copy supplies the content and its modification time.
-  const canonicalArticles = new Map<string, Row>()
+  const urls = new Map(STATIC_PAGES.map(page => [page.url, page]))
   for (const article of articles) {
-    const path = articleHref(article.slug)
-    if (REDIRECT_SOURCES.has(path)) continue
-    const url = `${SITE_URL}${path}`
-    if (!canonicalArticles.has(url) || !article.slug.includes('/')) {
-      canonicalArticles.set(url, article)
-    }
-  }
-
-  const articleUrls: MetadataRoute.Sitemap = [...canonicalArticles].map(([url, article]) => {
+    const url = `${SITE_URL}${articleHref(article)}`
+    if (urls.has(url)) continue
     const lastModified = new Date(article.updated_at ?? article.published_at)
-    return Number.isFinite(lastModified.getTime()) ? { url, lastModified } : { url }
-  })
-
-  const directoryUrls: MetadataRoute.Sitemap = directory.map((e) => ({
-    url: `${SITE_URL}/directory/${e.slug}`,
-  }))
-
-  return [...STATIC_PAGES, ...directoryUrls, ...articleUrls]
+    urls.set(url, Number.isFinite(lastModified.getTime()) ? { url, lastModified } : { url })
+  }
+  for (let page = 2; page <= Math.ceil(articles.length / FEED_PAGE_SIZE); page++) {
+    const url = `${SITE_URL}${feedPagePath(page)}`
+    urls.set(url, { url })
+  }
+  for (const entry of directory) {
+    const url = `${SITE_URL}/directory/${entry.slug}`
+    urls.set(url, { url })
+  }
+  return [...urls.values()]
 }

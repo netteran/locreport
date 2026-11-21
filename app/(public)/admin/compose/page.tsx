@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArticleEditor } from '@/components/ArticleEditor'
+import { ContentTypeField } from '@/components/ContentTypeField'
+import { type ContentType } from '@/lib/contentTaxonomy'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,7 +33,7 @@ export default function ComposePage() {
   const [extraSourceName1, setExtraSourceName1] = useState('')
   const [extraUrl2, setExtraUrl2] = useState('')
   const [extraSourceName2, setExtraSourceName2] = useState('')
-  const [contentType] = useState('industry')
+  const [contentType, setContentType] = useState<ContentType>('analysis')
   const [impactScore, setImpactScore] = useState('')
   const [timeHorizon, setTimeHorizon] = useState('')
   const [extraPrompt, setExtraPrompt] = useState('')
@@ -67,12 +69,19 @@ export default function ComposePage() {
 
   async function generateArticle() {
     setGenerating(true)
+    setPublishError('')
     const res = await fetch('/api/compose', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage: 'generate', facts, title, sourceUrl, sourceName, extraUrl1, extraSourceName1, extraUrl2, extraSourceName2, extraPrompt, contentType }),
+      body: JSON.stringify({ stage: 'generate', facts, title, sourceUrl, sourceName, extraPrompt, contentType,
+        ...(contentType === 'analysis' ? { extraUrl1, extraSourceName1, extraUrl2, extraSourceName2 } : {}) }),
     })
     const data = await res.json()
+    if (!res.ok) {
+      setPublishError(data.error ?? 'Could not generate the story.')
+      setGenerating(false)
+      return
+    }
     const generated = data.content ?? ''
     setContent(generated)
 
@@ -102,6 +111,7 @@ export default function ComposePage() {
         body: JSON.stringify({
           content: finalContent,
           source_url: sourceUrl || null,
+          contentType,
           title: editTitle || undefined,
         }),
       })
@@ -118,7 +128,6 @@ export default function ComposePage() {
       const params = new URLSearchParams()
       if (impactScore) params.set('impact_score', impactScore)
       if (timeHorizon) params.set('time_horizon', timeHorizon)
-      params.set('content_type', contentType)
       if (editSlug) params.set('slug', editSlug)
       if (editPublisher) params.set('publisher', editPublisher)
       router.push(`/admin/drafts/${draft.id}?${params.toString()}`)
@@ -189,8 +198,11 @@ export default function ComposePage() {
     <div className="max-w-[760px]">
       <h1 className="text-2xl font-bold text-[var(--text)] mb-6">Compose</h1>
 
+      {publishError && <p className="mb-4 text-sm text-red-600" role="alert">{publishError}</p>}
+
       {stage === 'form' && (
         <div className="flex flex-col gap-5">
+          <ContentTypeField value={contentType} onChange={setContentType} />
           <div>
             <Label htmlFor="article-content">Article content <span className="text-red-500">*</span></Label>
             <Textarea

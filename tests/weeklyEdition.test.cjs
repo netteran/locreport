@@ -1,19 +1,17 @@
 const {test}=require('node:test')
 const assert=require('node:assert/strict')
-const fs=require('node:fs'), ts=require('typescript')
+const fs=require('node:fs')
 const {NextRequest}=require('next/server')
 const {PGlite}=require('@electric-sql/pglite')
 const {load:htmlDocument}=require('cheerio')
-function load(file,deps={}) {
- const m={exports:{}}; new Function('exports','require','module',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText)(m.exports,id=>deps[id]||require(id),m);return m.exports
-}
+const { load } = require('./fixtures/typescript.cjs')
 const weekly=load('lib/email/weeklyNote.ts')
 const editionCompany=load('lib/email/editionCompany.ts')
 let generated=0
-const generatedIssue={storyCount:1,articleIds:['article'],editorNote:'Opening',topStory:{id:'article',title:'A story',url:'https://locreport.com/articles/story',excerpt:'A useful summary.'},company:null,market:null,directory:[],facts:[{content:'A fact',url:'https://example.test/fact'}],more:[],moreCount:0}
+const generatedIssue={storyCount:1,articleIds:['article'],editorNote:'Opening',topStory:{id:'article',title:'A story',url:'https://locreport.com/analysis/story/',excerpt:'A useful summary.'},company:null,market:null,directory:[],facts:[{content:'A fact',url:'https://example.test/fact'}],more:[],moreCount:0}
 const edition=load('lib/email/edition.ts',{
  './issue':{buildIssue:async()=>{generated++;return {issue:generatedIssue}}},
- './weeklyNote':weekly,'@/lib/utils':{articleHref:slug=>'/articles/'+slug.split('/').pop()},'./send':{SITE_URL:'https://locreport.com'}
+ './weeklyNote':weekly,'./send':{SITE_URL:'https://locreport.com'}
 })
 function db() {
  const rows=new Map();let failure=null

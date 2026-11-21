@@ -5,6 +5,7 @@ import { DigestPopupTrigger } from '@/components/DigestPopupTrigger'
 import Link from 'next/link'
 import Image from 'next/image'
 import './public-theme.css'
+import './homepage.css'
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   const year = new Date().getFullYear()
@@ -39,9 +40,10 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             <div className="footer-nav-col">
               <h4 className="footer-nav-title">Coverage</h4>
               <ul className="footer-links" aria-label="Footer coverage links">
-                <li><Link href="/articles">All articles</Link></li>
+                <li><Link href="/briefs/">Briefs</Link></li>
+                <li><Link href="/analysis/">Analysis</Link></li>
                 <li><Link href="/fact-flow">Fact Flow</Link></li>
-                <li><Link href="/reports">Reports</Link></li>
+                <li><Link href="/reports/">Reports</Link></li>
               </ul>
             </div>
             <div className="footer-nav-col">

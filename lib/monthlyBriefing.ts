@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { marked } from 'marked'
+import { articleHref, isArticlePath } from '@/lib/contentTaxonomy'
 
 /** Inclusive calendar dates follow the editorial timezone, including DST. */
 function warsawMidnight(date: string) {
@@ -47,7 +48,7 @@ function checked<T>(result: { data: T; error: { message: string } | null }, labe
 export async function loadMonthlyEvidence(service: SupabaseClient, period: ReturnType<typeof monthlyPeriod>) {
   const { startDate, endDate } = period
   const results = await Promise.all([
-    service.from('articles').select('id,title,source_url,publisher,excerpt,content,slug,published_at')
+    service.from('articles').select('id,title,source_url,publisher,excerpt,content,slug,published_at,article_type,content_type,content_slug')
       .eq('article_type', 'industry').gte('published_at', startDate).lt('published_at', endDate)
       .order('published_at', { ascending: false }).limit(60),
     service.from('facts').select('id,content,source_url,source_name,event_id,published_at,review_reason')
@@ -61,7 +62,7 @@ export async function loadMonthlyEvidence(service: SupabaseClient, period: Retur
       .in('status', ['available', 'reserved', 'used']).eq('processing_status', 'ready')
       .is('source_published_at', null).gte('created_at', startDate).lt('created_at', endDate)
       .order('created_at', { ascending: false }).limit(30),
-    service.from('articles').select('title,content,slug,published_at')
+    service.from('articles').select('title,content,slug,published_at,article_type,content_type,content_slug')
       .eq('article_type', 'monthly-summary')
       .or(`report_end_date.lt.${period.startDay},and(report_end_date.is.null,monthly_period.lt.${period.period}),and(report_end_date.is.null,monthly_period.is.null,published_at.lt.${startDate})`)
       .order('report_end_date', { ascending: false, nullsFirst: false }).order('monthly_period', { ascending: false, nullsFirst: false }).order('published_at', { ascending: false }).limit(1)
@@ -70,7 +71,6 @@ export async function loadMonthlyEvidence(service: SupabaseClient, period: Retur
   const facts = checked(results[1], 'published facts') || []
   const sources = [...(checked(results[2], 'dated sources') || []), ...(checked(results[3], 'undated sources') || [])]
   const previous = (checked(results[4], 'previous briefing') || [])[0] || null
-  const link = (slug: string) => `/articles/${slug}`
   // Independent section budgets leave room for facts even when article bodies are long.
   function bounded<T, U>(rows: T[], budget: number, transform: (row: T) => U) {
     const items: U[] = []
@@ -85,13 +85,13 @@ export async function loadMonthlyEvidence(service: SupabaseClient, period: Retur
     period: period.period,
     date_range: { start: period.startDay, end: period.endDay, timezone: 'Europe/Warsaw', end_inclusive: true },
     coverage_note: 'A bounded selection of collected evidence, not exhaustive industry coverage. Publication dates establish reporting timing, not necessarily event timing. Undated sources are context only.',
-    articles: bounded(articles, 40000, a => ({ title: a.title, publisher: a.publisher, source_url: a.source_url, url: link(a.slug),
+    articles: bounded(articles, 40000, a => ({ title: a.title, publisher: a.publisher, source_url: a.source_url, url: articleHref(a),
       published_at: a.published_at, analysis: (a.content || a.excerpt || '').slice(0, 5000) })),
     published_facts: bounded(facts, 30000, f => ({ ...f, content: f.content.slice(0, 900) })),
     source_evidence: bounded(sources, 70000, s => ({ ...s, extracted_facts: s.extracted_facts.slice(0, 2500),
       evidence_status: 'Collected source evidence, not independently verified. Preserve review flags and source attribution.',
       timing: s.source_published_at ? 'Reported during the selected period; verify the event date in the evidence.' : 'Undated source collected during the selected period; background only, not evidence of a new development in the selected period.' })),
-    previous_briefing: previous ? { title: previous.title, url: link(previous.slug), published_at: previous.published_at,
+    previous_briefing: previous ? { title: previous.title, url: articleHref({ ...previous, content_type: 'report' }), published_at: previous.published_at,
       content: previous.content.slice(0, 20000), role: 'Compare expectations only; not new evidence for the selected period.' } : null,
     limits: { articles: 60, published_facts: 200, dated_sources: 120, undated_sources: 30, text_budget_characters: 160000 }
   }
@@ -99,7 +99,7 @@ export async function loadMonthlyEvidence(service: SupabaseClient, period: Retur
   for (const a of context.articles) { allowedUrls.add(a.url); if (a.source_url) allowedUrls.add(a.source_url) }
   for (const f of context.published_facts) if (f.source_url) allowedUrls.add(f.source_url)
   for (const s of context.source_evidence) if (s.source_url) allowedUrls.add(s.source_url)
-  if (previous) allowedUrls.add(link(previous.slug))
+  if (previous) allowedUrls.add(articleHref({ ...previous, content_type: 'report' }))
   return { context, allowedUrls,
     hasCurrentEvidence: !!(context.articles.length || context.published_facts.length || context.source_evidence.some(s => s.source_published_at)),
     counts: { articles: context.articles.length, facts: context.published_facts.length, sources: context.source_evidence.length } }
@@ -111,7 +111,7 @@ function citationIdentity(raw: string): string | null {
     const url = new URL(raw.replace(/&amp;/g, '&'), 'https://locreport.com')
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null
     // Relative paths are only meaningful for our own published articles.
-    if (!/^https?:\/\//i.test(raw) && !raw.startsWith('/articles/')) return null
+    if (!/^https?:\/\//i.test(raw) && !(raw.startsWith('/') && !raw.startsWith('//') && (raw.startsWith('/articles/') || isArticlePath(url.pathname)))) return null
     url.hash = ''
     for (const key of [...url.searchParams.keys()]) {
       if (/^utm_|^(fbclid|gclid|mc_cid|mc_eid)$/i.test(key)) url.searchParams.delete(key)

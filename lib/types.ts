@@ -1,3 +1,5 @@
+import type { ContentType } from './contentTaxonomy'
+
 export interface RssSource {
   id: string
   url: string
@@ -61,6 +63,7 @@ export interface ScrapedSource {
 }
 
 export interface Draft {
+  content_type?: ContentType | null
   article_type?: 'industry' | 'monthly-summary'
   monthly_period?: string | null
   report_start_date?: string | null
@@ -101,6 +104,8 @@ export interface Article {
   excerpt: string | null
   content: string
   article_type: 'industry' | 'monthly-summary'
+  content_type: ContentType
+  content_slug: string
   author: string | null
   publisher: string | null
   source_url: string | null
@@ -131,7 +136,7 @@ export interface Article {
 // `embedding` is still needed by whoever feeds it to the match_articles RPC —
 // append it explicitly there rather than widening this list for everyone.
 export const ARTICLE_COLUMNS = [
-  'id', 'title', 'slug', 'excerpt', 'content', 'article_type', 'author',
+  'id', 'title', 'slug', 'excerpt', 'content', 'article_type', 'content_type', 'content_slug', 'author',
   'publisher', 'source_url', 'image_url', 'image_alt', 'signal_ids',
   'signal_stance', 'signal_confidence', 'impact_score', 'time_horizon',
   'affected_segments', 'business_implications', 'tags', 'published_at',

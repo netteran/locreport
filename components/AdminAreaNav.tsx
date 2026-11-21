@@ -19,6 +19,6 @@ export function AdminAreaNav() {
       </nav>
     </div>}
     {area.href === '/admin/weekly' && <nav className="admin-subnav" aria-label="Newsletter pages"><Link href="/admin/weekly">Current edition</Link><Link href="/admin/digest-history">Sent editions</Link></nav>}
-    {area.href === '/admin/monthly' && <nav className="admin-subnav" aria-label="Monthly briefing pages"><Link href="/admin/monthly">Create &amp; review</Link><Link href="/admin/reports">Briefings &amp; report images</Link><Link href="/reports">Published briefings ↗</Link></nav>}
+    {area.href === '/admin/monthly' && <nav className="admin-subnav" aria-label="Monthly briefing pages"><Link href="/admin/monthly">Create &amp; review</Link><Link href="/admin/reports">Briefings &amp; report images</Link><Link href="/reports/">Published briefings ↗</Link></nav>}
   </>
 }

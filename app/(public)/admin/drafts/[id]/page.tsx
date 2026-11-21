@@ -6,6 +6,8 @@ import { Draft } from '@/lib/types'
 import { ImageDropzone } from '@/components/ImageDropzone'
 import { MonthlyReportEvidence } from '@/components/MonthlyReportEvidence'
 import { Badge } from '@/components/ui/badge'
+import { ContentTypeField } from '@/components/ContentTypeField'
+import { type ContentType, getContentType } from '@/lib/contentTaxonomy'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -53,7 +55,7 @@ export default function DraftReviewPage() {
 
   const [impactScore, setImpactScore] = useState(() => searchParams.get('impact_score') ?? '')
   const [timeHorizon, setTimeHorizon] = useState(() => searchParams.get('time_horizon') ?? '')
-  const contentType = draft?.article_type ?? searchParams.get('content_type') ?? 'industry'
+  const [contentType, setContentType] = useState<ContentType>('analysis')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
@@ -77,6 +79,7 @@ export default function DraftReviewPage() {
       .then(r => r.json())
       .then((d: Draft & { fact: DraftFact | null }) => {
         setDraft(d)
+        setContentType(getContentType(d))
         // Strip leading H1 from content (legacy drafts may still have it)
         const strippedContent = d.content.replace(/^#\s+.+\n?/, '').trimStart()
         setContent(strippedContent)
@@ -108,6 +111,7 @@ export default function DraftReviewPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content,
+          contentType,
           title: editTitle || undefined,
           source_url: editSourceUrl || null,
           image_url: editImageUrl.trim() || null,
@@ -139,6 +143,7 @@ export default function DraftReviewPage() {
         body: JSON.stringify({
           status,
           content,
+          contentType,
           title: editTitle || undefined,
           slug: editSlug || undefined,
           publisher: editPublisher || undefined,
@@ -147,7 +152,6 @@ export default function DraftReviewPage() {
           image_alt: editImageAlt.trim() || null,
           impact_score: impactScore ? Number(impactScore) : null,
           time_horizon: timeHorizon || null,
-          content_type: contentType,
           fact: draft?.article_type === 'monthly-summary' ? undefined : factContent,
         }),
       })
@@ -176,7 +180,7 @@ export default function DraftReviewPage() {
       const res = await fetch(`/api/drafts/${id}/rerun`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instruction }),
+        body: JSON.stringify({ instruction, contentType }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
@@ -263,6 +267,8 @@ export default function DraftReviewPage() {
             />
           </div>
         </div>
+
+        <ContentTypeField value={contentType} onChange={setContentType} disabled={!isPending || rerunning} />
 
         <div>
           <Label htmlFor="edit-source-url">Source URL</Label>

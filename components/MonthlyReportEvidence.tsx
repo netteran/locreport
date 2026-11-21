@@ -1,10 +1,11 @@
+import { isArticlePath } from '@/lib/contentTaxonomy'
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {}
 }
 function text(value: unknown) { return typeof value === 'string' ? value : '' }
 function sourceLink(value: unknown) {
   const url = text(value)
-  return /^https?:\/\//.test(url) || url.startsWith('/articles/') ? url : null
+  return /^https?:\/\//.test(url) || (url.startsWith('/') && !url.startsWith('//') && (isArticlePath(url.split(/[?#]/, 1)[0]) || url.startsWith('/articles/'))) ? url : null
 }
 
 export function MonthlyReportEvidence({ snapshot }: { snapshot: string | null }) {

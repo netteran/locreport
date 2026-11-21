@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { createServiceClient } from '@/lib/supabase/server'
 import { ANNUAL_REPORTS, annualReportPath } from '@/lib/reports'
 import { getReportImage } from '@/lib/reportImage'
-import { articleHref, safeImageUrl } from '@/lib/utils'
+import { safeImageUrl } from '@/lib/utils'
+import { articleHref } from '@/lib/contentTaxonomy'
 import { AnnualImageForm } from './AnnualImageForm'
 import { briefingCoverageLabel, type BriefingCoverage } from '@/lib/briefingDisplay'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
@@ -51,7 +52,7 @@ export default async function AdminReportsPage() {
             )}
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate" style={{ color: 'var(--text)' }}>
-                <Link href={articleHref(m.slug)} target="_blank" className="hover:underline">{m.title}</Link>
+                <Link href={articleHref({ ...m, content_type: 'report' })} target="_blank" className="hover:underline">{m.title}</Link>
               </p>
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
                 {briefingCoverageLabel(m) ? `Coverage: ${briefingCoverageLabel(m)} · ` : ''}

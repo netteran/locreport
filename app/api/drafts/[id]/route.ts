@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { findDraftFact, saveDraftFact } from '@/lib/factFlow'
 import { revalidateFactSurfaces } from '@/lib/revalidate'
 import { approveDraft } from '@/lib/publish'
+import { getContentType, isContentType } from '@/lib/contentTaxonomy'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -40,6 +41,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .select('*')
     .eq('id', id)
     .single()
+  if (!draftMeta) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+  const contentType: unknown = body.contentType
+  const previousType = getContentType(draftMeta)
+  if (contentType !== undefined && (!isContentType(contentType)
+    || (contentType === 'report') !== (previousType === 'report'))) {
+    return NextResponse.json({ error: 'Choose brief or analysis for a story. Reports use the monthly reporting workspace.' }, { status: 400 })
+  }
+  if (contentType && draftMeta.status === 'approved' && contentType !== previousType) {
+    return NextResponse.json({ error: 'Change the format in the published article editor.' }, { status: 409 })
+  }
   if (body.fact !== undefined && !draftMeta?.composition_id && draftMeta?.article_type !== 'monthly-summary') {
     draftFactResult = await saveDraftFact(supabase, { draftId: id, content: body.fact })
     if (draftFactResult.status === 'refused' || draftFactResult.status === 'failed') {
@@ -52,6 +63,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (body.status === 'approved') {
     const result = await approveDraft(supabase, id, {
+      contentType,
       title: body.title,
       content: body.content,
       slug: body.slug,
@@ -73,6 +85,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const patch: Record<string, unknown> = {}
+  if (contentType !== undefined && body.status !== 'approved') patch.content_type = contentType
   if (body.status !== undefined) patch.status = body.status
   if (body.content !== undefined) patch.content = body.content
   if (body.title !== undefined) patch.title = body.title

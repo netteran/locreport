@@ -372,7 +372,7 @@ export function AdminOperations({ area }: { area: 'daily' | 'monthly' | 'facts' 
             title="Backfill Fact Flow"
             summary="Add missing facts from previously published articles."
             controlsClass="admin-action__controls--input"
-            description="Single-source articles get their one Fact Flow fact automatically on approval. This fills gaps left behind: enter a slug — the part of a URL after /articles/ — to give one article its fact, or run Backfill all to walk every eligible article that still has none, newest first. Facts are dated to their article’s publication date, so backfilling slots them into the stream in order instead of piling old news at the top. Backfill all excludes monthly briefings. An article that already has a fact is never touched."
+            description="Single-source articles get their one Fact Flow fact automatically on approval. This fills gaps left behind: enter a slug — the last segment of the public article URL — to give one article its fact, or run Backfill all to walk every eligible article that still has none, newest first. Facts are dated to their article’s publication date, so backfilling slots them into the stream in order instead of piling old news at the top. Backfill all excludes monthly briefings. An article that already has a fact is never touched."
             controls={
               <>
                 <input

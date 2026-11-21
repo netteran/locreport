@@ -121,7 +121,7 @@ const investigationPitch = { ...readyPitch, id: 'investigation-pitch', title: 'W
         .waitFor()
       assert.equal(await page.getByText('Private pending fact', { exact: true }).count(), 0)
       await page
-        .getByRole('link', { name: 'LocReport analysis: Combined analysis →', exact: true })
+        .getByRole('link', { name: 'LocReport coverage: Combined analysis →', exact: true })
         .waitFor()
       const rss = await context.request.get(base + '/fact-flow/feed.xml')
       assert.equal(rss.status(), 200)
@@ -308,21 +308,21 @@ const investigationPitch = { ...readyPitch, id: 'investigation-pitch', title: 'W
       await page
         .getByRole('link', { name: 'A sourced industry announcement.', exact: true })
         .getAttribute('href'),
-      '/articles/combined-analysis'
+      '/analysis/combined-analysis/'
     )
     assert.equal(await page.locator('[id="10000000-0000-4000-8000-000000000001"]').getByRole('link', {name:'Source: Primary source ↗', exact:true}).getAttribute('href'), 'https://example.test/announcement')
     await page.getByText('2 supporting sources', { exact: true }).click()
     await page.getByRole('link', { name: 'Industry publication ↗', exact: true }).waitFor()
     await page
-      .getByRole('link', { name: 'LocReport analysis: Combined analysis →', exact: true })
+      .getByRole('link', { name: 'LocReport coverage: Combined analysis →', exact: true })
       .waitFor()
     const rss = await context.request.get(base + '/fact-flow/feed.xml')
     assert.equal(rss.status(), 200)
     const xml = await rss.text()
-    assert.match(xml, /<link>https:\/\/locreport.com\/articles\/combined-analysis<\/link>/)
+    assert.match(xml, /<link>https:\/\/locreport.com\/analysis\/combined-analysis\/<\/link>/)
     assert.match(xml, /<guid isPermaLink="false">https:\/\/locreport.com\/fact-flow#10000000-0000-4000-8000-000000000001<\/guid>/)
     await page.goto(base + '/')
-    assert.equal(await page.getByRole('link', { name: 'A sourced industry announcement.', exact: true }).getAttribute('href'), '/articles/combined-analysis')
+    assert.equal(await page.getByRole('link', { name: 'A sourced industry announcement.', exact: true }).getAttribute('href'), '/analysis/combined-analysis/')
     assert.equal(await page.getByRole('link', { name: 'Original source ↗', exact: true }).getAttribute('href'), 'https://example.test/announcement')
     assert.equal(errors.length, 0, errors.join('\n'))
     console.log(

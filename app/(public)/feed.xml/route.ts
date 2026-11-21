@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createPublicClient } from '@/lib/supabase/server'
-import { articleHref, safeImageUrl, imageMimeType, escapeXml } from '@/lib/utils'
+import { articleHref, articleSlug, CONTENT_TAXONOMY, getContentType, type PostReference } from '@/lib/contentTaxonomy'
+import { safeImageUrl, imageMimeType, escapeXml } from '@/lib/utils'
 
 import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
 import { previousMonthlyReportSlug } from '@/lib/monthlyReportSlugs'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 
-type FeedArticle = BriefingCoverage & {
+type FeedArticle = BriefingCoverage & PostReference & {
   title: string
   slug: string
   excerpt: string | null
@@ -24,20 +25,23 @@ export async function GET() {
   const supabase = createPublicClient()
 
   const { data: articles } = await withOptionalBriefingCoverage(columns => supabase
-    .from('articles')
-    .select('title, slug, excerpt, author, published_at, image_url, article_type' + columns)
+    .from('public_article_index')
+    .select('title, slug, excerpt, author, published_at, image_url, article_type, content_type, content_slug' + columns)
     .order('published_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(50).returns<FeedArticle[]>())
 
   const items = (articles ?? [])
     .map(a => {
-      const isReport = a.article_type === 'monthly-summary'
+      const type = getContentType(a)
+      const isReport = type === 'report'
       const title = isReport ? monthlyReportTitle(a) : a.title
       const excerpt = isReport ? monthlyReportSubtitle(a.excerpt) : a.excerpt
-      const link = `${BASE_URL}${articleHref(a.slug)}`
+      const link = `${BASE_URL}${articleHref(a)}`
       // Keep the original RSS ID for editions already delivered to subscribers.
-      const previousSlug = isReport ? previousMonthlyReportSlug(link.split('/').pop() ?? '') : undefined
-      const guid = previousSlug ? `${BASE_URL}/articles/${previousSlug}` : link
+      const previousSlug = isReport ? previousMonthlyReportSlug(articleSlug(a)) : undefined
+      const legacySlug = previousSlug ?? a.slug.split('/').filter(Boolean).at(-1) ?? articleSlug(a)
+      const guid = `${BASE_URL}/articles/${legacySlug}`
       // Readers show the lead image when the item carries an enclosure.
       const image = safeImageUrl(a.image_url)
       const imageAbs = image ? new URL(image, BASE_URL).toString() : null
@@ -45,6 +49,7 @@ export async function GET() {
     <item>
       <title>${escapeXml(title)}</title>
       <link>${escapeXml(link)}</link>
+      <category>${CONTENT_TAXONOMY[type].section}</category>
       <guid isPermaLink="true">${escapeXml(guid)}</guid>
       <pubDate>${new Date(a.published_at).toUTCString()}</pubDate>
       ${a.author ? `<dc:creator>${escapeXml(a.author)}</dc:creator>` : ''}
@@ -62,7 +67,7 @@ export async function GET() {
   <channel>
     <title>LocReport</title>
     <link>${BASE_URL}</link>
-    <description>Independent analysis and monthly reports on localization, language services and AI.</description>
+    <description>Independent briefs, analysis and monthly reports on localization, language services and AI.</description>
     <language>en-us</language>
     <lastBuildDate>${lastBuildDate}</lastBuildDate>
     <atom:link href="${BASE_URL}/feed.xml" rel="self" type="application/rss+xml"/>

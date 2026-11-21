@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { createPublicClient } from '@/lib/supabase/server'
-import { articleHref } from '@/lib/utils'
+import { articleHref, CONTENT_TAXONOMY, getContentType, type PostReference } from '@/lib/contentTaxonomy'
+import { withArticleReferences } from '@/lib/articleReferences'
 import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import { embedText } from '@/lib/embeddings'
@@ -18,14 +19,14 @@ export const metadata: Metadata = {
 }
 
 const STATIC_PAGES = [
-  { title: 'Monthly Report', href: '/reports', section: 'Reports', excerpt: 'What mattered in localization and language services, its practical implications and what to watch next.' },
+  { title: 'Monthly Report', href: '/reports/', section: 'Reports', excerpt: 'What mattered in localization and language services, its practical implications and what to watch next.' },
   { title: 'Fact Flow', href: '/fact-flow', section: 'News', excerpt: 'The latest localization and language-services news with links to original sources.' },
-  { title: '2026 Global Localization Market Report', href: '/reports/2026-annual-global-market-report', section: 'Report archive', excerpt: 'Archived annual analysis of market evolution, AI disruption, and competitive dynamics.' },
+  { title: '2026 Global Localization Market Report', href: '/reports/2026-annual-global-market-report/', section: 'Report archive', excerpt: 'Archived annual analysis of market evolution, AI disruption, and competitive dynamics.' },
   { title: 'LocStock — Localization Market Index', href: '/locstock', section: 'Tools', excerpt: 'Live equity overview of 39 publicly traded companies in language services and AI translation.' },
   { title: 'Industry Directory', href: '/directory', section: 'Tools', excerpt: 'Directory of companies in language services, translation technology, and localization.' },
 ]
 
-interface ArticleResult extends BriefingCoverage {
+interface ArticleResult extends BriefingCoverage, PostReference {
   id: string
   title: string
   slug: string
@@ -35,7 +36,7 @@ interface ArticleResult extends BriefingCoverage {
   published_at: string
 }
 
-type BriefingResult = Pick<ArticleResult, 'id' | 'title' | 'slug' | 'published_at'> & BriefingCoverage
+type BriefingResult = Pick<ArticleResult, 'id' | 'title' | 'published_at'> & PostReference & BriefingCoverage
 
 /**
  * Hybrid semantic + keyword search with graceful degradation:
@@ -55,7 +56,7 @@ async function searchArticles(
       match_count: 24,
     })
     if (!error && data) {
-      return { results: (data as ArticleResult[]).slice(0, 20), mode: 'hybrid' }
+      return { results: await withArticleReferences(supabase, (data as ArticleResult[]).slice(0, 20)), mode: 'hybrid' }
     }
   } catch (err) {
     console.error('hybrid search failed, falling back to keyword search', err)
@@ -66,14 +67,14 @@ async function searchArticles(
     match_count: 24,
   })
   if (!keywordError && keywordData) {
-    return { results: (keywordData as ArticleResult[]).slice(0, 20), mode: 'keyword' }
+    return { results: await withArticleReferences(supabase, (keywordData as ArticleResult[]).slice(0, 20)), mode: 'keyword' }
   }
 
   // Legacy path for environments where the search migration hasn't run.
   const sanitized = query.replace(/[,%().]/g, ' ').trim()
   const { data } = await supabase
     .from('articles')
-    .select('id, title, slug, excerpt, publisher, article_type, published_at')
+    .select('id, title, slug, excerpt, publisher, article_type, content_type, content_slug, published_at')
     .or(`title.ilike.%${sanitized}%,excerpt.ilike.%${sanitized}%,publisher.ilike.%${sanitized}%`)
     .order('published_at', { ascending: false })
     .limit(20)
@@ -99,7 +100,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   // Sidebar data — always fetched
   const { data: monthlyReports } = await withOptionalBriefingCoverage(coverageColumns => supabase
     .from('articles')
-    .select('id, title, slug, published_at' + coverageColumns)
+    .select('id, title, slug, published_at, article_type, content_type, content_slug' + coverageColumns)
     .eq('article_type', 'monthly-summary')
     .order('published_at', { ascending: false })
     .limit(1)
@@ -124,7 +125,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   const qLower = query.toLowerCase()
   const { results: articles, mode } = await searchArticles(supabase, query)
-  const reportIds = articles.filter(article => article.article_type === 'monthly-summary').map(article => article.id)
+  const reportIds = articles.filter(article => getContentType(article) === 'report').map(article => article.id)
   const { data: reportCoverage } = reportIds.length > 0
     ? await withOptionalBriefingCoverage(columns => supabase
       .from('articles').select('id' + columns).in('id', reportIds)
@@ -169,11 +170,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           {articles.length > 0 && (
             <Section label="Articles" count={articles.length}>
               {articles.map(a => {
-                const isReport = a.article_type === 'monthly-summary'
+                const type = getContentType(a)
+                const isReport = type === 'report'
                 const title = isReport ? monthlyReportTitle({ ...a, ...coverageById.get(a.id) }) : a.title
                 const excerpt = isReport ? monthlyReportSubtitle(a.excerpt) : a.excerpt
                 return (
-                  <ResultRow key={a.id} href={articleHref(a.slug)} section={isReport ? 'Monthly Report' : a.publisher ?? 'Article'}
+                  <ResultRow key={a.id} href={articleHref(a)} section={CONTENT_TAXONOMY[type].section}
                     title={<span dangerouslySetInnerHTML={{ __html: highlight(title, query) }} />}
                     excerpt={excerpt ? <span dangerouslySetInnerHTML={{ __html: highlight(excerpt, query) }} /> : null}
                     meta={<span className="search-result__meta-text search-result__meta-text--row">{fmtDate(a.published_at)}</span>}
@@ -204,7 +206,7 @@ function SearchSidebar({ latestMonthly }: {
       {latestMonthly && (
         <div className="post-sidebar-widget">
           <p className="post-sidebar-widget__title">Latest Monthly Report</p>
-          <Link href={articleHref(latestMonthly.slug)} className="search-sidebar__link">
+          <Link href={articleHref(latestMonthly)} className="search-sidebar__link">
             <p className="search-sidebar__link-title">{monthlyReportTitle(latestMonthly)}</p>
             <p className="search-sidebar__link-sub">
               Published {fmtDate(latestMonthly.published_at)}
@@ -215,7 +217,7 @@ function SearchSidebar({ latestMonthly }: {
 
       <div className="post-sidebar-widget">
         <p className="post-sidebar-widget__title">Monthly Report</p>
-        <Link href="/reports" className="search-sidebar__link">
+        <Link href="/reports/" className="search-sidebar__link">
           <p className="search-sidebar__link-title">Browse monthly reports</p>
           <p className="search-sidebar__link-sub">The developments that mattered and what to watch next.</p>
         </Link>

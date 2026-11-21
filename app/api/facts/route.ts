@@ -2,6 +2,8 @@ import { requireAdmin, unauthorized, requireResearchSchema } from '@/lib/adminAu
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidateFactSurfaces } from '@/lib/revalidate'
+import { resolvePublicArticle } from '@/lib/articleLookup'
+import { articleHref, type PostReference } from '@/lib/contentTaxonomy'
 
 export async function POST(req: NextRequest) {
   if (!(await requireAdmin())) return unauthorized()
@@ -17,22 +19,22 @@ export async function POST(req: NextRequest) {
     catch { return NextResponse.json({ error: 'Use a valid http or https source URL' }, { status: 400 }) }
   }
 
-  let article_id: string | null = null
+  const svc = createServiceClient()
+  let article: (PostReference & { id: string }) | null = null
 
   if (slug) {
-    const svc = createServiceClient()
-    const { data: article } = await svc.from('articles').select('id').eq('slug', slug).single()
+    const { data: exact } = await svc.from('articles')
+      .select('id,slug,article_type,content_type,content_slug').eq('slug', slug).maybeSingle()
+    article = exact ?? await resolvePublicArticle([slug]).catch(() => null)
     if (!article)
       return NextResponse.json({ error: 'Article not found for that slug' }, { status: 404 })
-    article_id = article.id
   }
 
-  const svc = createServiceClient()
   const schemaResponse = await requireResearchSchema(svc)
   if (schemaResponse) return schemaResponse
   const { data, error } = await svc
     .from('facts')
-    .insert({ content, source_url, article_id, category: 'news', status: 'pending' })
+    .insert({ content, source_url, article_id: article?.id ?? null, category: 'news', status: 'pending' })
     .select('*')
     .single()
 
@@ -41,5 +43,5 @@ export async function POST(req: NextRequest) {
   // New manual facts await an explicit Publish action, independently of article links.
   revalidateFactSurfaces()
 
-  return NextResponse.json(data, { status: 201 })
+  return NextResponse.json({ ...data, articles: article ? [{ slug: article.slug, href: articleHref(article) }] : null }, { status: 201 })
 }

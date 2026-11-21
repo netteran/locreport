@@ -1,17 +1,8 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const fs = require('node:fs')
-const ts = require('typescript')
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
-function load(file, dependencies = {}) {
-  const m = { exports: {} }
-  const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX }
-  }).outputText
-  new Function('exports', 'require', 'module', code)(m.exports, id => dependencies[id] || require(id), m)
-  return m.exports
-}
+const { load } = require('./fixtures/typescript.cjs')
 const schema = load('lib/researchSchema.ts')
 const { loadAdminFacts } = load('lib/adminFacts.ts', { '@/lib/researchSchema': schema })
 function client(results) {
@@ -38,7 +29,7 @@ test('admin loads pending and published facts without an inferred article relati
   assert.equal(rows.length, 2)
   assert.equal(rows[0].status, 'pending')
   assert.equal(rows[0].articles, null)
-  assert.deepEqual(rows[1].articles, [{ slug: 'analysis' }])
+  assert.deepEqual(rows[1].articles, [{ slug: 'analysis', href: '/analysis/analysis/' }])
   assert.ok(!db.calls[0].select.includes('('), 'must not depend on inferred foreign keys')
   assert.deepEqual(db.calls.find(c => c.table === 'articles').id, ['article'])
 })

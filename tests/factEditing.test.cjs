@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript')
 const {NextRequest}=require('next/server')
-function load(file,deps={}) {const m={exports:{}};new Function('exports','require','module',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText)(m.exports,id=>deps[id]||require(id),m);return m.exports}
+const { load } = require('./fixtures/typescript.cjs')
 function fixture() {
  let admin=true, readError=null, links=[];const writes=[]
  const current={source_url:'https://publisher.test/original',article_id:null,published_at:'2026-11-17T10:00:00Z',status:'published'}
@@ -27,7 +27,7 @@ test('publishing uses the effective new source and never leaves a published fact
 test('a published analysis becomes the fact main link while original attribution stays available',()=>{
  const {factMainLink}=load('lib/publicFacts.ts',{'@/lib/researchSchema':{}})
  const fact={source_url:'https://publisher.test/original',analyses:[{slug:'2026/11/17/analysis'}]}
- assert.deepEqual(factMainLink(fact),{href:'/articles/analysis',external:false});assert.equal(fact.source_url,'https://publisher.test/original')
+ assert.deepEqual(factMainLink(fact),{href:'/analysis/analysis/',external:false});assert.equal(fact.source_url,'https://publisher.test/original')
  assert.deepEqual(factMainLink({...fact,analyses:[]}),{href:'https://publisher.test/original',external:true})
  assert.equal(factMainLink({analyses:[],source_url:'javascript:alert(1)'}),null)
 })

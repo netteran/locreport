@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { articleHref } from '@/lib/contentTaxonomy'
 import { isBeforeBaseline, listEpisodes, parsePodcastConfig } from '@/lib/podcast'
 
 type Params = { params: Promise<{ id: string }> }
@@ -35,7 +36,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const urls = [...new Set(episodes.flatMap(e => [e.link, e.youtubeUrl]).filter((u): u is string => !!u))]
   const [draftsRes, articlesRes] = await Promise.all([
     supabase.from('drafts').select('id, source_url, status').in('source_url', urls),
-    supabase.from('articles').select('slug, source_url').in('source_url', urls),
+    supabase.from('articles').select('slug, source_url, article_type, content_type, content_slug').in('source_url', urls),
   ])
 
   return NextResponse.json({
@@ -48,7 +49,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return {
         ...e,
         draft: draft ? { id: draft.id, status: draft.status } : null,
-        article: article ? { slug: article.slug } : null,
+        article: article ? { slug: article.slug, href: articleHref(article) } : null,
       }
     }),
   })

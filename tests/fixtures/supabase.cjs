@@ -112,7 +112,7 @@ Conclusions should remain connected to the evidence, with room for an informed d
   {
     id: '20000000-0000-4000-8000-000000000020',
     title: 'October: the evidence behind buyer decisions',
-    slug: 'october-buyer-decisions-briefing',
+    slug: 'october-2026-localization-industry-report',
     excerpt: 'What mattered in October, its implications and the questions to watch.',
     content: 'An October assessment.\n\nThe evidence informs a buyer decision.',
     article_type: 'monthly-summary',
@@ -122,7 +122,7 @@ Conclusions should remain connected to the evidence, with room for an informed d
     author: 'LocReport Editorial',
     publisher: 'LocReport',
     source_url: null,
-    image_url: null,
+    image_url: '/og-image.jpg',
     image_alt: null,
     signal_ids: ['quality-gap-closure'],
     impact_score: 5,
@@ -132,25 +132,69 @@ Conclusions should remain connected to the evidence, with room for an informed d
     published_at: '2026-11-17T10:00:00Z',
     updated_at: '2026-11-17T10:00:00Z',
   },
-]
+  {
+    id: '20000000-0000-4000-8000-000000000021',
+    title: 'A company announces a new localization platform',
+    slug: 'platform-announcement',
+    excerpt: 'A brief on the release and what it changes for buyers.',
+    content: 'The new platform is available, [Local Publisher](https://example.test/launch) reports.\n\n## Why this matters\n\n- Buyers can run a pilot.\n- The release supports more languages.\n\n*Sources: [Local Publisher](https://example.test/launch)*',
+    article_type: 'industry',
+    content_type: 'brief',
+    source_url: 'https://example.test/launch',
+    publisher: 'LocReport',
+    image_url: null,
+    published_at: '2026-11-14T10:00:00Z',
+  },
+].map(row => ({
+  content_type: row.article_type === 'monthly-summary' ? 'report' : 'analysis',
+  content_slug: row.slug,
+  ...row,
+}))
 
-function selectEditorialArticles(url) {
-  let rows = [...editorialArticles]
-  for (const key of ['id', 'slug', 'article_type', 'published_at']) {
+const taxonomyArticles = [...editorialArticles, ...Array.from({ length: 24 }, (_, index) => ({
+  ...editorialArticles[0],
+  id: `20000000-0000-4000-8000-${String(index + 100).padStart(12, '0')}`,
+  slug: `archive-story-${index + 1}`,
+  content_slug: `archive-story-${index + 1}`,
+  title: `Archive story ${index + 1}`,
+  content_type: index % 2 === 0 ? 'brief' : 'analysis',
+  published_at: new Date(Date.UTC(2026, 9, 31 - index, 10)).toISOString(),
+  image_url: null,
+}))]
+
+function selectEditorialArticles(url, source) {
+  let rows = [...source]
+  for (const key of ['id', 'slug', 'article_type', 'content_type', 'content_slug', 'published_at']) {
     const filter = url.searchParams.get(key)
     if (!filter) continue
     if (filter.startsWith('eq.')) rows = rows.filter(row => row[key] === filter.slice(3))
     if (filter.startsWith('neq.')) rows = rows.filter(row => row[key] !== filter.slice(4))
     if (filter.startsWith('gte.')) rows = rows.filter(row => row[key] >= filter.slice(4))
     if (filter.startsWith('lt.')) rows = rows.filter(row => row[key] < filter.slice(3))
+    if (filter.startsWith('like.')) {
+      const pattern = filter.slice(5).split('%').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')
+      rows = rows.filter(row => new RegExp(`^${pattern}$`).test(row[key]))
+    }
     if (filter.startsWith('in.(')) {
       const values = filter.slice(4, -1).split(',')
       rows = rows.filter(row => values.includes(row[key]))
     }
   }
-  const order = url.searchParams.get('order') || 'published_at.desc'
-  const [column, direction] = order.split('.')
-  rows.sort((a, b) => String(a[column] ?? '').localeCompare(String(b[column] ?? '')) * (direction === 'asc' ? 1 : -1))
+  const cursor = url.searchParams.get('or')?.match(/^\(published_at\.lt\.([^,]+),and\(published_at\.eq\.[^,]+,id\.lt\.([^)]+)\)\)$/)
+  if (cursor) rows = rows.filter(row => {
+    const dateOrder = Date.parse(row.published_at) - Date.parse(cursor[1])
+    return dateOrder < 0 || (dateOrder === 0 && row.id < cursor[2])
+  })
+  const order = (url.searchParams.get('order') || 'published_at.desc').split(',').map(by => by.split('.'))
+  rows.sort((a, b) => {
+    for (const [column, direction] of order) {
+      const result = column === 'published_at'
+        ? Date.parse(a[column]) - Date.parse(b[column])
+        : String(a[column] ?? '').localeCompare(String(b[column] ?? ''))
+      if (result) return result * (direction === 'asc' ? 1 : -1)
+    }
+    return 0
+  })
   const total = rows.length
   const offset = Number(url.searchParams.get('offset') || 0)
   const limit = Number(url.searchParams.get('limit') || total)
@@ -161,6 +205,9 @@ function createFixtureServer(schema = 'research', requests = []) {
   const newsletterNotes = new Map()
   const newsletterEditions = new Map()
   const factRows = [publicFact, independentFact, privateFact].map(f => ({...f}))
+  const articles = schema === 'taxonomy' ? taxonomyArticles
+    : schema === 'editorial' ? editorialArticles
+    : editorialArticles.filter(article => article.id === articleId)
   return http.createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1')
     requests.push({
@@ -257,33 +304,27 @@ function createFixtureServer(schema = 'research', requests = []) {
         {
           fact_id: factId,
           article_id: articleId,
-          articles: { id: articleId, slug: 'combined-analysis', title: 'Combined analysis' }
+          articles: { id: articleId, slug: 'combined-analysis', title: 'Combined analysis', content_type: 'analysis', content_slug: 'combined-analysis' }
         }
       ]
     }
-    if (url.pathname === '/rest/v1/articles') {
-      if (schema === 'legacy') {
+    if (url.pathname === '/rest/v1/articles' || url.pathname === '/rest/v1/public_article_index') {
+      if (schema === 'legacy' && url.pathname === '/rest/v1/articles') {
         const column = (url.searchParams.get('select') || '').split(',').map(value => value.trim())
           .find(value => ['monthly_period', 'report_start_date', 'report_end_date'].includes(value))
         if (column) return reply({ code: '42703', message: `column articles.${column} does not exist` }, 400)
       }
-      if (schema === 'editorial') {
-        const result = selectEditorialArticles(url)
-        rows = result.rows
-        total = result.total
-      } else {
-        rows =
-          schema === 'legacy' && url.searchParams.has('id')
-            ? [{ id: articleId, slug: 'combined-analysis', title: 'Combined analysis' }]
-            : []
-      }
+      const result = selectEditorialArticles(url, articles)
+      rows = result.rows
+      total = result.total
     }
-    if (schema === 'editorial' && url.pathname === '/rest/v1/rpc/keyword_search_articles') {
+    if (['editorial', 'taxonomy'].includes(schema) && url.pathname === '/rest/v1/rpc/keyword_search_articles') {
       let body = ''
       req.on('data', chunk => { body += chunk })
       req.on('end', () => {
         const query = String(JSON.parse(body).query_text || '').toLowerCase()
-        rows = editorialArticles.filter(row => `${row.title} ${row.excerpt}`.toLowerCase().includes(query))
+        rows = articles.filter(row => `${row.title} ${row.excerpt}`.toLowerCase().includes(query))
+          .map(({ content_type, content_slug, ...row }) => row)
         reply(rows)
       })
       return

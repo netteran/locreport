@@ -1,5 +1,3 @@
-import { canonicalMonthlyReportSlug } from './monthlyReportSlugs'
-
 const DOMAIN_PUBLISHER_MAP: Record<string, string> = {
   'locreport.com': 'LocReport',
   'slator.com': 'Slator',
@@ -81,12 +79,6 @@ export function escapeXml(str: string): string {
 export function estimateReadMinutes(content: string): number {
   const words = content.trim().split(/\s+/).length
   return Math.max(1, Math.round(words / 200))
-}
-
-// Returns the bare slug (last segment only) for use in article URLs.
-// DB slugs are stored as "2026/06/04/article-name"; URLs use "/articles/article-name".
-export function articleHref(slug: string): string {
-  return `/articles/${canonicalMonthlyReportSlug(slug.split('/').pop() ?? '')}`
 }
 
 // Extracts 1-2 plain-text sentences from markdown content for use as a teaser.

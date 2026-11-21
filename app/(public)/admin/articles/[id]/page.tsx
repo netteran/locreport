@@ -6,6 +6,8 @@ import { ArticleEditor } from '@/components/ArticleEditor'
 import { ImageDropzone } from '@/components/ImageDropzone'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ContentTypeField } from '@/components/ContentTypeField'
+import { type ContentType, getContentType } from '@/lib/contentTaxonomy'
 import { Button } from '@/components/ui/button'
 
 export default function EditArticlePage() {
@@ -13,6 +15,8 @@ export default function EditArticlePage() {
   const router = useRouter()
   const [article, setArticle] = useState<Article | null>(null)
   const [title, setTitle] = useState('')
+  const [contentType, setContentType] = useState<ContentType>('analysis')
+  const [sourceUrl, setSourceUrl] = useState('')
   const [slug, setSlug] = useState('')
   const [publisher, setPublisher] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -25,6 +29,8 @@ export default function EditArticlePage() {
   useEffect(() => {
     fetch(`/api/articles/${id}`).then(r => r.json()).then((a: Article) => {
       setArticle(a)
+      setContentType(getContentType(a))
+      setSourceUrl(a.source_url ?? '')
       setTitle(a.title)
       setSlug(a.slug ?? '')
       setPublisher(a.publisher ?? '')
@@ -42,7 +48,8 @@ export default function EditArticlePage() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title, content, slug,
+        title, content, slug, contentType,
+        source_url: sourceUrl.trim() || null,
         publisher: publisher || null,
         image_url: imageUrl.trim() || null,
         image_alt: imageAlt.trim() || null,
@@ -81,6 +88,11 @@ export default function EditArticlePage() {
         <div>
           <Label>Publisher</Label>
           <Input value={publisher} onChange={e => setPublisher(e.target.value)} placeholder="e.g. Argos Multilingual" />
+        </div>
+        <ContentTypeField value={contentType} onChange={setContentType} disabled={saving} />
+        <div>
+          <Label htmlFor="article-source-url">Original source URL</Label>
+          <Input id="article-source-url" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder="https://…" />
         </div>
         <ImageDropzone
           value={imageUrl}
@@ -127,11 +139,6 @@ export default function EditArticlePage() {
             </select>
           </div>
         </div>
-        {article.source_url && (
-          <p className="text-xs text-[#5B665F]">
-            Source: <a href={article.source_url} target="_blank" rel="noopener" className="text-[#0F6E52] hover:underline">{article.source_url}</a>
-          </p>
-        )}
       </div>
 
       <ArticleEditor

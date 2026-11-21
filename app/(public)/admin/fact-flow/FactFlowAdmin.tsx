@@ -18,7 +18,7 @@ function FactRow({ fact, onDeleted, onSaved, onLinked, publicationActions }: {
   publicationActions: ReactNode
   onDeleted: (id: string) => void
   onSaved: (id: string, content: string, source_url: string | null) => void
-  onLinked: (id: string, article_id: string | null, slug: string | null) => void
+  onLinked: (id: string, article_id: string | null, article: { slug: string; href: string } | null) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(fact.content)
@@ -64,7 +64,7 @@ function FactRow({ fact, onDeleted, onSaved, onLinked, publicationActions }: {
       })
       setBusy(false)
       if (!patchRes.ok) { setError('Link failed'); return }
-      onLinked(fact.id, article.id, slug)
+      onLinked(fact.id, article.id, { slug: article.slug, href: article.href })
     } else {
       // Clear the link
       const patchRes = await fetch(`/api/facts/${fact.id}`, {
@@ -88,7 +88,8 @@ function FactRow({ fact, onDeleted, onSaved, onLinked, publicationActions }: {
     onDeleted(fact.id)
   }
 
-  const articleSlug = fact.articles?.[0]?.slug ?? null
+  const linkedArticle = fact.articles?.[0]
+  const articleSlug = linkedArticle?.slug ?? null
 
   return (
     <div>
@@ -140,8 +141,8 @@ function FactRow({ fact, onDeleted, onSaved, onLinked, publicationActions }: {
               {fact.source_url && (
                 <> · <a href={fact.source_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>source</a></>
               )}
-              {articleSlug && (
-                <> · <a href={`/articles/${articleSlug}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>article</a></>
+              {linkedArticle && (
+                <> · <a href={linkedArticle.href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>article</a></>
               )}
             </p>
 
@@ -266,8 +267,6 @@ function AddFactForm({ onAdded }: { onAdded: (fact: Fact) => void }) {
       return
     }
     const newFact: Fact = await res.json()
-    // Attach the slug so it renders correctly in the list
-    if (slug.trim()) newFact.articles = [{ slug: slug.trim() }]
     onAdded(newFact)
     setContent('')
     setSlug('')
@@ -424,9 +423,9 @@ export function FactFlowAdmin({ initialFacts }: { initialFacts: Fact[] }) {
     setFacts((f) => f.map((x) => (x.id === id ? { ...x, content, source_url } : x)))
   }
 
-  function handleLinked(id: string, article_id: string | null, slug: string | null) {
+  function handleLinked(id: string, article_id: string | null, article: { slug: string; href: string } | null) {
     setFacts((f) =>
-      f.map((x) => (x.id === id ? { ...x, article_id, articles: slug ? [{ slug }] : null } : x))
+      f.map((x) => (x.id === id ? { ...x, article_id, articles: article ? [article] : null } : x))
     )
   }
 

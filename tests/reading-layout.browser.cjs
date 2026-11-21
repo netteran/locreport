@@ -21,6 +21,7 @@ const previews = 'work/reading-preview'
       await context.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname)
         ? route.continue() : route.abort())
       const page = await context.newPage()
+      await page.addInitScript(() => localStorage.setItem('locreport.digest', JSON.stringify({ status: 'dismissed', at: Date.now() })))
       page.setDefaultTimeout(20000)
       page.on('pageerror', error => errors.push(error.message))
 
@@ -79,7 +80,10 @@ const previews = 'work/reading-preview'
           const image = card.locator('.editorial-home__card-image img')
           if (await image.count()) {
             await image.scrollIntoViewIfNeeded()
-            await image.evaluate(image => image.decode())
+            await image.evaluate(async image => {
+              image.loading = 'eager'
+              await image.decode()
+            })
             const photo = await image.boundingBox()
             const copy = await card.locator('.editorial-home__card-copy').boundingBox()
             assert.ok(Math.abs(photo.width / photo.height - 16 / 9) < 0.02, 'card image uses a 16:9 crop')
@@ -92,7 +96,7 @@ const previews = 'work/reading-preview'
           await page.screenshot({ path: `${previews}/home-${theme}-${width}.png`, fullPage: true, animations: 'disabled' })
         }
 
-        await visit('/articles/newest-authored-analysis')
+        await visit('/analysis/newest-authored-analysis/')
         const content = page.locator('.post-content')
         assert.equal(await content.locator('blockquote').count(), 2, 'opening and body quotations must both survive rendering')
         await content.getByText('Language expertise becomes useful when it informs the whole decision, not just the translation.', { exact: true }).waitFor()

@@ -54,8 +54,8 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
             and updates from the industry directory and LocStock. You can unsubscribe any time from the “Manage subscription” link in every issue.
           </p>
           <div className="subscribe-status__actions">
-            <Link href="/articles" className="btn btn--primary">Browse articles</Link>
-            <Link href="/reports" className="btn btn--ghost">Read the Monthly Report</Link>
+            <Link href="/" className="btn btn--primary">Browse articles</Link>
+            <Link href="/reports/" className="btn btn--ghost">Read the Monthly Report</Link>
           </div>
         </>
       )}

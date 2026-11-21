@@ -10,10 +10,13 @@ import { revalidateArticleSurfaces } from '@/lib/revalidate'
 import { draftSourceName } from '@/lib/sourceName'
 import { validateBriefing } from '@/lib/monthlyBriefing'
 import { validateSourceCitations } from '@/lib/eventMatching'
+import { getContentType, validSlugSegment, type ContentType } from '@/lib/contentTaxonomy'
+import { validateEditorialProtocol } from '@/lib/editorialProtocol'
 
 type Service = ReturnType<typeof createServiceClient>
 
 export interface ApproveDraftOverrides {
+  contentType?: ContentType
   title?: string
   content?: string
   slug?: string
@@ -51,7 +54,12 @@ export async function approveDraft(
     if (draft.research_only) return { status: 'error', message: 'Create an article from this source in Source candidates' }
     const { data: already } = await supabase.from('articles').select('id,slug').eq('draft_id',draftId).limit(1).maybeSingle()
     if (already) return { status: 'ok', articleId: already.id, slug: already.slug }
-    const monthlyReport = draft.article_type === 'monthly-summary'
+    const storedType = getContentType(draft)
+    const contentType = overrides.contentType ?? storedType
+    const monthlyReport = contentType === 'report'
+    if (monthlyReport !== (storedType === 'report')) {
+      return { status: 'error', message: 'Use the monthly reporting workflow to publish reports.' }
+    }
     const content = overrides.content ?? draft.content
     let coveredUrls:string[]=[]
     if(draft.composition_id){
@@ -62,15 +70,24 @@ export async function approveDraft(
       // Selected evidence remains attached independently of optional body citations.
       coveredUrls=urls
     }
+    const sources = [...new Set(coveredUrls)]
+    let source_url = overrides.source_url !== undefined ? overrides.source_url : draft.source_url
+    if (contentType === 'brief' && draft.composition_id) {
+      if (sources.length !== 1 || (source_url && source_url !== sources[0])) {
+        throw new Error('An industry brief needs one original source. Use analysis for a multi-source composition.')
+      }
+      source_url = sources[0]
+    }
+    validateEditorialProtocol(contentType, content, source_url)
     const titleMatch = content.match(/^#\s+(.+)$/m)
     const title = overrides.title?.trim() || titleMatch?.[1]?.trim() || draft.title || 'Untitled'
-    const baseSlug = overrides.slug?.trim() || (monthlyReport ? draft.slug : slugify(title))
+    const baseSlug = overrides.slug?.trim() || (monthlyReport ? draft.slug : slugify(title) || 'untitled')
+    if (!baseSlug || !validSlugSegment(baseSlug)) throw new Error('Use a slug made of letters, numbers, hyphens, underscores, or dots.')
     const slug = await uniqueSlug(baseSlug, 'articles', supabase)
     const excerpt = overrides.excerpt?.trim() || (monthlyReport
       ? extractTeaser(content.replace(/^#\s+.+$/m, '').trim(), 1)
       : extractTeaser(content))
     const publisher = overrides.publisher?.trim() || 'LocReport'
-    const source_url = overrides.source_url !== undefined ? overrides.source_url : draft.source_url
     const image_url = (overrides.image_url !== undefined ? overrides.image_url : draft.image_url) || null
     const image_alt = (overrides.image_alt !== undefined ? overrides.image_alt : draft.image_alt) || null
 
@@ -99,6 +116,7 @@ export async function approveDraft(
       image_alt,
       draft_id: draft.id,
       article_type: monthlyReport ? 'monthly-summary' : 'industry',
+      content_type: contentType,
       author,
       impact_score: classification.impact_score,
       time_horizon: classification.time_horizon,
@@ -129,7 +147,7 @@ export async function approveDraft(
       await embedAndStoreArticle(supabase, articleRow.id)
     }
 
-    revalidateArticleSurfaces({ slug, monthlyReport })
+    revalidateArticleSurfaces({ slug, content_type: contentType })
 
     return { status: 'ok', articleId: articleRow?.id ?? '', slug }
   } catch (err) {
