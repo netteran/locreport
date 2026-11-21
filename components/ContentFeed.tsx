@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { ContentBadge } from './ContentBadge'
 import { HomeFeedAd } from './HomeFeedAd'
 import { CONTENT_TYPES, CONTENT_TAXONOMY, type ContentFilter, type ContentType } from '@/lib/contentTaxonomy'
@@ -182,7 +182,7 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
 
   const featured = initialPage === 1 && !archiveType
   const cards = featured ? feed.posts.slice(1) : feed.posts
-  const hasAd = featured && filter === 'all' && cards.length > 3
+  const showHomeAds = featured && filter === 'all'
   const showEmpty = !feed.posts.length && (!featured || filter !== 'all')
 
   return (
@@ -200,7 +200,10 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
       )}
       {featured && (
         <div className="editorial-home__opening">
-          <LeadPost post={feed.posts[0]} />
+          <div className="editorial-home__lead-column">
+            <LeadPost post={feed.posts[0]} />
+            {showHomeAds && <HomeFeedAd placement="home-briefing" />}
+          </div>
           {companion}
         </div>
       )}
@@ -211,14 +214,7 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
               <h2>{featured ? 'More stories' : 'Stories'}</h2>
             </div>
             <div className="editorial-home__analysis-grid">
-              {cards.map((post, index) => (
-                <Fragment key={post.id}>
-                  <PostCard post={post} />
-                  {hasAd && index === 2 && (
-                    <div className="editorial-home__ad"><HomeFeedAd placement="home-briefing" /></div>
-                  )}
-                </Fragment>
-              ))}
+              {cards.map(post => <PostCard key={post.id} post={post} />)}
             </div>
           </>
         )}
@@ -241,7 +237,7 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
             ))}
           </nav>
         )}
-        {featured && filter === 'all' && <HomeFeedAd placement={hasAd ? 'home-feed' : 'home-briefing'} />}
+        {showHomeAds && cards.length > 3 && <HomeFeedAd />}
       </section>
     </>
   )

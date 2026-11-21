@@ -20,6 +20,8 @@ const previews = 'work/reading-preview'
       const context = await browser.newContext({ colorScheme: theme, reducedMotion: 'reduce' })
       await context.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname)
         ? route.continue() : route.abort())
+      await context.route(/^https:\/\/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/, route =>
+        route.fulfill({ contentType: 'application/javascript', body: 'window.adsbygoogle ||= []' }))
       const page = await context.newPage()
       await page.addInitScript(() => localStorage.setItem('locreport.digest', JSON.stringify({ status: 'dismissed', at: Date.now() })))
       page.setDefaultTimeout(20000)
@@ -38,6 +40,14 @@ const previews = 'work/reading-preview'
         await page.setViewportSize({ width, height: width > 768 ? 1000 : 844 })
         await visit('/')
         await page.locator('.editorial-home__image img').evaluate(image => image.decode())
+        const leadAd = page.locator('.editorial-home__lead-column > [data-ad-placement="home-briefing"]')
+        const adUnit = leadAd.locator('ins.adsbygoogle')
+        await adUnit.evaluate(ad => {
+          ad.dataset.adStatus = 'filled'
+          ad.style.height = '112px'
+        })
+        assert.equal(await page.locator('.editorial-home__analysis-grid [data-ad-placement]').count(), 0)
+        assert.equal(await page.locator('.editorial-home__below > [data-ad-placement="home-feed"]').count(), 1)
         const dimensions = await page.evaluate(() => {
           const rect = selector => document.querySelector(selector).getBoundingClientRect()
           const lead = rect('.editorial-home__lead')
@@ -48,11 +58,15 @@ const previews = 'work/reading-preview'
           const leadStyle = getComputedStyle(document.querySelector('.editorial-home__lead'))
           const summaryStyle = getComputedStyle(document.querySelector('.editorial-home__summary'))
           const photo = rect('.editorial-home__image img')
+          const ad = rect('[data-ad-placement="home-briefing"] .home-ad-reservation__slot')
           const logos = rect('.home-logo-ticker')
           const logoTrack = document.querySelector('.home-logo-ticker__track')
           return {
             beside: flow.left >= lead.right && Math.abs(flow.top - lead.top) < 1,
-            stacked: flow.top >= lead.bottom,
+            stacked: flow.top >= ad.bottom,
+            adAligned: Math.abs(ad.left - lead.left) < 1 && Math.abs(ad.width - lead.width) < 1,
+            adSpacing: ad.top - lead.bottom,
+            desktopColumnsAligned: Math.abs(logos.bottom - ad.bottom) < 1,
             logosBelowFlow: logos.top >= flow.bottom,
             logosMatchColumn: Math.abs(logos.left - flow.left) < 1 && Math.abs(logos.right - flow.right) < 1,
             logosFillLeadHeight: logos.bottom >= lead.bottom,
@@ -68,6 +82,8 @@ const previews = 'work/reading-preview'
         })
         assert.equal(dimensions.beside, width >= 1024, 'Fact Flow is beside the lead on wide screens')
         assert.equal(dimensions.stacked, width < 1024, 'Fact Flow follows the lead on smaller screens')
+        assert.ok(dimensions.adAligned && Math.abs(dimensions.adSpacing - 14) < 1, 'the first slot sits directly below the lead within its column')
+        if (width >= 1024) assert.ok(dimensions.desktopColumnsAligned, 'the opening columns end together')
         assert.ok(dimensions.logosBelowFlow && dimensions.logosMatchColumn, 'the logo ticker stays directly below Fact Flow in its column')
         assert.ok(dimensions.logosFillLeadHeight, 'the ticker fills the remaining lead row height')
         assert.ok(dimensions.logosRespectReducedMotion, 'the ticker honors reduced motion')
@@ -92,6 +108,16 @@ const previews = 'work/reading-preview'
         }
         await noOverflow()
         if ([1440, 390].includes(width)) {
+          await adUnit.evaluate(ad => { ad.dataset.adStatus = 'unfilled' })
+          const emptySlot = await leadAd.evaluate(slot => ({
+            height: slot.getBoundingClientRect().height,
+            margin: getComputedStyle(slot).marginBlockStart,
+            width: slot.getBoundingClientRect().width,
+          }))
+          assert.equal(emptySlot.height, 0, 'an unfilled ad takes up no height')
+          assert.equal(emptySlot.margin, '0px', 'an unfilled ad leaves no margin')
+          assert.ok(emptySlot.width > 0, 'the hidden ad still has measurable width')
+          assert.equal(await adUnit.getAttribute('data-ad-status'), 'unfilled')
           await page.evaluate(() => scrollTo(0, 0))
           await page.screenshot({ path: `${previews}/home-${theme}-${width}.png`, fullPage: true, animations: 'disabled' })
         }
