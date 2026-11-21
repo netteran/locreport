@@ -38,8 +38,8 @@ export default async function ReportsPage() {
   const posts = required(briefings, 'monthly reports') ?? []
 
   return (
-    <div className="container" style={{ paddingBottom: 'var(--space-12)' }}>
-      <header className="reports-header">
+    <main className="container public-page">
+      <header className="reports-header public-page-heading">
         <h1>Reports</h1>
         <p>Monthly analysis of the localization industry and annual research on the global market.</p>
         <nav aria-label="Report sections">
@@ -98,6 +98,6 @@ export default async function ReportsPage() {
           </div>
         </section>
       )}
-    </div>
+    </main>
   )
 }

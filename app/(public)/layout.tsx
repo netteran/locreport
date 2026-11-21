@@ -4,11 +4,12 @@ import { DigestPopup } from '@/components/DigestPopup'
 import { DigestPopupTrigger } from '@/components/DigestPopupTrigger'
 import Link from 'next/link'
 import Image from 'next/image'
+import './public-theme.css'
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   const year = new Date().getFullYear()
   return (
-    <>
+    <div className="public-shell">
       <Nav />
       {children}
       <BackToTop />
@@ -65,6 +66,6 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           </div>
         </div>
       </footer>
-    </>
+    </div>
   )
 }

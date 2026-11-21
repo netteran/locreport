@@ -20,12 +20,14 @@ export default async function DirectoryPage() {
   const entries = await getEntries()
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--space-8)', paddingBottom: 'var(--space-12)' }}>
-      <h1 style={{ marginBottom: 'var(--space-2)' }}>Language Technology Directory</h1>
-      <p style={{ color: 'var(--muted)', marginBottom: 'var(--space-6)' }}>
-        {entries.length} tools &amp; companies — TMS platforms, CAT tools, AI translation engines, LSPs, interpreting platforms, and more. Click any entry for the full profile.
-      </p>
+    <main className="container public-page">
+      <header className="public-page-heading">
+        <h1>Language Technology Directory</h1>
+        <p>
+          {entries.length} tools &amp; companies — TMS platforms, CAT tools, AI translation engines, LSPs, interpreting platforms, and more. Click any entry for the full profile.
+        </p>
+      </header>
       <DirectoryClient entries={entries} />
-    </div>
+    </main>
   )
 }
