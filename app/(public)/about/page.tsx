@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { CONTENT_TAXONOMY } from '@/lib/contentTaxonomy'
 
 export const metadata: Metadata = {
   title: 'About',
-  description: 'About LocReport — an independent publication tracking the pulse of the language services industry.',
+  description: 'Learn how LocReport covers localization, language services and AI through industry briefs, analysis, reports and sourced Fact Flow updates.',
   alternates: {
     canonical: 'https://locreport.com/about',
   },
@@ -17,19 +18,23 @@ export default function AboutPage() {
 
         <p>LocReport is an independent publication covering localization, language services and AI.</p>
 
-        <p>Our articles bring together multiple sources, industry context and an editorial perspective to explain consequential developments in translation, localization, global content strategy and language technology.</p>
+        <p>We follow developments in translation, global content strategy and language technology, with a practitioner’s perspective on what they mean for people working in the industry.</p>
 
-        <blockquote>Capture the trends, movements, and ideas shaping the future of global communication.</blockquote>
+        <h2>How we cover the industry</h2>
 
-        <p>The language services industry evolves quickly. New platforms emerge. Workflows transform. Technology redefines what's possible. LocReport exists to observe, document, and analyze those changes with clarity and perspective.</p>
+        <p>The <Link href="/">homepage</Link> brings briefs, analysis and reports into one feed, newest first. Use the filters to browse a single format.</p>
 
-        <h2>Why This Exists</h2>
+        <ul>
+          <li><Link href={CONTENT_TAXONOMY.brief.path}>Briefs</Link> cover appointments, product launches and events. Each credits its source and explains why the development matters.</li>
+          <li><Link href={CONTENT_TAXONOMY.analysis.path}>Analysis</Link> connects evidence and industry context to explain market implications.</li>
+          <li><Link href={CONTENT_TAXONOMY.report.path}>Reports</Link> include monthly roundups of what changed and what to watch next, alongside annual market research.</li>
+        </ul>
 
-        <p>LocReport is an experimental publishing project.</p>
+        <p><Link href="/fact-flow">Fact Flow</Link> tracks ongoing industry news and links to original sources.</p>
 
-        <p>We publish when a subject deserves a considered explanation. Each article aims to connect the evidence, test the argument and explain what it means for people working in the industry.</p>
+        <h2>Industry tools</h2>
 
-        <p><Link href="/fact-flow">Fact Flow</Link> carries the ongoing news stream with links to original sources. The <Link href="/reports/">Monthly Report</Link> selects the developments that mattered, explains their practical consequences and identifies questions to watch. Explore our <Link href="/directory">directory of language services and technology providers</Link> or track publicly traded companies on <Link href="/locstock">LocStock</Link>.</p>
+        <p>Browse the <Link href="/directory">Directory</Link> to find language services and technology providers. Follow publicly traded companies on <Link href="/locstock">LocStock</Link>.</p>
 
         <h2>Behind LocReport</h2>
 
