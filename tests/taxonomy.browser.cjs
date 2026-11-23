@@ -109,14 +109,14 @@ async function checkEnhancedFeed() {
     await page.route('**/*', route => new URL(route.request().url()).origin === new URL(base).origin ? route.continue() : route.abort())
     await page.goto(base + '/', { waitUntil: 'networkidle' })
     const pills = page.getByRole('navigation', { name: 'Filter stories' })
-    const adBelowLead = page.locator(`.editorial-home__lead + ${leadAd}`)
+    const adBelowLogos = page.locator(`.home-logo-ticker + ${leadAd}`)
     const count = number => page.waitForFunction(({ card, number }) => document.querySelectorAll(card).length === number, { card, number })
     const active = name => page.waitForFunction(name => document.querySelector('.content-filters [aria-current="true"]')?.textContent === name, name)
     for (const [name, label] of [['Briefs', 'INDUSTRY BRIEF'], ['Analysis', 'LOC ANALYSIS'], ['Reports', 'MONTHLY REPORT']]) {
       await pills.getByRole('link', { name, exact: true }).click()
       await active(name)
       assert.equal(page.url(), base + '/')
-      assert.equal(await adBelowLead.count(), 1, name)
+      assert.equal(await adBelowLogos.count(), 1, name)
       const badges = [...new Set(await page.locator('.content-badge').allTextContents())]
       assert.deepEqual(badges, [label])
       if (name === 'Briefs') {
@@ -128,7 +128,7 @@ async function checkEnhancedFeed() {
     }
     await pills.getByRole('link', { name: 'All', exact: true }).click()
     await count(11)
-    assert.equal(await adBelowLead.count(), 1, 'All')
+    assert.equal(await adBelowLogos.count(), 1, 'All')
 
     // The normal anchor is intercepted once React has hydrated. No document request is needed.
     const documentRequests = []

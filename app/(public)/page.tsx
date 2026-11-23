@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { ContentFeed } from '@/components/ContentFeed'
 import { loadContentFeed } from '@/lib/contentFeed'
-import { HomeLogoTicker } from '@/components/HomeLogoTicker'
 import { SITE_URL } from '@/lib/seo'
 import { createPublicClient } from '@/lib/supabase/server'
 import { loadPublishedFacts, httpUrl, factMainLink } from '@/lib/publicFacts'
@@ -57,39 +56,36 @@ export default async function HomePage() {
       <link rel="canonical" href={`${SITE_URL}/`} />
       <div className="editorial-home__inner">
         <ContentFeed initial={initial} companion={(
-          <div className="editorial-home__updates-column">
-            <section className="editorial-home__fact-flow" aria-labelledby="home-fact-flow">
-              <div className="editorial-home__fact-flow-heading">
-                <h2 id="home-fact-flow">Fact Flow</h2>
-                {latestFacts.length > 0 && <span className="editorial-home__live">Live</span>}
-                <Link className="editorial-home__link" href="/fact-flow">All updates</Link>
-              </div>
-              {latestFacts.length > 0 && (
-                <ul className="editorial-home__updates">
-                  {latestFacts.map(fact => {
-                    const timestamp = fact.published_at || fact.created_at
-                    const main = factMainLink(fact)
-                    const source = httpUrl(fact.source_url)
-                    return (
-                      <li key={fact.id}>
-                        <p className="editorial-home__fact-meta">
-                          <time dateTime={timestamp}>{timeAgo(timestamp)}</time>
-                          {fact.source_name && <> · {fact.source_name}</>}
-                        </p>
-                        <p>{main ? main.external ? (
-                          <a href={main.href} target="_blank" rel="noopener noreferrer">{fact.content}</a>
-                        ) : <Link href={main.href}>{fact.content}</Link> : fact.content}</p>
-                        {main && !main.external && source && (
-                          <a className="editorial-home__link" href={source} target="_blank" rel="noopener noreferrer">Original source ↗</a>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </section>
-            <HomeLogoTicker />
-          </div>
+          <section className="editorial-home__fact-flow" aria-labelledby="home-fact-flow">
+            <div className="editorial-home__fact-flow-heading">
+              <h2 id="home-fact-flow">Fact Flow</h2>
+              {latestFacts.length > 0 && <span className="editorial-home__live">Live</span>}
+              <Link className="editorial-home__link" href="/fact-flow">All updates</Link>
+            </div>
+            {latestFacts.length > 0 && (
+              <ul className="editorial-home__updates">
+                {latestFacts.map(fact => {
+                  const timestamp = fact.published_at || fact.created_at
+                  const main = factMainLink(fact)
+                  const source = httpUrl(fact.source_url)
+                  return (
+                    <li key={fact.id}>
+                      <p className="editorial-home__fact-meta">
+                        <time dateTime={timestamp}>{timeAgo(timestamp)}</time>
+                        {fact.source_name && <> · {fact.source_name}</>}
+                      </p>
+                      <p>{main ? main.external ? (
+                        <a href={main.href} target="_blank" rel="noopener noreferrer">{fact.content}</a>
+                      ) : <Link href={main.href}>{fact.content}</Link> : fact.content}</p>
+                      {main && !main.external && source && (
+                        <a className="editorial-home__link" href={source} target="_blank" rel="noopener noreferrer">Original source ↗</a>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
         )} />
         <div className="editorial-home__below">
           <section className="editorial-home__weekly" aria-labelledby="home-weekly">

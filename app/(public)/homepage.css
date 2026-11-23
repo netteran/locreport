@@ -1,3 +1,4 @@
+.editorial-home { container: editorial-home / inline-size; }
 .editorial-home__inner {
   max-width: var(--site-max-width);
   margin-inline: auto;
@@ -6,13 +7,7 @@
 .editorial-home__opening {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-items: start;
   gap: 16px;
-}
-.editorial-home__lead-column {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
 }
 .home-ad-reservation[data-ad-placement='home-briefing'] {
   display: grid;
@@ -21,8 +16,12 @@
 .home-ad-reservation[data-ad-placement='home-briefing'] > .home-ad-reservation__slot {
   margin-block-end: 16px;
 }
-.editorial-home__lead-column > [data-ad-placement='home-briefing'] > .home-ad-reservation__slot {
-  margin-block: 14px 0;
+.home-logo-ticker + .home-ad-reservation[data-ad-placement='home-briefing'] {
+  max-width: 728px;
+  margin-inline: auto;
+}
+.home-logo-ticker + [data-ad-placement='home-briefing'] > .home-ad-reservation__slot {
+  margin-block: 0;
 }
 /* Keep the outer width measurable while the empty slot collapses. */
 .home-ad-reservation[data-ad-placement='home-briefing'] > .home-ad-reservation__slot:has(.adsbygoogle[data-ad-status='unfilled']) {
@@ -33,9 +32,7 @@
     grid-template-columns: minmax(0, 2.7fr) minmax(270px, 1fr);
     gap: 18px;
   }
-  .editorial-home__lead-column { align-self: stretch; }
   .editorial-home__opening .editorial-home__lead {
-    flex-grow: 1;
     gap: 18px;
     padding: 20px;
   }
@@ -80,6 +77,7 @@
   color: var(--muted);
   font-size: .8125rem;
 }
+.editorial-home__fact-meta { font-size: .75rem; }
 .editorial-home__byline { margin-top: 14px; }
 .editorial-home__read {
   display: inline-flex;
@@ -163,7 +161,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
-.editorial-home__updates li p + p { margin-top: 2px; font-weight: 650; font-size: .875rem; }
+.editorial-home__updates li p + p { margin-top: 2px; font-weight: 650; font-size: .825rem; }
 .editorial-home__updates li p + p a { color: var(--text); }
 .editorial-home__card {
   background: var(--surface);
@@ -267,17 +265,12 @@
   border-radius: 8px;
   background: var(--fact-entry);
 }
-.editorial-home__updates-column {
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
 .home-logo-ticker {
   display: flex;
   align-items: center;
-  flex: 1 0 48px;
+  min-height: 48px;
+  margin-inline: calc((100% - 100cqw) / 2);
+  margin-block: 12px 8px;
   overflow: hidden;
   mask-image: linear-gradient(to right, transparent, black 9%, black 91%, transparent);
   color: var(--muted);

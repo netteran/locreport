@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { ContentBadge } from './ContentBadge'
 import { HomeFeedAd } from './HomeFeedAd'
+import { HomeLogoTicker } from './HomeLogoTicker'
 import { CONTENT_TYPES, CONTENT_TAXONOMY, type ContentFilter, type ContentType } from '@/lib/contentTaxonomy'
 import type { FeedPage, FeedPost } from '@/lib/contentFeed'
 import { feedPageFromPath, feedPagePath, type FeedCursor } from '@/lib/feedPagination'
@@ -199,13 +200,14 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
         </nav>
       )}
       {featured && (
-        <div className="editorial-home__opening">
-          <div className="editorial-home__lead-column">
+        <>
+          <div className="editorial-home__opening">
             <LeadPost post={feed.posts[0]} />
-            <HomeFeedAd placement="home-briefing" />
+            {companion}
           </div>
-          {companion}
-        </div>
+          <HomeLogoTicker />
+          <HomeFeedAd placement="home-briefing" />
+        </>
       )}
       <section className="editorial-home__below" aria-label="Stories" aria-busy={pending !== null}>
         {archiveType && <HomeFeedAd placement="home-briefing" />}
