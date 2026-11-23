@@ -4,17 +4,14 @@ concurrency:
   cancel-in-progress: false
 on:
   schedule:
-    # Three runs on workdays — 10am, 1pm and 5pm Warsaw time (Europe/Warsaw, CET/CEST).
-    # GitHub Actions cron is UTC-only and ignores DST, so each target hour is scheduled at
-    # both possible UTC offsets and the job itself decides which firing is live (see
-    # "Check DST offset"). None of these conversions cross midnight, so the weekday range
-    # is the same 1-5 for every entry.
-    - cron: '0 8 * * 1-5'  # 10am CEST (UTC+2, roughly late Mar–late Oct)
-    - cron: '0 9 * * 1-5'  # 10am CET  (UTC+1, roughly late Oct–late Mar)
-    - cron: '0 11 * * 1-5' # 1pm CEST
-    - cron: '0 12 * * 1-5' # 1pm CET
-    - cron: '0 15 * * 1-5' # 5pm CEST
-    - cron: '0 16 * * 1-5' # 5pm CET
+    # Cron entries use GitHub Actions' default time zone, UTC.
+    # On weekdays, Check DST offset selects the entries for the current Warsaw offset.
+    - cron: '17 8 * * 1-5'  # 10:17 CEST (UTC+2)
+    - cron: '17 9 * * 1-5'  # 10:17 CET  (UTC+1)
+    - cron: '17 11 * * 1-5' # 13:17 CEST
+    - cron: '17 12 * * 1-5' # 13:17 CET
+    - cron: '17 15 * * 1-5' # 17:17 CEST
+    - cron: '17 16 * * 1-5' # 17:17 CET
   workflow_dispatch:
 
 jobs:
@@ -43,12 +40,12 @@ jobs:
           CURRENT_OFFSET="$(TZ='Europe/Warsaw' date +%z)"
 
           case "$SCHEDULE" in
-            "0 8 * * 1-5")  LOCAL_TIME="10:00"; EXPECTED_OFFSET="+0200" ;;
-            "0 9 * * 1-5")  LOCAL_TIME="10:00"; EXPECTED_OFFSET="+0100" ;;
-            "0 11 * * 1-5") LOCAL_TIME="13:00"; EXPECTED_OFFSET="+0200" ;;
-            "0 12 * * 1-5") LOCAL_TIME="13:00"; EXPECTED_OFFSET="+0100" ;;
-            "0 15 * * 1-5") LOCAL_TIME="17:00"; EXPECTED_OFFSET="+0200" ;;
-            "0 16 * * 1-5") LOCAL_TIME="17:00"; EXPECTED_OFFSET="+0100" ;;
+            "17 8 * * 1-5")  LOCAL_TIME="10:17"; EXPECTED_OFFSET="+0200" ;;
+            "17 9 * * 1-5")  LOCAL_TIME="10:17"; EXPECTED_OFFSET="+0100" ;;
+            "17 11 * * 1-5") LOCAL_TIME="13:17"; EXPECTED_OFFSET="+0200" ;;
+            "17 12 * * 1-5") LOCAL_TIME="13:17"; EXPECTED_OFFSET="+0100" ;;
+            "17 15 * * 1-5") LOCAL_TIME="17:17"; EXPECTED_OFFSET="+0200" ;;
+            "17 16 * * 1-5") LOCAL_TIME="17:17"; EXPECTED_OFFSET="+0100" ;;
             *)
               echo "Unrecognized schedule: $SCHEDULE" >&2
               exit 1
