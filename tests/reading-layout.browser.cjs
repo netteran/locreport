@@ -40,7 +40,7 @@ const previews = 'work/reading-preview'
         await page.setViewportSize({ width, height: width > 768 ? 1000 : 844 })
         await visit('/')
         await page.locator('.editorial-home__image img').evaluate(image => image.decode())
-        const leadAd = page.locator('.editorial-home__lead-column > [data-ad-placement="home-briefing"]')
+        const leadAd = page.locator('.home-logo-ticker + [data-ad-placement="home-briefing"]')
         const adUnit = leadAd.locator('ins.adsbygoogle')
         await adUnit.evaluate(ad => {
           ad.dataset.adStatus = 'filled'
@@ -63,13 +63,12 @@ const previews = 'work/reading-preview'
           const logoTrack = document.querySelector('.home-logo-ticker__track')
           return {
             beside: flow.left >= lead.right && Math.abs(flow.top - lead.top) < 1,
-            stacked: flow.top >= ad.bottom,
-            adAligned: Math.abs(ad.left - lead.left) < 1 && Math.abs(ad.width - lead.width) < 1,
-            adSpacing: ad.top - lead.bottom,
-            desktopColumnsAligned: Math.abs(logos.bottom - ad.bottom) < 1,
-            logosBelowFlow: logos.top >= flow.bottom,
-            logosMatchColumn: Math.abs(logos.left - flow.left) < 1 && Math.abs(logos.right - flow.right) < 1,
-            logosFillLeadHeight: logos.bottom >= lead.bottom,
+            stacked: flow.top >= lead.bottom,
+            cardsEndTogether: Math.abs(flow.bottom - lead.bottom) < 1,
+            adBelowLogos: ad.top >= logos.bottom,
+            adCentered: Math.abs(ad.left + ad.right - document.documentElement.clientWidth) < 1,
+            logosBelowCards: logos.top >= Math.max(flow.bottom, lead.bottom),
+            logosFillPage: Math.abs(logos.left) < 1 && Math.abs(logos.width - document.documentElement.clientWidth) < 1,
             logosRespectReducedMotion: getComputedStyle(logoTrack).animationName === 'none',
             mobileImageOrder: image.top >= headline.bottom && image.bottom <= summary.top,
             imageFillsColumn: Math.abs(image.top - lead.top - parseFloat(leadStyle.paddingTop)) < 1
@@ -82,10 +81,9 @@ const previews = 'work/reading-preview'
         })
         assert.equal(dimensions.beside, width >= 1024, 'Fact Flow is beside the lead on wide screens')
         assert.equal(dimensions.stacked, width < 1024, 'Fact Flow follows the lead on smaller screens')
-        assert.ok(dimensions.adAligned && Math.abs(dimensions.adSpacing - 14) < 1, 'the first slot sits directly below the lead within its column')
-        if (width >= 1024) assert.ok(dimensions.desktopColumnsAligned, 'the opening columns end together')
-        assert.ok(dimensions.logosBelowFlow && dimensions.logosMatchColumn, 'the logo ticker stays directly below Fact Flow in its column')
-        assert.ok(dimensions.logosFillLeadHeight, 'the ticker fills the remaining lead row height')
+        if (width >= 1024) assert.ok(dimensions.cardsEndTogether, 'the featured article and Fact Flow end together')
+        assert.ok(dimensions.logosBelowCards && dimensions.logosFillPage, 'the logo ticker spans the page below both cards')
+        assert.ok(dimensions.adBelowLogos && dimensions.adCentered, 'the first ad is centered below the logo ticker')
         assert.ok(dimensions.logosRespectReducedMotion, 'the ticker honors reduced motion')
         if (width <= 690) assert.ok(dimensions.mobileImageOrder, 'the mobile lead image sits between the headline and summary')
         else assert.ok(dimensions.imageFillsColumn, 'the lead image fills its side from top to bottom')
