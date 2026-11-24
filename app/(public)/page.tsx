@@ -3,7 +3,7 @@ import { ContentFeed } from '@/components/ContentFeed'
 import { loadContentFeed } from '@/lib/contentFeed'
 import { SITE_URL } from '@/lib/seo'
 import { createPublicClient } from '@/lib/supabase/server'
-import { loadPublishedFacts, httpUrl, factMainLink } from '@/lib/publicFacts'
+import { loadPublishedFacts, httpUrl, factMainLink, sourceLinkRel } from '@/lib/publicFacts'
 import { Article } from '@/lib/types'
 import { articleHref } from '@/lib/contentTaxonomy'
 import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
@@ -74,11 +74,9 @@ export default async function HomePage() {
                         <time dateTime={timestamp}>{timeAgo(timestamp)}</time>
                         {fact.source_name && <> · {fact.source_name}</>}
                       </p>
-                      <p>{main ? main.external ? (
-                        <a href={main.href} target="_blank" rel="noopener noreferrer">{fact.content}</a>
-                      ) : <Link href={main.href}>{fact.content}</Link> : fact.content}</p>
-                      {main && !main.external && source && (
-                        <a className="editorial-home__link" href={source} target="_blank" rel="noopener noreferrer">Original source ↗</a>
+                      <p>{main ? <Link href={main}>{fact.content}</Link> : fact.content}</p>
+                      {source && (
+                        <a className="editorial-home__link" href={source} target="_blank" rel={sourceLinkRel(source)}>Original source ↗</a>
                       )}
                     </li>
                   )

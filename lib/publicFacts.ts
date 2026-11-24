@@ -28,12 +28,34 @@ export function httpUrl(value: string | null | undefined) {
   }
 }
 
-/** Published analysis takes precedence; original attribution is kept separately. */
-export function factMainLink(fact: Pick<PublishedFact, 'analyses' | 'source_url'>): { href: string; external: boolean } | null {
+/**
+ * The fact sentence links only to LocReport's own coverage. It is the most descriptive anchor on
+ * the page, so it should pass relevance to our article rather than to an external site. A fact with
+ * no published article renders as plain text; the original publisher is credited by the separate
+ * "Source" link (see sourceLinkRel).
+ */
+export function factMainLink(fact: Pick<PublishedFact, 'analyses'>): string | null {
   const analysis = fact.analyses.find(a => a?.slug)
-  if (analysis) return { href: articleHref(analysis), external: false }
-  const source = httpUrl(fact.source_url)
-  return source ? { href: source, external: true } : null
+  return analysis ? articleHref(analysis) : null
+}
+
+/** Coverage beyond the article the fact text already links to, so the same URL isn't linked twice. */
+export function additionalAnalyses<T extends { slug?: string | null }>(fact: { analyses: T[] }): T[] {
+  const main = fact.analyses.find(a => a?.slug)
+  return fact.analyses.filter(a => a !== main)
+}
+
+/**
+ * rel for an outbound source link. Citations stay followed (crediting primary sources is a trust
+ * signal) and keep the referrer so publishers can see LocReport traffic. Google News items are
+ * stored as news.google.com redirect URLs (ingest's dedupe key), which are not a citation of the
+ * real publisher, so those are nofollow.
+ */
+export function sourceLinkRel(url: string): string {
+  try {
+    if (new URL(url).hostname === 'news.google.com') return 'noopener nofollow'
+  } catch {}
+  return 'noopener'
 }
 
 export async function loadPublishedFacts(
