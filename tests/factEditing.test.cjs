@@ -24,10 +24,15 @@ test('publishing uses the effective new source and never leaves a published fact
  f.current.status='published';f.links([{article_id:'article'}]);assert.equal((await f.patch({source_url:null})).status,200)
  f.error({code:'42501',message:'permission denied'});assert.equal((await f.patch({content:'A change'})).status,500)
 })
-test('a published analysis becomes the fact main link while original attribution stays available',()=>{
- const {factMainLink}=load('lib/publicFacts.ts',{'@/lib/researchSchema':{}})
- const fact={source_url:'https://publisher.test/original',analyses:[{slug:'2026/11/17/analysis'}]}
- assert.deepEqual(factMainLink(fact),{href:'/analysis/analysis/',external:false});assert.equal(fact.source_url,'https://publisher.test/original')
- assert.deepEqual(factMainLink({...fact,analyses:[]}),{href:'https://publisher.test/original',external:true})
- assert.equal(factMainLink({analyses:[],source_url:'javascript:alert(1)'}),null)
+test('the fact text links only to LocReport coverage; the original source is credited separately',()=>{
+ const {factMainLink,additionalAnalyses,sourceLinkRel}=load('lib/publicFacts.ts',{'@/lib/researchSchema':{}})
+ const main={id:'m',slug:'2026/11/17/analysis'},extra={id:'e',slug:'other'}
+ const fact={source_url:'https://publisher.test/original',analyses:[main,extra]}
+ assert.equal(factMainLink(fact),'/analysis/analysis/');assert.equal(fact.source_url,'https://publisher.test/original')
+ assert.equal(factMainLink({...fact,analyses:[]}),null,'no article means plain text, never an external main link')
+ assert.deepEqual(additionalAnalyses(fact),[extra],'the article the fact text links to is not repeated')
+ assert.deepEqual(additionalAnalyses({analyses:[main]}),[])
+ assert.equal(sourceLinkRel('https://publisher.test/original'),'noopener')
+ assert.equal(sourceLinkRel('https://news.google.com/rss/articles/abc'),'noopener nofollow')
+ assert.equal(sourceLinkRel('not a url'),'noopener')
 })

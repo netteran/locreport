@@ -1,5 +1,6 @@
 import { createPublicClient } from '@/lib/supabase/server'
-import { loadPublishedFacts, httpUrl, factMainLink, type PublishedFact } from '@/lib/publicFacts'
+import { loadPublishedFacts, httpUrl, factMainLink, additionalAnalyses, sourceLinkRel, type PublishedFact } from '@/lib/publicFacts'
+import { SITE_URL, serializeJsonLd } from '@/lib/seo'
 import { articleHref } from '@/lib/contentTaxonomy'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -67,8 +68,30 @@ export default async function FactFlowPage() {
 
   const grouped = groupByDay(facts ?? [])
 
+  // The stream as a list of the articles it links to. Facts with no article have no URL of their
+  // own (the #permalink is a fragment of this page), so they are left out.
+  const listed = (facts ?? []).flatMap(f => {
+    const href = factMainLink(f)
+    return href ? [{ name: f.content, url: new URL(href, SITE_URL).href }] : []
+  })
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Fact Flow',
+    url: `${SITE_URL}/fact-flow`,
+    description: 'Industry developments in localization and language technology, with the sources behind them.',
+    isPartOf: { '@type': 'WebSite', name: 'LocReport', url: SITE_URL },
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListOrder: 'https://schema.org/ItemListOrderDescending',
+      numberOfItems: listed.length,
+      itemListElement: listed.map((item, i) => ({ '@type': 'ListItem', position: i + 1, ...item })),
+    },
+  }
+
   return (
     <main className="ff-page public-page container">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <header className="ff-hero public-page-heading">
         <div>
           <div className="ff-hero-title">
@@ -112,29 +135,31 @@ export default async function FactFlowPage() {
                     <time className="ff-time" dateTime={fact.published_at} title={formatDate(fact.published_at)}>
                       {timeAgo(fact.published_at)}
                     </time>
-                    {main ? main.external ? (
-                      <a href={main.href} target="_blank" rel="noopener noreferrer" className="ff-content-link">{fact.content}</a>
-                    ) : (
-                      <Link href={main.href} className="ff-content-link">{fact.content}</Link>
-                    ) : <span className="ff-content">{fact.content}</span>}
+                    {main
+                      ? <Link href={main} className="ff-content-link">{fact.content}</Link>
+                      : <span className="ff-content">{fact.content}</span>}
                     <div className="ff-entry-links">
                       {sourceUrl && (
-                        <a href={sourceUrl} target="_blank" rel="noopener noreferrer">Source: {fact.source_name || 'Original reporting'} ↗</a>
+                        <a href={sourceUrl} target="_blank" rel={sourceLinkRel(sourceUrl)}>Source: {fact.source_name || 'Original reporting'} ↗</a>
                       )}
                       <a href={`#${fact.id}`}>Permalink</a>
-                      {fact.analyses.map(analysis => (
-                        <Link key={analysis.id} href={articleHref(analysis)}>LocReport coverage: {analysis.title} →</Link>
+                      {additionalAnalyses(fact).map(analysis => (
+                        <Link key={analysis.id} href={articleHref(analysis)}>Also covered: {analysis.title} →</Link>
                       ))}
                     </div>
                     {fact.sources.length > 1 && (
                       <details className="mt-2 text-xs">
                         <summary className="cursor-pointer">{fact.sources.length} supporting sources</summary>
                         <ul className="mt-2 space-y-1">
-                          {fact.sources.map(source => (
-                            <li key={source.source_url}>
-                              <a href={httpUrl(source.source_url) || '#'} target="_blank" rel="noopener noreferrer">{source.source_name || source.title} ↗</a>
-                            </li>
-                          ))}
+                          {fact.sources.map(source => {
+                            const href = httpUrl(source.source_url)
+                            const label = `${source.source_name || source.title} ↗`
+                            return (
+                              <li key={source.source_url}>
+                                {href ? <a href={href} target="_blank" rel={sourceLinkRel(href)}>{label}</a> : label}
+                              </li>
+                            )
+                          })}
                         </ul>
                       </details>
                     )}

@@ -720,6 +720,15 @@ Do not silently delete the "extra" fact per article without checking which one i
 sampled pairs have the *older* row as the stale/background one and the newer as the real news, so "keep
 oldest" is not a safe default rule.
 
+**Linking (SEO, 2026-11-24).** Each fact's sentence links only to its LocReport article
+(`factMainLink` in `lib/publicFacts.ts`), never to the external source; a fact with no article renders
+as plain text. The original publisher is credited by the separate **Source** link: followed, `rel="noopener"`
+(referrer kept so publishers see the traffic), plus `nofollow` for `news.google.com` redirect URLs
+(`sourceLinkRel`). "Also covered" lists only articles beyond the one the sentence links to
+(`additionalAnalyses`). **Permalink** is a `#id` fragment — a share link with no SEO weight; don't turn
+facts into one-sentence pages of their own (thin content competing with the articles). `/fact-flow`
+carries `CollectionPage` + `ItemList` JSON-LD of the linked articles.
+
 **Publishing to X is a separate, dormant feature.** `/api/tweet-facts` and `facts.tweeted_at` exist and
 look complete, but nothing has ever called the route — there is no workflow, no Vercel cron and no admin
 button, and it accepts only `Bearer $CRON_SECRET`, so there is no manual path either. It has posted 0
