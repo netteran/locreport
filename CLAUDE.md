@@ -297,6 +297,9 @@ published_at timestamptz
 updated_at timestamptz
 draft_id uuid FK → drafts.id
 embedding vector(1536)         — pgvector, HNSW-indexed; set on publish, backfillable
+noindex boolean                — default false. true = page sends robots noindex,follow and is left out of the
+                                 sitemap, but stays published (migration 20261202_article_noindex.sql). Toggle in
+                                 /admin/articles/[id]; bulk review queries live in docs/seo-cleanup.sql
 fts tsvector (generated)       — weighted full-text column (title A, excerpt B, content C), GIN-indexed
 ```
 
@@ -1151,6 +1154,18 @@ Pro upgrade.
   listed the redirecting form and the page's canonical named the clean one. Legacy article lookups redirect with
   `permanentRedirect` (308) and tolerate Jekyll's collapsed hyphen runs (`chatbot-lets` → DB `chatbot---lets`).
   11 stories exist twice under different date prefixes; their shared clean URL serves the earliest copy
+- **Indexing collapse (Nov 2026) — read before SEO work.** Search Console showed ~1,100 indexed pages in
+  late August falling to 17 by mid-November, with ~1,550 "Crawled – currently not indexed". No manual action,
+  server healthy (87% 200s, no 5xx), canonicals correct, and Google did not treat articles as copies of their
+  sources. Google dropped pages it had already indexed without re-crawling them, and crawl stats showed
+  Purpose 100% refresh / 0% discovery: a site-wide quality judgment on the mass of short auto-published
+  briefs, not a technical fault. The fix is a smaller archive — noindex thin briefs and merge duplicates
+  (`articles.noindex`, `docs/seo-cleanup.sql`) — and less auto-publishing, not more SEO plumbing. The
+  "Why this matters" bullet box was removed from articles for the same reason (it read as automated
+  aggregation); `stripTakeaways()` hides stored ones at render. Audience tags (`affected_segments`) render as
+  plain, deliberately non-linked labels — tag archive pages would be more thin URLs.
+- **Sitemap scope:** only pages meant to rank. `/page/N/` listing pages are crawlable but not submitted, and
+  `noindex` articles are excluded.
 - **Robots:** `app/robots.ts` → `/robots.txt` (blocks crawlers from admin, api, CLAUDE.md, /subscribe pages)
 - **RSS:** `/feed.xml` (all articles) + `/fact-flow/feed.xml` (facts); RSS alternate declared in root layout metadata
 - **Permanent redirects:** `next.config.ts` and `vercel.json` preserve legacy Jekyll URLs and old route names:

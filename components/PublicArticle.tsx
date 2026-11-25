@@ -13,6 +13,7 @@ import { articleHref, CONTENT_TAXONOMY, getContentType, type ContentType } from 
 import { resolvePublicArticle } from '@/lib/articleLookup'
 import { withArticleReferences } from '@/lib/articleReferences'
 import { presentBrief, stripTakeaways } from '@/lib/editorialProtocol'
+import { isArticleNoindex } from '@/lib/articleIndexing'
 import { ContentBadge } from './ContentBadge'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import { SIGNAL_MAP } from '@/lib/signals'
@@ -50,8 +51,10 @@ export async function articleMetadata(slug: string, contentType: ContentType): P
   if (!a) return {}
   // Only override the site-wide OG image when this article has its own.
   const image = safeImageUrl(a.image_url)
+  const noindex = await isArticleNoindex(createPublicClient(), a.id)
   return {
     title: a.title,
+    ...(noindex ? { robots: { index: false, follow: true } } : {}),
     description: a.excerpt ?? undefined,
     alternates: { canonical: articleHref(a) },
     openGraph: { type: 'article', url: articleHref(a), ...(image ? { images: [{ url: image }] } : {}) },

@@ -25,6 +25,7 @@ export default function EditArticlePage() {
   const [message, setMessage] = useState('')
   const [impactScore, setImpactScore] = useState<number | null>(null)
   const [timeHorizon, setTimeHorizon] = useState<string>('')
+  const [noindex, setNoindex] = useState(false)
 
   useEffect(() => {
     fetch(`/api/articles/${id}`).then(r => r.json()).then((a: Article) => {
@@ -38,6 +39,7 @@ export default function EditArticlePage() {
       setImageAlt(a.image_alt ?? '')
       setImpactScore(a.impact_score ?? null)
       setTimeHorizon(a.time_horizon ?? '')
+      setNoindex(a.noindex === true)
     })
   }, [id])
 
@@ -55,6 +57,9 @@ export default function EditArticlePage() {
         image_alt: imageAlt.trim() || null,
         impact_score: impactScore,
         time_horizon: timeHorizon || null,
+        // Only sent once the column exists (migration 20261202), so saving keeps
+        // working on a database that hasn't had it applied yet.
+        ...(article && 'noindex' in article ? { noindex } : {}),
       }),
     })
     if (res.ok) {
@@ -139,6 +144,17 @@ export default function EditArticlePage() {
             </select>
           </div>
         </div>
+        {'noindex' in article && (
+          <label className="flex items-start gap-2 text-sm" style={{ color: 'var(--text)' }}>
+            <input type="checkbox" className="mt-1" checked={noindex} onChange={e => setNoindex(e.target.checked)} disabled={saving} />
+            <span>
+              Hide from search engines (noindex)
+              <span className="block text-xs" style={{ color: 'var(--muted)' }}>
+                The article stays published and readable on LocReport, but is left out of the sitemap and asks search engines not to index it. Use it to prune thin or duplicate stories.
+              </span>
+            </span>
+          </label>
+        )}
       </div>
 
       <ArticleEditor
