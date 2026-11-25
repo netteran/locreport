@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const { load } = require('./fixtures/typescript.cjs')
 
 const { articleHref, getContentBadge, isArticlePath, isContentType } = load('lib/contentTaxonomy.ts')
-const { validateEditorialProtocol, presentBrief } = load('lib/editorialProtocol.ts')
+const { validateEditorialProtocol, presentBrief, stripTakeaways } = load('lib/editorialProtocol.ts')
 const { feedPageNumber, feedPagePath, validFeedCursor } = load('lib/feedPagination.ts')
 const { serializeJsonLd } = load('lib/seo.ts')
 
@@ -36,26 +36,33 @@ const lead = `[The original publisher](${original}) announced a new localization
 const paragraph = 'Buyers already evaluating new localization services can use the announcement to identify which workflows the new provider intends to support.'
 const takeaways = '## Why this matters\n\n- Buyers can plan a pilot against real project requirements.\n- Procurement teams can verify which languages are covered.'
 const footnote = `*Sources: [The original publisher](${original})*`
-const brief = [lead, paragraph.repeat(10).replaceAll('.Buyers', '. Buyers'), takeaways, footnote].join('\n\n')
+const brief = [lead, paragraph.repeat(10).replaceAll('.Buyers', '. Buyers'), footnote].join('\n\n')
 
-test('brief approval requires inline original credit, two or three takeaways, and the matching final footnote', () => {
+test('brief approval requires inline original credit and the matching final footnote, not takeaways', () => {
   assert.doesNotThrow(() => validateEditorialProtocol('brief', brief, original))
   assert.throws(() => validateEditorialProtocol('brief', brief, null), /valid original source/)
   assert.throws(() => validateEditorialProtocol('brief', brief.replace(lead, 'The publisher made an announcement.'), original), /opening paragraph/)
-  assert.throws(() => validateEditorialProtocol('brief', brief.replace(takeaways, '## Why this matters\n\n- One point.'), original), /two or three/)
   assert.throws(() => validateEditorialProtocol('brief', brief.replace(footnote, footnote.slice(1)), original), /End the brief/)
   assert.throws(() => validateEditorialProtocol('brief', brief.replace(footnote, footnote.replace('edition=1', 'edition=2')), original), /End the brief/)
-  assert.throws(() => validateEditorialProtocol('brief', [lead, takeaways, footnote].join('\n\n'), original), /200 and 450 words/)
-  assert.equal(presentBrief(brief, original, ['First', 'Second']), brief)
+  assert.throws(() => validateEditorialProtocol('brief', [lead, footnote].join('\n\n'), original), /200 and 450 words/)
+  assert.equal(presentBrief(brief, original), brief)
 })
 
-test('historical brief rendering credits stored evidence and adds real takeaways', () => {
+test('stored "Why this matters" bullet lists are removed when a brief renders', () => {
+  const stored = [lead, paragraph, takeaways, footnote].join('\n\n')
+  assert.equal(presentBrief(stored, original), [lead, paragraph, footnote].join('\n\n'))
+  assert.equal(stripTakeaways(`${paragraph}\n\n${takeaways}`), paragraph)
+  const prose = `${paragraph}\n\n## Why this matters\n\nA written section that argues a point.`
+  assert.equal(stripTakeaways(prose), prose)
+})
+
+test('historical brief rendering credits stored evidence without adding takeaways', () => {
   const legacy = 'A historical brief about the release.\n\nAdditional detail.'
-  const rendered = presentBrief(legacy, original, ['First takeaway', 'Second takeaway', 'Third takeaway'])
+  const rendered = presentBrief(legacy, original)
   assert.match(rendered, /A historical brief about the release. See \[Example\]/)
-  assert.match(rendered, /## Why this matters\n\n- First takeaway\n- Second takeaway\n- Third takeaway/)
+  assert.doesNotMatch(rendered, /Why this matters/)
   assert.match(rendered, /\*Sources: \[Example\]\(https:\/\/example\.test\/news\?edition=1\)\*$/)
-  assert.equal(presentBrief(legacy, null, []), legacy)
+  assert.equal(presentBrief(legacy, null), legacy)
 })
 
 test('analysis citations stay inline, with an exception for official document lists', () => {

@@ -3,7 +3,7 @@ import { Label } from '@/components/ui/label'
 import { CONTENT_TAXONOMY, isContentType, type ContentType } from '@/lib/contentTaxonomy'
 
 const guidance: Record<ContentType, string> = {
-  brief: '200–450 words about one development. Link the original source in the lead, add two or three “Why this matters” bullets, and close with a source footnote.',
+  brief: '200–450 words about one development. Link the original source in the lead and close with a source footnote. No “Why this matters” bullet summary.',
   analysis: 'Aim for 600–1,500+ words on what the evidence means for the market. Cite named sources in the body.',
   report: 'Recurring market coverage, benchmarks, and evidence-backed industry roundups.',
 }

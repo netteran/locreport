@@ -6,7 +6,7 @@
   color: var(--text);
 }
 .article-reading .post { max-width: 100%; margin-top: 0; }
-.article-reading .post > :is(.breadcrumb, .post-header, .post-content, .post-intel, .post-related) {
+.article-reading .post > :is(.breadcrumb, .post-header, .post-content, .post-related) {
   max-width: var(--reading-width);
   margin-inline: auto;
 }
@@ -64,12 +64,6 @@
   color: var(--text);
   font-family: var(--font-display);
   font-weight: 800;
-}
-.article-reading .post-intel {
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface-warm);
 }
 @media (max-width: 640px) {
   .article-reading .breadcrumb { margin-bottom: 16px; }

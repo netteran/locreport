@@ -12,7 +12,7 @@ import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from
 import { articleHref, CONTENT_TAXONOMY, getContentType, type ContentType } from '@/lib/contentTaxonomy'
 import { resolvePublicArticle } from '@/lib/articleLookup'
 import { withArticleReferences } from '@/lib/articleReferences'
-import { presentBrief } from '@/lib/editorialProtocol'
+import { presentBrief, stripTakeaways } from '@/lib/editorialProtocol'
 import { ContentBadge } from './ContentBadge'
 import { withOptionalBriefingCoverage } from '@/lib/briefingCoverage'
 import { SIGNAL_MAP } from '@/lib/signals'
@@ -68,7 +68,7 @@ export async function PublicArticle({ slug, contentType }: { slug: string; conte
 
   // Strip leading H1; the article header already shows it.
   const content = a.content.replace(/^#\s+[^\n]+\n?/, '').trimStart()
-  const body = contentType === 'brief' ? presentBrief(content, a.source_url, a.business_implications ?? []) : content
+  const body = contentType === 'brief' ? presentBrief(content, a.source_url) : stripTakeaways(content)
   const rawHtml = marked.parse(body) as string
   // Add target/_blank + rel=noopener to all external links in rendered content
   const html = rawHtml.replace(/<a (href="https?:\/\/)/g, '<a target="_blank" rel="noopener" $1')
@@ -125,7 +125,6 @@ export async function PublicArticle({ slug, contentType }: { slug: string; conte
 
   relatedArticles = await withArticleReferences(supabase, relatedArticles)
 
-  const hasImplications = contentType !== 'brief' && a.business_implications?.length > 0
   const hasRelated = relatedArticles.length > 0
 
   const articleUrl = `${SITE_URL}${path}`
@@ -208,22 +207,6 @@ export async function PublicArticle({ slug, contentType }: { slug: string; conte
           </div>
         ) : (
           <div className="post-content" dangerouslySetInnerHTML={{ __html: html }} />
-        )}
-
-        {hasImplications && (
-          <section className="post-intel" aria-labelledby="post-intel-heading">
-            <h2 id="post-intel-heading">Why this matters</h2>
-            <ul className="post-intel__list">
-              {a.business_implications.map((imp, i) => <li key={i}>{imp}</li>)}
-            </ul>
-            {a.affected_segments?.length > 0 && (
-              <div className="post-intel__segments">
-                {a.affected_segments.map(seg => (
-                  <span key={seg}>{seg}</span>
-                ))}
-              </div>
-            )}
-          </section>
         )}
 
         {hasRelated && (
