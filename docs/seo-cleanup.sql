@@ -124,3 +124,86 @@ order by
 -- from articles where published_at is not null;
 --
 -- To undo one: update articles set noindex = false where id = '…';
+
+-- ── 5. Recommended pruning (from the Nov 2026 export of section 3) ──────────
+-- The export showed impact_score cannot separate strong from weak stories (1,225 of
+-- 1,483 are scored 2), so these rules use length, provenance and duplication.
+-- Run the PREVIEW first; every UPDATE is reversible (set noindex = false).
+--
+-- Tier 1 — clear-cut (≈231 articles):
+--   • under 250 words
+--   • raw Google News titles ending " - Outlet" (older pipeline; includes off-topic
+--     items such as Louisiana State Police "LSP" crime stories)
+--   • from the Google Blog feeds (general Google product news)
+--   • exact-duplicate titles: all but the longest copy
+-- Everything else stays indexed: briefs and analysis are editor-published work
+-- (owner's call, 2026-11-25), so there is deliberately no blanket rule for briefs.
+
+-- PREVIEW: how many each tier would touch (read-only)
+with base as (
+  select a.id, a.title, coalesce(a.content_type, 'analysis') as content_type,
+         array_length(regexp_split_to_array(trim(a.content), '\s+'), 1) as words,
+         s.name as feed,
+         row_number() over (
+           partition by trim(lower(regexp_replace(a.title, '\W+', ' ', 'g')))
+           order by array_length(regexp_split_to_array(trim(a.content), '\s+'), 1) desc, a.published_at
+         ) as title_rank
+  from articles a
+  left join drafts d on d.id = a.draft_id
+  left join rss_sources s on s.id = d.source_feed_id
+  where a.published_at is not null and a.article_type is distinct from 'monthly-summary'
+), tiered as (
+  select *, case
+    when words < 250 or title ~ ' - [A-Z][^-]{1,40}$'
+      or feed like 'Google Blog%' or title_rank > 1 then 'tier1'
+    else 'keep'
+  end as tier
+  from base
+)
+select tier, count(*) from tiered group by tier order by tier;
+
+-- PREVIEW the actual tier 1 rows before applying (read-only)
+with base as (
+  select a.id, a.title, coalesce(a.content_type, 'analysis') as content_type,
+         array_length(regexp_split_to_array(trim(a.content), '\s+'), 1) as words,
+         s.name as feed,
+         row_number() over (
+           partition by trim(lower(regexp_replace(a.title, '\W+', ' ', 'g')))
+           order by array_length(regexp_split_to_array(trim(a.content), '\s+'), 1) desc, a.published_at
+         ) as title_rank
+  from articles a
+  left join drafts d on d.id = a.draft_id
+  left join rss_sources s on s.id = d.source_feed_id
+  where a.published_at is not null and a.article_type is distinct from 'monthly-summary'
+), tiered as (
+  select *, case
+    when words < 250 or title ~ ' - [A-Z][^-]{1,40}$'
+      or feed like 'Google Blog%' or title_rank > 1 then 'tier1'
+    else 'keep'
+  end as tier
+  from base
+)
+select tier, id, title, content_type, words, feed from tiered where tier = 'tier1' order by words;
+
+-- APPLY tier 1 (uncomment the whole statement):
+-- with base as (
+--   select a.id, a.title, coalesce(a.content_type, 'analysis') as content_type,
+--          array_length(regexp_split_to_array(trim(a.content), '\s+'), 1) as words,
+--          s.name as feed,
+--          row_number() over (
+--            partition by trim(lower(regexp_replace(a.title, '\W+', ' ', 'g')))
+--            order by array_length(regexp_split_to_array(trim(a.content), '\s+'), 1) desc, a.published_at
+--          ) as title_rank
+--   from articles a
+--   left join drafts d on d.id = a.draft_id
+--   left join rss_sources s on s.id = d.source_feed_id
+--   where a.published_at is not null and a.article_type is distinct from 'monthly-summary'
+-- ), tiered as (
+--   select *, case
+--     when words < 250 or title ~ ' - [A-Z][^-]{1,40}$'
+--       or feed like 'Google Blog%' or title_rank > 1 then 'tier1'
+-- --     else 'keep'
+--   end as tier
+--   from base
+-- )
+-- update articles set noindex = true where id in (select id from tiered where tier = 'tier1');
