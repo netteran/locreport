@@ -108,6 +108,8 @@ before(async () => {
     ('the-2026-slator-index','The index analysis','industry',repeat('analysis ',650),'https://publisher.example/analysis',null,'2026-10-04'),
     ('monthly-report-november-2025','November 2025 report','monthly-summary','Briefing evidence',null,null,'2025-12-02');`)
   await db.exec(fs.readFileSync('supabase/migrations/20261130_content_taxonomy.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261201_editorial_topics.sql', 'utf8'))
+  await db.exec(fs.readFileSync('supabase/migrations/20261201_editorial_topics.sql', 'utf8'))
   await db.exec(
     'grant usage on schema public to anon,authenticated,service_role;grant select on all tables in schema public to anon,authenticated;grant all on all tables in schema public to service_role;'
   )
@@ -732,4 +734,64 @@ test('monthly report slug migration renames existing editions in place and can b
   assert.equal(report.published_at.toISOString(), '2026-10-01T10:00:00.000Z')
   const unrelated = (await db.query('select title,slug from articles where id=$1', [unrelatedId])).rows[0]
   assert.deepEqual(unrelated, { title: 'Unrelated', slug: 'monthly-report-january-2026' })
+})
+
+async function publishComposition(ids) {
+  const comp = uid(), request = uid()
+  await db.query('select reserve_composition($1,$2,$3)', [comp, ids, uid()])
+  await db.query('select claim_composition_generation($1,$2)', [comp, request])
+  const { id: draft } = await scalar('select finish_composition_generation($1,$2,$3,$4,$5,$6) as id', [
+    comp, request, 'Published once', 'Body', 'published-once-' + comp, []
+  ])
+  await db.query('select publish_editorial_draft($1,$2)', [draft, JSON.stringify({ title: 'Published once', slug: 'published-once-' + comp, content: 'Body' })])
+  return comp
+}
+
+test('sources used in a published article can back further articles and keep their used history', async () => {
+  const used = await candidate(await source()), fresh = await candidate(await source())
+  await publishComposition([used])
+  assert.equal((await scalar('select status from source_candidates where id=$1', [used])).status, 'used')
+  // Reserving a used source no longer needs the manual "reuse" step.
+  const second = uid()
+  await db.query('select reserve_composition($1,$2,$3)', [second, [used, fresh], uid()])
+  assert.equal((await scalar('select reserved_by from source_candidates where id=$1', [used])).reserved_by, second)
+  // A source held by an unfinished composition is still exclusive.
+  await assert.rejects(db.query('select reserve_composition($1,$2,$3)', [uid(), [used], uid()]), /unavailable/)
+  // Releasing restores each source to what it was: used stays used, fresh becomes available again.
+  await db.query('select replace_composition_sources($1,$2)', [second, [fresh]])
+  assert.equal((await scalar('select status from source_candidates where id=$1', [used])).status, 'used')
+  await db.query('select abandon_composition($1)', [second])
+  assert.equal((await scalar('select status from source_candidates where id=$1', [fresh])).status, 'available')
+  for (const fn of ['released_candidate_status(uuid)', 'topic_shortlist(uuid,double precision,integer)', 'abandon_composition(uuid)']) {
+    for (const role of ['anon', 'authenticated', 'service_role']) {
+      assert.equal((await scalar('select has_function_privilege($1,$2,$3) as allowed', [role, fn, 'EXECUTE'])).allowed, role === 'service_role', `${role} ${fn}`)
+    }
+  }
+})
+
+test('topic shortlists rank unjudged evidence across every non-set-aside status and honour key terms', async () => {
+  const vec = (x, y) => `[${[x, y, ...Array(1534).fill(0)].join(',')}]`
+  const s = await source()
+  const close = await candidate(s, { title: 'Post-editing rates fall', facts: 'MTPE rates fell 20 percent' })
+  const partial = await candidate(s, { title: 'Buyer survey', facts: 'Buyers adopt LLM workflows' })
+  const far = await candidate(s, { title: 'Unrelated', facts: 'A conference schedule' })
+  const setAside = await candidate(s, { title: 'Set aside', facts: 'MTPE rates again' })
+  const used = await candidate(s, { title: 'Earlier MTPE report', facts: 'MTPE baseline from last year' })
+  const rows = [[close, vec(1, 0)], [partial, vec(0.6, 0.8)], [far, vec(0, 1)], [setAside, vec(1, 0)], [used, vec(0.9, 0.1)]]
+  for (const [id, embedding] of rows) await db.query(`update source_candidates set embedding=$2, processing_status='ready' where id=$1`, [id, embedding])
+  await db.query(`update source_candidates set status='dismissed' where id=$1`, [setAside])
+  await db.query(`update source_candidates set status='used' where id=$1`, [used])
+  const topic = uid()
+  await db.query(`insert into editorial_topics(id,title,brief) values($1,'MTPE rates','Are post-editing rates collapsing?')`, [topic])
+  await db.query(`insert into editorial_topic_probes(topic_id,position,description,embedding) values($1,0,'An LSP reports MTPE rates',$2)`, [topic, vec(1, 0)])
+  const shortlist = async (min = 0.4) => (await db.query('select candidate_id from topic_shortlist($1,$2,$3)', [topic, min, 12])).rows.map(r => r.candidate_id)
+  assert.deepEqual(await shortlist(), [close, used, partial], 'ranked by similarity; set-aside and dissimilar sources excluded, used sources kept')
+  await db.query(`insert into topic_matches(topic_id,candidate_id,similarity,relevance,role,judged_version) values($1,$2,1,3,'supports',1)`, [topic, close])
+  assert.deepEqual(await shortlist(), [used, partial], 'a judged source is not judged again')
+  await db.query(`update editorial_topics set required_terms='{mtpe}' where id=$1`, [topic])
+  assert.deepEqual(await shortlist(), [used], 'key terms are matched case-insensitively against the evidence')
+  await assert.rejects(db.query(`insert into topic_matches(topic_id,candidate_id,similarity,relevance,role,judged_version) values($1,$2,1,4,'supports',1)`, [topic, far]), /check/)
+  await db.query('delete from editorial_topics where id=$1', [topic])
+  assert.equal((await scalar('select count(*)::int n from topic_matches where topic_id=$1', [topic])).n, 0, 'deleting a topic removes its judgements, not the sources')
+  assert.equal((await scalar('select count(*)::int n from source_candidates where id=$1', [close])).n, 1)
 })

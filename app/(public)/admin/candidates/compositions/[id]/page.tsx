@@ -199,10 +199,10 @@ export default function CompositionPage() {
             >
               <option value="">Choose available source…</option>
               {available
-                .filter((c) => c.status === 'available' && !ids.includes(c.id))
+                .filter((c) => (c.status === 'available' || c.status === 'used') && !ids.includes(c.id))
                 .map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.title}
+                    {c.title}{c.status === 'used' ? ' (used before)' : ''}
                   </option>
                 ))}
             </select>

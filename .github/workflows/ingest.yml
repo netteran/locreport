@@ -183,6 +183,29 @@ jobs:
             fi
             case "$(printf '%s' "$RESPONSE" | jq -r '.action // ""')" in idle) break ;; esac
           done
+      - name: Gather sources for editor topics (never generate or publish articles)
+        if: ${{ !cancelled() && steps.dst.outputs.proceed == 'true' }}
+        continue-on-error: true
+        run: |
+          for i in 1 2 3 4; do
+            : "${VERCEL_AUTOMATION_SECRET:?Add the VERCEL_AUTOMATION_SECRET repository secret}"
+            if RESPONSE="$(curl --silent --show-error --fail-with-body --max-time 300 -X POST https://locreport.com/api/research/process \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              -H "x-automation-secret: $VERCEL_AUTOMATION_SECRET" \
+              -H "Content-Type: application/json" -d '{"stage":"topics"}')"; then
+              if ! printf '%s' "$RESPONSE" | jq -e -s 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+                echo "::error::Expected a JSON object; check Vercel Firewall for a security challenge."
+                exit 1
+              fi
+            else
+              echo "::error::Automation request failed; check the HTTP status above and the Vercel Firewall exception."
+              exit 1
+            fi
+            echo "$RESPONSE"
+            COUNT="$(printf '%s' "$RESPONSE" | jq '.errors | length')"
+            if [ "$COUNT" -gt 0 ]; then echo "::warning::$COUNT topics could not be matched this run"; fi
+            case "$(printf '%s' "$RESPONSE" | jq -r '.action // ""')" in idle) break ;; esac
+          done
       - name: Refresh suggested articles (never generate or publish articles)
         if: ${{ !cancelled() && steps.dst.outputs.proceed == 'true' }}
         run: |

@@ -247,6 +247,8 @@ Several tools and other sections use co-located client components:
 | `/api/podcasts/[id]/ingest` | POST | Step 1 of 2. Admin session only — **never CRON_SECRET**. Gemini goes through one episode (`{episode_id, transcript?, youtube_url?, force?}`) and the notes are saved on a new **pending** draft (placeholder body); see Podcasts below |
 | `/api/podcasts/[id]/write` | POST | Step 2 of 2. Admin session only. Writes the article into that draft from its stored notes (`{draft_id}`) — text-only, never re-sends the episode |
 | `/api/podcasts/auto` | POST/GET | One unit of automatic podcast work per call (write up a notes-only draft and publish it if Auto, or take one new post-baseline episode through step 1); repeat until `{action:'idle'}`. CRON_SECRET → every active podcast with `auto_publish`; admin `?id=` → that source (the row's Ingest button) |
+| `/api/topics` | GET/POST | Admin-only editor topics (**My topics**). GET: topics with matches + readiness; `?summary=1` → `{ready}` for the nav badge. POST: create, describe the evidence it needs, match the existing pool. See Editor Topics below |
+| `/api/topics/[id]` | PATCH/DELETE | Admin-only. PATCH `{action}`: `update`, `status`, `decision` (accept/reject a match), `match` (find more now), `composition` (link the composition started from it) |
 | `/api/stats` | GET | Dashboard stats: article/draft/source counts |
 | `/api/seen-urls` | GET | Legacy Jekyll URLs (deduplication) |
 | `/api/direct` | POST | Direct article submission |
@@ -1099,7 +1101,7 @@ has no `crons` key** — Vercel only builds and serves:
 
 | Schedule | Trigger | Purpose |
 |---|---|---|
-| Workdays (Mon–Fri) 10am, 1pm and 5pm Warsaw time | GitHub Actions `ingest.yml` | Three steps per run: POST `/api/scraped-sources/run` to regenerate every scrape source, POST `/api/ingest`, then POST `/api/podcasts/auto` in a loop for podcasts with Auto ticked (non-blocking). Three runs a day, each scheduled at both DST offsets (`0 8/9,11/12,15/16 * * 1-5` UTC) with a runtime guard picking the live one |
+| Workdays (Mon–Fri) 10am, 1pm and 5pm Warsaw time | GitHub Actions `ingest.yml` | Three steps per run: POST `/api/scraped-sources/run` to regenerate every scrape source, POST `/api/ingest`, then POST `/api/podcasts/auto` in a loop for podcasts with Auto ticked (non-blocking). Three runs a day, each scheduled at both DST offsets (`0 8/9,11/12,15/16 * * 1-5` UTC) with a runtime guard picking the live one. Later steps process candidates, match them against editor topics (`/api/research/process` `{stage:'topics'}`, non-blocking) and refresh suggested articles |
 | Fridays 1pm Central European time | GitHub Actions `digest.yml` | POST `/api/digest/send` — the only digest run; there is no daily cadence |
 | `0 6,9,12,14,16 * * 1-5` Europe/Warsaw | **GitLab CI** (external `aparasion/rss-generator`, outside this repo) | Regenerates `https://aparasion.gitlab.io/rss-generator/rss/DeepL-Press-Releases.xml` — the one remaining feed not yet served by the embedded generator. Not part of the GitHub→Vercel setup; from ingest's side it is an ordinary feed URL |
 | On-demand | `workflow_dispatch` on both GitHub workflows | Manual trigger from GitHub Actions UI |
@@ -1238,3 +1240,40 @@ Apply `supabase/migrations/20261115_publication_metadata_types.sql` after the re
 ### Fact Flow admin loading
 
 `lib/adminFacts.ts` reads facts and resolves article links with an explicit ID lookup rather than an inferred PostgREST relationship. Query failures are displayed in `/admin/fact-flow` as errors, never converted to an empty list; missing research-publication columns include the required migration filename. The admin initially displays all loaded statuses and highlights the active filter. Source candidates are separate research evidence; they appear here only after processing creates a fact.
+
+## Editor Topics (My topics)
+
+The **My topics** tab on `/admin/candidates` lets the editor propose a topic (title, what they want to say,
+optional key terms, optional ready email) and leaves gathering the evidence to the pipeline. It is separate
+from **Suggested articles**: pitches are the model's angles, re-decided on every refresh; a topic is the
+editor's angle and accumulates sources over time. Topics are deliberately **not** fed into pitch generation
+(owner's call, 2026-11-25), and they only search the existing candidate pool — no per-topic web or
+Google News search. Nothing is generated or published until the editor starts a composition.
+
+How matching works (`lib/editorialTopics.ts` pure logic, `lib/topicMatching.ts` DB + model calls,
+migration `20261201_editorial_topics.sql`):
+- On create/edit the model writes 3–5 **probes** — descriptions of the evidence the article would need —
+  stored with embeddings in `editorial_topic_probes`. Candidates are compared against probes, not the brief:
+  an opinionated brief and a news report embed far apart even when the report is exactly what it needs.
+- `topic_shortlist()` (SQL, exact scan) returns unjudged ready candidates with similarity ≥ 0.4 to any probe,
+  honouring key terms (a source must mention at least one). Every status except set-aside qualifies.
+- One gpt-4o-mini call judges each shortlist of ≤12: relevance 0–3, role (supports / contradicts / data /
+  context) and a one-line contribution. Every (topic, candidate) pair is judged once and stored in
+  `topic_matches`, including irrelevant ones, so nothing is paid for twice. Editing the brief bumps
+  `brief_version` and drops only unreviewed (`suggested`) judgements; accept/reject decisions are kept.
+- Each scheduled ingest runs one batch per open topic (`matchOpenTopics`, oldest-checked first, 200 s
+  budget). Creating a topic or **Find more sources now** runs up to four batches immediately.
+- **Readiness is deterministic** (`topicReadiness`): ≥3 independent sources (reports of the same
+  `event_id` count once) from ≥2 publishers, counting relevance ≥2 or editor-accepted matches. The topic
+  moves between `watching` and `ready` automatically; `paused`/`closed` are the editor's. The admin nav
+  shows a badge with the ready count, and an opted-in topic emails `ADMIN_EMAIL` once (`notified_at`).
+- **Start composition** preselects accepted matches (else the strongest useful ones, max 8) and hands the
+  brief, every source contribution and the remaining gaps to the normal composition flow.
+
+**Used sources stay usable (owner's call, 2026-11-25).** A source used in a published article is
+evidence for further ones: `reserve_composition`/`replace_composition_sources` accept `used` as well as
+`available`, and releasing a reservation restores `used` (via `released_candidate_status`) rather than
+`available`, so that history survives. A source reserved by an unfinished composition is still exclusive.
+The old manual "Reuse in another article" button is gone. The Suggested-articles pitch pool still draws
+only on `available` sources.
+
