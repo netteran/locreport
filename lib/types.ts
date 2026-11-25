@@ -123,6 +123,8 @@ export interface Article {
   published_at: string
   updated_at: string
   draft_id: string | null
+  // Pruned from search (migration 20261202). Absent before that migration is applied.
+  noindex?: boolean
   // pgvector column; PostgREST returns it serialized as a string
   embedding?: string | null
 }

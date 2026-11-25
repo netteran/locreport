@@ -86,10 +86,10 @@ async function checkStaticRoutes() {
   }
 
   const sitemap = await (await request('/sitemap.xml')).text()
-  for (const path of ['/', '/page/2/', '/page/3/', '/briefs/', '/analysis/', '/reports/', report, '/briefs/platform-announcement/']) {
+  for (const path of ['/', '/briefs/', '/analysis/', '/reports/', report, '/briefs/platform-announcement/']) {
     assert.ok(sitemap.includes(`<loc>${site}${path}</loc>`), path)
   }
-  assert.doesNotMatch(sitemap, /<loc>[^<]+\/(?:articles\/|page\/1\/)/)
+  assert.doesNotMatch(sitemap, /<loc>[^<]+\/(?:articles\/|page\/\d+\/)/)
   const feed = await (await request('/feed.xml')).text()
   assert.match(feed, /<link>https:\/\/locreport\.com\/briefs\/platform-announcement\/<\/link>/)
   assert.match(feed, /<guid isPermaLink="true">https:\/\/locreport\.com\/articles\/platform-announcement<\/guid>/)

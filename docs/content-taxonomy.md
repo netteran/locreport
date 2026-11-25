@@ -10,7 +10,7 @@
 
 Choose **Editorial format** in Compose, Direct entry, or Draft review. The published article editor can correct a story’s classification. Use the monthly reporting workspace to create reports and preserve their evidence and coverage dates.
 
-A brief needs one original source URL. Credit the named publisher, spokesperson, or document in the lead with an inline link. Add a **Why this matters** heading and two or three specific implications. End on a separate line using the following Markdown.
+A brief needs one original source URL. Credit the named publisher, spokesperson, or document in the lead with an inline link. Do not add a **Why this matters** or takeaways bullet list: generic bullets make a brief read like automated aggregation, and any stored ones are stripped when the page renders. End on a separate line using the following Markdown.
 
 ```markdown
 *Sources: [Publisher or document name](https://publisher.example/release)*
@@ -20,7 +20,7 @@ For analysis, put citations at the claims they support. Use natural anchor text,
 
 ## Routing and rollout
 
-- Apply `20261130_content_taxonomy.sql` to Supabase before building or deploying this version. The migration keeps the stored slugs and article copy intact. Existing monthly reports become reports. Single-source, brief-length stories with saved takeaways become briefs. The rest become analysis. Editors can adjust those classifications after review.
+- Apply `20261130_content_taxonomy.sql` to Supabase before building or deploying this version. The migration keeps the stored slugs and article copy intact. Existing monthly reports become reports. Single-source, brief-length stories with saved takeaways became briefs. The rest become analysis. Editors can adjust those classifications after review.
 - The public article index is the source for canonical slugs, feed order, and sitemap entries. New public paths always end in a slash. Historical dated URLs, known aliases, and `/articles/[slug]` issue a 301 to the recorded format. `/articles/` and `/page/1/` issue a 301 to the homepage.
 - The home feed contains 12 published stories per page. Filter pills switch the displayed format without adding parameters to the public URL. Unfiltered Load More updates the URL to the current page while keeping previously loaded stories on screen. Each page URL serves its own slice with an HTML link to the next slice when one exists. The annual report remains available in the reports archive.
 - Validate the sitemap, homepage canonical, standalone page 2 canonical, one article in each format, and their legacy redirects after deployment. Existing RSS item IDs stay stable for subscribers while the item links use the new paths.

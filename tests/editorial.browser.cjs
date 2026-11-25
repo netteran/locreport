@@ -126,7 +126,7 @@ const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
 
     await visit('/analysis/newest-authored-analysis/')
     await page.getByRole('heading', { name: 'Newest authored analysis', exact: true }).waitFor()
-    await page.getByRole('heading', { name: 'Why this matters', exact: true }).waitFor()
+    assert.equal(await page.getByRole('heading', { name: 'Why this matters', exact: true }).count(), 0)
     assert.equal(await page.locator('.impact-badge, .time-horizon-badge, .post-intel__signal').count(), 0)
     await noRetiredLinks()
 
