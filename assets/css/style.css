@@ -5361,7 +5361,7 @@ article.page > h1 {
   margin: 0 0 var(--space-3);
 }
 
-/* ── Article related reading ────────────────── */
+/* ── Article audience tags and related reading ────────────────── */
 .post-section-label {
   font-size: 0.78rem;
   font-weight: 700;
@@ -5371,7 +5371,41 @@ article.page > h1 {
   margin: 0 0 var(--space-4);
 }
 
+.post-segments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--hairline);
+}
+.post-segments__label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.post-segments ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.post-segments li {
+  padding: 2px var(--space-2);
+  border-radius: 100px;
+  background: var(--bg-secondary);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
 .post-related { margin-top: var(--space-8); }
+.post-segments + .post-related { margin-top: var(--space-6); }
 .post-related__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));

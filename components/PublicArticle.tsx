@@ -125,6 +125,7 @@ export async function PublicArticle({ slug, contentType }: { slug: string; conte
 
   relatedArticles = await withArticleReferences(supabase, relatedArticles)
 
+  const segments = (a.affected_segments ?? []).filter(seg => seg?.trim())
   const hasRelated = relatedArticles.length > 0
 
   const articleUrl = `${SITE_URL}${path}`
@@ -207,6 +208,15 @@ export async function PublicArticle({ slug, contentType }: { slug: string; conte
           </div>
         ) : (
           <div className="post-content" dangerouslySetInnerHTML={{ __html: html }} />
+        )}
+
+        {segments.length > 0 && (
+          <div className="post-segments">
+            <span className="post-segments__label" id="post-segments-label">Relevant to</span>
+            <ul aria-labelledby="post-segments-label">
+              {segments.map(seg => <li key={seg}>{seg}</li>)}
+            </ul>
+          </div>
         )}
 
         {hasRelated && (
