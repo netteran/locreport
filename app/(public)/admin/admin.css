@@ -112,6 +112,7 @@
 .admin-area-nav a, .admin-subnav a, .admin-workflow nav > a, .admin-workflow summary { font-size:12px; padding:8px 10px; border-radius:6px; text-decoration:none; }
 .admin-area-nav a[aria-current], .admin-workflow a[aria-current] { background:var(--accent-soft); color:var(--accent); font-weight:600; }
 .admin-area-nav a:hover, .admin-subnav a:hover, .admin-workflow a:hover { background:var(--bg-secondary); }
+.admin-badge { display:inline-block; min-width:18px; margin-left:6px; padding:1px 6px; border-radius:999px; background:var(--accent); color:#fff; font-size:11px; font-weight:600; line-height:16px; text-align:center; }
 .admin-workflow { margin-bottom:24px; padding:14px; border:1px solid var(--border); border-radius:9px; }
 .admin-workflow > p { margin:0 0 8px; font-size:11px; color:var(--muted); }
 .admin-workflow details a { display:inline-block; margin:4px 10px; font-size:12px; }

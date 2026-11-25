@@ -9,6 +9,7 @@ import type { SourceCandidate, StoryGroup, Composition } from '@/lib/researchTyp
 import { filterCandidates, publisherName } from '@/lib/candidateFilters'
 import { ResearchProcessButton } from '@/components/ResearchProcessButton'
 import { pitchEditorialDirection } from '@/lib/compositionBrief'
+import { TopicsPanel } from './TopicsPanel'
 
 type SuggestionSource = Pick<SourceCandidate, 'id' | 'title' | 'source_url' | 'source_name' | 'status'>
 type Event = { id: string; headline: string; stage: string; review_required: boolean }
@@ -33,6 +34,14 @@ export default function CandidatesPage() {
     [busy, setBusy] = useState(false)
   const [mergeFrom, setMergeFrom] = useState(''),
     [mergeInto, setMergeInto] = useState('')
+  const [readyTopics, setReadyTopics] = useState(0)
+  // The topic-ready email links to ?tab=topics. Read it after mount rather than with
+  // useSearchParams, which would need a Suspense boundary around this client page.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab')
+    if (requested && ['candidates', 'topics', 'groups', 'compositions', 'events'].includes(requested)) setTab(requested)
+    fetch('/api/topics?summary=1').then(r => r.ok ? r.json() : null).then(d => d && setReadyTopics(d.ready)).catch(() => {})
+  }, [])
   const load = useCallback(async () => {
     const r = await fetch('/api/candidates')
     const d = await r.json()
@@ -100,6 +109,7 @@ export default function CandidatesPage() {
       <div className="flex gap-2 flex-wrap">
         {[
           ['candidates', 'Candidates'],
+          ['topics', readyTopics ? `My topics · ${readyTopics} ready` : 'My topics'],
           ['groups', 'Suggested articles'],
           ['compositions', 'Compositions'],
           ['events', 'Event review']
@@ -196,7 +206,7 @@ export default function CandidatesPage() {
                     type="checkbox"
                     aria-label={`Select ${c.title}`}
                     checked={selected.includes(c.id)}
-                    disabled={c.status !== 'available'}
+                    disabled={c.status !== 'available' && c.status !== 'used'}
                     onChange={(e) =>
                       setSelected((s) =>
                         e.target.checked ? [...s, c.id] : s.filter((id) => id !== c.id)
@@ -242,16 +252,6 @@ export default function CandidatesPage() {
                         Set aside
                       </Button>
                     )}
-                    {c.status === 'used' && (
-                      <Button
-                        size="xs"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => run(() => patch({ id: c.id, status: 'available' }))}
-                      >
-                        Reuse in another article
-                      </Button>
-                    )}
                     {c.status === 'dismissed' && (
                       <Button
                         size="xs"
@@ -271,6 +271,7 @@ export default function CandidatesPage() {
                       </Link>
                     )}
                   </div>
+                  {c.status === 'used' && <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>Already used in a published article. It stays selectable as evidence for further articles.</p>}
                   {c.status === 'available' && <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>Set aside only irrelevant or unusable evidence. It is kept and can be restored from the set-aside filter.</p>}
                 </details>
                 {(c.review_reason || c.suggested_event_id || c.suggested_fact_id) && (
@@ -327,6 +328,7 @@ export default function CandidatesPage() {
           </div>
         </>
       )}
+      {tab === 'topics' && <TopicsPanel onReadyCount={setReadyTopics} />}
       {tab === 'groups' && (
         <>
           <ResearchProcessButton label="Refresh suggestions" disabled={busy} onDone={load} />

@@ -1,13 +1,26 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { ADMIN_LINKS, ARTICLE_LINKS, OTHER_ARTICLE_LINKS, activeAdminLink } from '@/lib/adminNav'
 export function AdminAreaNav() {
   const pathname = usePathname()
   const area = activeAdminLink(pathname)
+  // Editor topics that have gathered enough evidence to write. Purely informational: a failed
+  // request (or the topics migration not yet applied) simply shows no badge.
+  const [readyTopics, setReadyTopics] = useState(0)
+  useEffect(() => {
+    let live = true
+    fetch('/api/topics?summary=1').then(r => r.ok ? r.json() : null)
+      .then(d => { if (live && d) setReadyTopics(d.ready || 0) }).catch(() => {})
+    return () => { live = false }
+  }, [pathname])
   return <>
     <nav className="admin-area-nav" aria-label="Admin areas">{ADMIN_LINKS.map(link =>
-      <Link key={link.href} href={link.href} aria-current={area.href === link.href ? 'page' : undefined}>{link.label}</Link>
+      <Link key={link.href} href={link.href} aria-current={area.href === link.href ? 'page' : undefined}>{link.label}
+        {link.href === '/admin/candidates' && readyTopics > 0 &&
+          <span className="admin-badge" title={`${readyTopics} topic${readyTopics === 1 ? '' : 's'} ready to write`}>{readyTopics}</span>}
+      </Link>
     )}</nav>
     {area.href === '/admin/candidates' && <div className="admin-workflow">
       <p>Feed generation → Sources → Candidates &amp; suggested articles → Review → Publish</p>

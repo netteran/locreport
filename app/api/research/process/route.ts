@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, isCronRequest, unauthorized, requireResearchSchema } from '@/lib/adminAuth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { checked, pendingCandidatesQuery, processPendingCandidates, refreshStoryGroups } from '@/lib/research'
+import { matchOpenTopics } from '@/lib/topicMatching'
 
 export const maxDuration = 300
 export async function POST(req: NextRequest) {
@@ -11,6 +12,11 @@ export async function POST(req: NextRequest) {
     const schemaResponse = await requireResearchSchema(service)
     if (schemaResponse) return schemaResponse
     const body = await req.json().catch(() => ({}))
+    if (body.stage === 'topics') {
+      // One shortlist per open editor topic per call; repeat until idle.
+      const result = await matchOpenTopics(service)
+      return NextResponse.json({ action: result.judged ? 'processed' : 'idle', ...result })
+    }
     if (body.stage === 'groups') {
       await refreshStoryGroups(service)
       return NextResponse.json({ ok: true })
