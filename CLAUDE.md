@@ -1158,9 +1158,12 @@ Pro upgrade.
   late August falling to 17 by mid-November, with ~1,550 "Crawled – currently not indexed". No manual action,
   server healthy (87% 200s, no 5xx), canonicals correct, and Google did not treat articles as copies of their
   sources. Google dropped pages it had already indexed without re-crawling them, and crawl stats showed
-  Purpose 100% refresh / 0% discovery: a site-wide quality judgment on the mass of short auto-published
-  briefs, not a technical fault. The fix is a smaller archive — noindex thin briefs and merge duplicates
-  (`articles.noindex`, `docs/seo-cleanup.sql`) — and less auto-publishing, not more SEO plumbing. The
+  Purpose 100% refresh / 0% discovery: a site-wide quality judgment, not a technical fault. Only a few
+  authorised sources auto-publish (for Fact Flow); briefs and analysis are published by the editor, and
+  briefs stay indexed (owner's call, 2026-11-25) — do not propose blanket noindex for briefs. The cleanup
+  targets legacy debris instead: raw Google News items with " - Outlet" titles (some off-topic), Google
+  Blog articles, pieces under 250 words and duplicate titles (`articles.noindex`, `docs/seo-cleanup.sql`
+  section 5). Beyond that, the lever is fewer, longer, more original pieces, not SEO plumbing. The
   "Why this matters" bullet box was removed from articles for the same reason (it read as automated
   aggregation); `stripTakeaways()` hides stored ones at render. Audience tags (`affected_segments`) render as
   plain, deliberately non-linked labels — tag archive pages would be more thin URLs.
