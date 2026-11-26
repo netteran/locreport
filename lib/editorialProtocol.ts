@@ -58,10 +58,36 @@ const whyHeading = /^why this matters[.:]?$/i
 const sourcesLine = /^\*Sources:\s[\s\S]+\*$/i
 const genericAnchor = /^(?:sources?|here|links?|read more|click here|\d+)$/i
 
-function briefParts(markdown: string) {
-  const tokens = meaningfulTokens(markdown)
-  const lead = tokens.find(token => token.type === 'paragraph')
-  return { lead, last: tokens.at(-1) }
+const BREAK_ONLY_LINE = /^[ \t]*(?:<br\s*\/?>[ \t]*)+$/i
+
+/**
+ * Locate the closing *Sources: …* line by text, not by markdown token: a model
+ * (or an editor) often runs it straight on from the last paragraph, or puts a
+ * `<br />` line above it, and markdown then folds it into that paragraph.
+ */
+function closingSources(markdown: string) {
+  const text = markdown.trimEnd()
+  const at = text.search(/(?:^|\n)[ \t]*\*Sources:[^\n]*(?:\n(?![ \t]*\n)[^\n]*)*$/)
+  if (at < 0) return null
+  const start = text[at] === '\n' ? at + 1 : at
+  const line = text.slice(start).trim()
+  if (!sourcesLine.test(line)) return null
+  return { body: text.slice(0, start), line }
+}
+
+/**
+ * Tidy a brief's closing Sources line so it renders and validates as one: drop
+ * `<br>`-only lines just above it, give it its own paragraph, and rejoin
+ * `[Name]` and `(url)` when a line break split them. Nothing else changes.
+ */
+export function tidyBriefSources(markdown: string) {
+  const found = closingSources(markdown)
+  if (!found) return markdown
+  const lines = found.body.trimEnd().split('\n')
+  while (lines.length && BREAK_ONLY_LINE.test(lines.at(-1)!)) lines.pop()
+  const body = lines.join('\n').trimEnd()
+  const line = found.line.replace(/\]\s*\n\s*\(/g, '](').replace(/\s*\n\s*/g, ' ')
+  return body ? `${body}\n\n${line}` : line
 }
 
 function words(markdown: string) {
@@ -79,13 +105,13 @@ export function validateEditorialProtocol(type: ContentType, markdown: string, o
     const key = sourceKey(url.href)
     // The source is credited by the closing Sources line. Linking it in the opening
     // paragraph is no longer required (owner's call, 2026-11-26).
-    const { last } = briefParts(markdown)
+    const closing = closingSources(tidyBriefSources(markdown))
     const matchesSource = (link: Tokens.Link) => sameSource(link.href, key) && !genericAnchor.test(link.text.trim())
-    const footnote = last?.type === 'paragraph' && sourcesLine.test(last.raw.trim()) ? links([last]) : []
+    const footnote = closing ? links(marked.lexer(closing.line)) : []
     if (footnote.length !== 1 || !matchesSource(footnote[0])) {
       throw new Error(`End the brief with *Sources: [Source Name](${url.href})*.`)
     }
-    const count = words(markdown.slice(0, markdown.lastIndexOf(last!.raw.trim())))
+    const count = words(closing!.body)
     if (count < 200 || count > 450) throw new Error(`Keep industry briefs between 200 and 450 words. This brief has ${count} words.`)
   }
 
@@ -154,15 +180,12 @@ export function ensureBriefSourcing(
   const name = sourceName?.trim() || domainToPublisher(source.hostname)
   const link = `[${escapeLinkText(name)}](${linkTarget(source)})`
   const credits = (found: Tokens.Link) => sameSource(found.href, key) && !genericAnchor.test(found.text.trim())
-  const result = markdown.trimEnd()
-  const { last } = briefParts(result)
-
-  const footnote = last?.type === 'paragraph' && sourcesLine.test(last.raw.trim())
-  if (!footnote) return `${result}\n\n*Sources: ${link}*`
-  const cited = links([last])
+  const result = tidyBriefSources(markdown).trimEnd()
+  const closing = closingSources(result)
+  if (!closing) return `${result}\n\n*Sources: ${link}*`
+  const cited = links(marked.lexer(closing.line))
   if (!replaceFootnote || (cited.length === 1 && credits(cited[0]))) return result
-  const raw = last.raw.trim()
-  return `${result.slice(0, result.lastIndexOf(raw)).trimEnd()}\n\n*Sources: ${link}*`
+  return `${closing.body.trimEnd()}\n\n*Sources: ${link}*`
 }
 
 /** Briefs without a Sources line get one for their saved original source at render; the copy is not rewritten. */
