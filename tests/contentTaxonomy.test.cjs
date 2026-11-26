@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const { load } = require('./fixtures/typescript.cjs')
 
 const { articleHref, getContentBadge, isArticlePath, isContentType } = load('lib/contentTaxonomy.ts')
-const { validateEditorialProtocol, presentBrief, stripTakeaways } = load('lib/editorialProtocol.ts')
+const { validateEditorialProtocol, presentBrief, stripTakeaways, ensureBriefSourcing, sourceKey } = load('lib/editorialProtocol.ts')
 const { feedPageNumber, feedPagePath, validFeedCursor } = load('lib/feedPagination.ts')
 const { serializeJsonLd } = load('lib/seo.ts')
 
@@ -38,14 +38,45 @@ const takeaways = '## Why this matters\n\n- Buyers can plan a pilot against real
 const footnote = `*Sources: [The original publisher](${original})*`
 const brief = [lead, paragraph.repeat(10).replaceAll('.Buyers', '. Buyers'), footnote].join('\n\n')
 
-test('brief approval requires inline original credit and the matching final footnote, not takeaways', () => {
+test('brief approval requires the matching final footnote, not an opening link or takeaways', () => {
   assert.doesNotThrow(() => validateEditorialProtocol('brief', brief, original))
   assert.throws(() => validateEditorialProtocol('brief', brief, null), /valid original source/)
-  assert.throws(() => validateEditorialProtocol('brief', brief.replace(lead, 'The publisher made an announcement.'), original), /opening paragraph/)
+  // The opening paragraph no longer has to link the source (owner's call, 2026-11-26).
+  assert.doesNotThrow(() => validateEditorialProtocol('brief', brief.replace(lead, 'The publisher made an announcement on Monday about a new localization service.'), original))
   assert.throws(() => validateEditorialProtocol('brief', brief.replace(footnote, footnote.slice(1)), original), /End the brief/)
   assert.throws(() => validateEditorialProtocol('brief', brief.replace(footnote, footnote.replace('edition=1', 'edition=2')), original), /End the brief/)
   assert.throws(() => validateEditorialProtocol('brief', [lead, footnote].join('\n\n'), original), /200 and 450 words/)
   assert.equal(presentBrief(brief, original), brief)
+})
+
+test('brief credits accept the same source written differently', () => {
+  const episode = 'https://www.youtube.com/watch?v=abc123XYZ'
+  assert.equal(sourceKey('https://youtu.be/abc123XYZ?si=share'), sourceKey(episode))
+  assert.equal(sourceKey('https://m.youtube.com/watch?v=abc123XYZ&t=42'), sourceKey(episode))
+  assert.equal(sourceKey('https://example.test/news/?utm_source=x&edition=1'), sourceKey('https://www.example.test/news?edition=1'))
+  assert.notEqual(sourceKey('https://example.test/news?edition=2'), sourceKey(original))
+  const shortForm = brief.replaceAll(original, 'https://www.example.test/news/?edition=1&utm_medium=feed')
+  assert.doesNotThrow(() => validateEditorialProtocol('brief', shortForm, original))
+  assert.throws(() => validateEditorialProtocol('brief', brief.replace(footnote, '*Sources: [Elsewhere](https://other.test/x)*'), original),
+    /End the brief with \*Sources: \[Source Name\]\(https:\/\/example\.test\/news\?edition=1\)\*/)
+})
+
+test('generated briefs get the closing Sources line publishing requires', () => {
+  const body = paragraph.repeat(10).replaceAll('.Buyers', '. Buyers')
+  const episode = 'https://www.youtube.com/watch?v=abc123XYZ'
+  const opening = 'The Signal Room Podcast discussed agentic localization this week.'
+  const uncredited = ['# Episode brief', opening, body].join('\n\n')
+  const credited = ensureBriefSourcing(uncredited, episode, 'The Signal Room Podcast')
+  assert.ok(credited.startsWith(['# Episode brief', opening, body].join('\n\n')), 'the opening paragraph is left as written')
+  assert.match(credited, /\n\n\*Sources: \[The Signal Room Podcast\]\(https:\/\/www\.youtube\.com\/watch\?v=abc123XYZ\)\*$/)
+  assert.doesNotThrow(() => validateEditorialProtocol('brief', credited, episode))
+  // A wrong Sources line is replaced; a correct brief is left exactly as it was.
+  const wrongNote = ensureBriefSourcing(brief.replace(footnote, '*Sources: [Elsewhere](https://other.test/x)*'), original)
+  assert.doesNotThrow(() => validateEditorialProtocol('brief', wrongNote, original))
+  assert.equal(ensureBriefSourcing(brief, original), brief)
+  // Rendering keeps an existing multi-source line untouched.
+  const multi = brief.replace(footnote, `*Sources: [A](${original}), [B](https://other.test/x)*`)
+  assert.equal(presentBrief(multi, original), multi)
 })
 
 test('stored "Why this matters" bullet lists are removed when a brief renders', () => {
@@ -59,7 +90,7 @@ test('stored "Why this matters" bullet lists are removed when a brief renders', 
 test('historical brief rendering credits stored evidence without adding takeaways', () => {
   const legacy = 'A historical brief about the release.\n\nAdditional detail.'
   const rendered = presentBrief(legacy, original)
-  assert.match(rendered, /A historical brief about the release. See \[Example\]/)
+  assert.ok(rendered.startsWith(legacy + '\n\n'), 'the copy itself is not rewritten')
   assert.doesNotMatch(rendered, /Why this matters/)
   assert.match(rendered, /\*Sources: \[Example\]\(https:\/\/example\.test\/news\?edition=1\)\*$/)
   assert.equal(presentBrief(legacy, null), legacy)

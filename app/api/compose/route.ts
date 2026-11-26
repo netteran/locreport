@@ -4,7 +4,7 @@ import { getOpenAI } from '@/lib/openai'
 import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, CITATION_STYLE_GUIDANCE, todayLine } from '@/lib/prompts'
 import { classifyArticle } from '@/lib/classify'
 import { isContentType } from '@/lib/contentTaxonomy'
-import { BRIEF_PROTOCOL, ANALYSIS_PROTOCOL } from '@/lib/editorialProtocol'
+import { BRIEF_PROTOCOL, ANALYSIS_PROTOCOL, ensureBriefSourcing } from '@/lib/editorialProtocol'
 
 async function getPrompt(key: string, fallback: string): Promise<string> {
   try {
@@ -87,7 +87,9 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: userContent },
       ],
     })
-    const content = completion.choices[0].message.content ?? ''
+    const generated = completion.choices[0].message.content ?? ''
+    // Briefs must end with a Sources line to publish.
+    const content = contentType === 'brief' ? ensureBriefSourcing(generated, sources[0].url, sources[0].name) : generated
 
     // Extract H1 from content, or generate a title if none present
     let articleTitle = content.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? ''

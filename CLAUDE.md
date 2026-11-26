@@ -1281,6 +1281,16 @@ Pro upgrade.
 
 Article body citations are optional in both source-based generation and publication. `validateSourceCitations` checks any supplied external links against the selected evidence without enforcing a minimum citation count. Selected source URLs remain attached through `finish_composition_generation` and `publish_editorial_draft` even when body links are omitted, preserving evidence provenance and Fact Flow links. Default industry and synthesis prompts allow articles without citations; factual grounding and accurate attribution of claims and quotes still apply.
 
+### Brief source credit
+
+A brief (`content_type='brief'`) is publishable when it has one valid original source URL, ends with
+`*Sources: [Source Name](url)*` citing that source, and runs 200–450 words (`validateEditorialProtocol` in
+`lib/editorialProtocol.ts`). **The opening paragraph does not have to link the source** — that requirement
+was removed on 2026-11-26 at the owner's request, after it blocked a re-run Signal Room podcast brief. URLs
+are compared by `sourceKey()`, so `www.`, a trailing slash, tracking parameters and `youtu.be/ID` vs
+`youtube.com/watch?v=ID` count as the same source. Re-run and compose call `ensureBriefSourcing()` to add the
+Sources line when the model omits it (a podcast brief credits the show name); it never edits the opening.
+
 ### Editorial titles and independent Fact Flow processing
 
 Source-based generation preserves a nonempty composition title in the draft title, H1 and slug. The AI title is used only when the brief title is blank. Scheduled ingest, podcast collection, event processing and suggestion refresh use explicit non-cancellation conditions so a failed feed refresh or ingest does not skip processing already saved evidence. Earlier failures remain visible in the workflow result.
