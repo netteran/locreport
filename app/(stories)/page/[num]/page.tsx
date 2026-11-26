@@ -5,7 +5,9 @@ import { ContentFeed } from '@/components/ContentFeed'
 import { loadContentFeed } from '@/lib/contentFeed'
 import { feedPageNumber, feedPagePath } from '@/lib/feedPagination'
 
-export const revalidate = 3600
+// Not invalidated on publish (that rewrote every page per publish). A day is the
+// staleness bound for these offset-paged archive pages — see CLAUDE.md.
+export const revalidate = 86400
 export const dynamic = 'force-static'
 
 export function generateStaticParams() {

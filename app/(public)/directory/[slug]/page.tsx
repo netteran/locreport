@@ -10,7 +10,8 @@ import { locstockByDirectorySlug } from '@/lib/data/locstock'
 import { getCompanyArticles, type CompanyArticle } from '@/lib/companyArticles'
 import { articleHref } from '@/lib/contentTaxonomy'
 
-export const revalidate = 3600
+// Directory edits revalidate on demand; a day bounds the "in the news" lists.
+export const revalidate = 86400
 
 const CAT_DISPLAY = CATEGORY_SHORT
 

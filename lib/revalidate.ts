@@ -1,14 +1,19 @@
 import { revalidatePath } from 'next/cache'
 import { articleHref, CONTENT_TYPES, CONTENT_TAXONOMY, type PostReference } from '@/lib/contentTaxonomy'
 
+// Deliberately NOT here: `/sitemap.xml` and the `/page/[num]` archive. Every
+// path invalidated on publish is regenerated (and billed as ISR writes, per
+// 8 KB) on its next visit, and crawlers visit all of them. Invalidating the
+// ~125 paginated pages plus a ~1,500-URL sitemap on every auto-publish is what
+// pushed the Hobby plan past its 200K monthly ISR-write limit (Nov 2026). Both
+// refresh on their own `revalidate` window instead.
 const ARTICLE_PATHS = [
   '/',
   ...CONTENT_TYPES.map(type => CONTENT_TAXONOMY[type].path),
-  '/feed.xml',
-  '/sitemap.xml',
 ]
 
-const FACT_PATHS = ['/', '/fact-flow', '/fact-flow/feed.xml']
+// `/feed.xml` and `/fact-flow/feed.xml` are force-dynamic, so they need no invalidation.
+const FACT_PATHS = ['/', '/fact-flow']
 
 function revalidateAll(paths: Iterable<string>) {
   for (const path of paths) {
@@ -27,11 +32,6 @@ export function revalidateArticleSurfaces(...articles: (PostReference | undefine
     if (article) paths.add(articleHref(article))
   }
   revalidateAll(paths)
-  try {
-    revalidatePath('/page/[num]', 'page')
-  } catch (err) {
-    console.error('[revalidate] could not revalidate paginated feeds:', err)
-  }
 }
 
 /** A fact changed without an article being written — hand edits and backfills. */

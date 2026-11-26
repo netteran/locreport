@@ -26,9 +26,11 @@ async function lookup(
   }).toString()
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   const response = await fetchWithRetry(url, {
+    // No `next.revalidate`: callers are either already-cached pages or
+    // middleware/API routes, so a Data Cache entry per lookup key (including
+    // every junk URL a crawler probes) was pure ISR-write cost.
     headers: { apikey: key, Authorization: `Bearer ${key}` },
-    next: { revalidate: 3600 },
-  } as RequestInit)
+  })
   if (!response.ok) throw new Error(`Public article lookup returned HTTP ${response.status}`)
   return await response.json() as PublicArticleReference[]
 }

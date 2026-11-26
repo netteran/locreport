@@ -7,7 +7,9 @@ import { noindexArticleIds } from '@/lib/articleIndexing'
 import { SITE_URL } from '@/lib/seo'
 import { ANNUAL_REPORTS, annualReportPath } from '@/lib/reports'
 
-export const revalidate = 3600
+// Not revalidated on publish: a ~30-unit write per publish bought nothing,
+// crawlers re-read sitemaps on their own schedule.
+export const revalidate = 21600
 
 // The PostgREST response limit applies even when the archive exceeds 1,000 rows.
 const QUERY_LIMIT = 1000

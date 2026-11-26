@@ -3,7 +3,8 @@ import { fetchDirectoryEntries } from '@/lib/directory'
 import { createPublicClient } from '@/lib/supabase/server'
 import { DirectoryClient } from './DirectoryClient'
 
-export const revalidate = 3600
+// Directory edits revalidate on demand; a day bounds the "in the news" lists.
+export const revalidate = 86400
 
 export const metadata: Metadata = {
   title: 'Language Technology Directory',

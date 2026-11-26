@@ -28,7 +28,8 @@ function timeAgo(iso: string): string {
 
 type HomeBriefing = Pick<Article, 'id' | 'title' | 'slug' | 'excerpt' | 'published_at' | 'content_type' | 'content_slug' | 'article_type'> & BriefingCoverage
 
-export const revalidate = 3600
+// Publishes revalidate this on demand; the window is only a safety net.
+export const revalidate = 21600
 
 export default async function HomePage() {
   const supabase = createPublicClient()
