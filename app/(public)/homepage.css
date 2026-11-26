@@ -47,36 +47,38 @@
   max-width: 728px;
   min-height: 90px;
   margin: 0 auto 16px;
-  padding: 14px 18px;
+  padding: 16px 20px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  border: 1px solid var(--hairline);
+  gap: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: 12px;
-  background: var(--surface);
+  background: var(--surface-warm);
 }
 .advertise-banner__label {
   flex: none;
   margin: 0;
   font-family: var(--font-mono);
-  font-size: .68rem;
+  font-size: .7rem;
+  font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
 }
-.advertise-banner__copy { flex: 1; min-width: 0; display: grid; gap: 2px; line-height: 1.4; }
-.advertise-banner__copy strong { font-size: .95rem; }
-.advertise-banner__copy span { font-size: .82rem; color: var(--muted); }
+.advertise-banner__copy { flex: 1; min-width: 0; display: grid; gap: 3px; line-height: 1.4; }
+.advertise-banner__copy strong { font: 700 1.05rem/1.3 var(--font-display); color: var(--text); }
+.advertise-banner__copy span { font-size: .85rem; color: var(--muted); }
+/* The one call to action in the banner: a solid pill, like Join The Weekly. */
 .editorial-home .advertise-banner__cta {
   flex: none;
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: .82rem;
-  font-weight: 600;
-  color: var(--text);
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: var(--editorial-action);
+  font-size: .85rem;
+  font-weight: 700;
+  color: #fff;
 }
-.editorial-home .advertise-banner__cta:hover { background: var(--bg-secondary); text-decoration: none; }
+.editorial-home .advertise-banner__cta:hover { background: var(--editorial-action-hover); color: #fff; text-decoration: none; }
 @media (max-width: 560px) {
   .advertise-banner { flex-wrap: wrap; gap: 8px 12px; }
   .advertise-banner__copy { flex-basis: 100%; order: 1; }
@@ -340,13 +342,25 @@
 .editorial-home__updates li + li { border-top: 1px solid var(--border); }
 .editorial-home__updates li:last-child { padding-bottom: 0; }
 .home-logo-ticker {
+  --logo-gap: clamp(24px, 2.3vw, 40px);
   display: flex;
   align-items: center;
   min-height: 48px;
   margin-block: 12px 8px;
-  overflow: hidden;
-  mask-image: linear-gradient(to right, black 82%, transparent);
   color: var(--muted);
+}
+.home-logo-ticker__label {
+  flex: none;
+  margin-right: var(--logo-gap);
+  font: 700 .72rem/1.2 var(--font-body);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.home-logo-ticker__viewport {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, black 6%, black 92%, transparent);
 }
 .home-logo-ticker__track,
 .home-logo-ticker__group {
@@ -355,14 +369,8 @@
   width: max-content;
   flex: none;
 }
-.home-logo-ticker__track { --logo-gap: clamp(24px, 2.3vw, 40px); }
-.home-logo-ticker__label {
-  flex: none;
-  margin-right: var(--logo-gap, 28px);
-  font: 700 .72rem/1.2 var(--font-body);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
+/* Slow drift: present, but calm enough not to pull the eye from the stories. */
+.home-logo-ticker__track { animation: home-logos-scroll 120s linear infinite; }
 .home-logo-ticker__group {
   gap: var(--logo-gap);
   padding-inline: 0 var(--logo-gap);
@@ -371,6 +379,15 @@
   font: 600 .95rem/1.2 var(--font-body);
   letter-spacing: .01em;
   user-select: none;
+}
+@keyframes home-logos-scroll {
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-logo-ticker__track { animation: none; }
+}
+@media (max-width: 560px) {
+  .home-logo-ticker__label { display: none; }
 }
 
 .content-filters, .content-pagination, .content-card-meta {

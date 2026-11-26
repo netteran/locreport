@@ -174,9 +174,17 @@ const previews = 'work/reading-preview'
       await page.emulateMedia({ reducedMotion: 'no-preference' })
       await visit('/')
       const ticker = page.locator('.home-logo-ticker')
-      assert.equal(await ticker.locator('button').count(), 0, 'the source line needs no controls')
-      assert.equal(await ticker.locator('.home-logo-ticker__group').count(), 1, 'one static line of sources')
-      assert.equal(await ticker.locator('.home-logo-ticker__track').evaluate(track => track.getAnimations().length), 0, 'the source line does not scroll')
+      assert.equal(await ticker.locator('button').count(), 0, 'the marquee needs no controls')
+      const groups = await ticker.locator('.home-logo-ticker__group').allTextContents()
+      assert.equal(groups.length, 2)
+      assert.equal(groups[0], groups[1], 'the two logo groups make the loop seamless')
+      await page.waitForFunction(() => {
+        const track = document.querySelector('.home-logo-ticker__track')
+        const animation = track?.getAnimations()[0]
+        return animation?.effect?.getTiming().iterations === Infinity
+          && animation.playState === 'running'
+          && animation.currentTime > 100
+      })
       const readerPalette = await page.locator('.public-shell').evaluate(shell => getComputedStyle(shell).backgroundColor)
       const homeColors = await page.evaluate(() => {
         const color = (selector, property) => getComputedStyle(document.querySelector(selector))[property]
@@ -211,7 +219,7 @@ const previews = 'work/reading-preview'
     }
     assert.deepEqual(errors, [])
     fs.writeFileSync(`${previews}/metrics.json`, JSON.stringify(metrics, null, 2))
-    console.log('Reading layout checks passed at 320, 390, 768, 1024 and 1440px in light/dark themes: responsive lead imagery, static source line, shared page styling, preserved quotes, native nested list markers, links and no overflow.')
+    console.log('Reading layout checks passed at 320, 390, 768, 1024 and 1440px in light/dark themes: responsive lead imagery, continuous logo ticker, shared page styling, preserved quotes, native nested list markers, links and no overflow.')
   } finally {
     await browser.close()
   }
