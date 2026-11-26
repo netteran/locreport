@@ -39,6 +39,7 @@ export function generateMetadata(): Metadata {
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
+  if (m < 1) return 'just now'
   if (m < 60) return `${m}m ago`
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ago`
@@ -47,7 +48,13 @@ function timeAgo(iso: string): string {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }) + ' UTC'
+}
+
+/** Day groups already carry the date, so an entry shows its clock time; only the last day reads as "2h ago". */
+function entryTime(iso: string): string {
+  if (Date.now() - new Date(iso).getTime() < 24 * 3600_000) return timeAgo(iso)
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
 }
 
 type FactRow = PublishedFact
@@ -55,7 +62,7 @@ type FactRow = PublishedFact
 function groupByDay(facts: FactRow[]) {
   const map = new Map<string, FactRow[]>()
   for (const f of facts) {
-    const key = new Date(f.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    const key = new Date(f.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
     if (!map.has(key)) map.set(key, [])
     map.get(key)!.push(f)
   }
@@ -91,13 +98,13 @@ export default async function FactFlowPage() {
   }
 
   return (
-    <main className="ff-page public-page container">
+    <main id="fact-flow-page" className="ff-page public-page container">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <header className="ff-hero public-page-heading">
         <div>
           <div className="ff-hero-title">
             <h1>Fact Flow</h1>
-            <span className="ff-live-badge">Live</span>
+            <span className="ff-live-badge"><span className="ff-live-dot" aria-hidden="true" />Live</span>
           </div>
           <p>Industry developments, with the sources behind them.</p>
         </div>
@@ -132,38 +139,40 @@ export default async function FactFlowPage() {
                 const sourceUrl = httpUrl(fact.source_url)
                 const main = factMainLink(fact)
                 return (
-                  <article key={fact.id} id={fact.id} className="ff-bubble">
+                  <article key={fact.id} id={fact.id} className="ff-entry">
                     <time className="ff-time" dateTime={fact.published_at} title={formatDate(fact.published_at)}>
-                      {timeAgo(fact.published_at)}
+                      {entryTime(fact.published_at)}
                     </time>
-                    {main
-                      ? <Link href={main} className="ff-content-link">{fact.content}</Link>
-                      : <span className="ff-content">{fact.content}</span>}
-                    <div className="ff-entry-links">
-                      {sourceUrl && (
-                        <a href={sourceUrl} target="_blank" rel={sourceLinkRel(sourceUrl)}>Source: {fact.source_name || 'Original reporting'} ↗</a>
+                    <div className="ff-body">
+                      {main
+                        ? <Link href={main} className="ff-content-link">{fact.content}</Link>
+                        : <span className="ff-content">{fact.content}</span>}
+                      <div className="ff-entry-links">
+                        {sourceUrl && (
+                          <a href={sourceUrl} target="_blank" rel={sourceLinkRel(sourceUrl)}>Source: {fact.source_name || 'Original reporting'} ↗</a>
+                        )}
+                        {additionalAnalyses(fact).map(analysis => (
+                          <Link key={analysis.id} href={articleHref(analysis)}>Also covered: {analysis.title} →</Link>
+                        ))}
+                        <a href={`#${fact.id}`} className="ff-permalink" aria-label="Permalink" title="Permalink">#</a>
+                      </div>
+                      {fact.sources.length > 1 && (
+                        <details className="ff-sources">
+                          <summary>{fact.sources.length} supporting sources</summary>
+                          <ul>
+                            {fact.sources.map(source => {
+                              const href = httpUrl(source.source_url)
+                              const label = `${source.source_name || source.title} ↗`
+                              return (
+                                <li key={source.source_url}>
+                                  {href ? <a href={href} target="_blank" rel={sourceLinkRel(href)}>{label}</a> : label}
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </details>
                       )}
-                      <a href={`#${fact.id}`}>Permalink</a>
-                      {additionalAnalyses(fact).map(analysis => (
-                        <Link key={analysis.id} href={articleHref(analysis)}>Also covered: {analysis.title} →</Link>
-                      ))}
                     </div>
-                    {fact.sources.length > 1 && (
-                      <details className="mt-2 text-xs">
-                        <summary className="cursor-pointer">{fact.sources.length} supporting sources</summary>
-                        <ul className="mt-2 space-y-1">
-                          {fact.sources.map(source => {
-                            const href = httpUrl(source.source_url)
-                            const label = `${source.source_name || source.title} ↗`
-                            return (
-                              <li key={source.source_url}>
-                                {href ? <a href={href} target="_blank" rel={sourceLinkRel(href)}>{label}</a> : label}
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </details>
-                    )}
                   </article>
                 )
               })}

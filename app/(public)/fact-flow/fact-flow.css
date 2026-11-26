@@ -1,82 +1,209 @@
-.ff-page { max-width: 960px; }
-.ff-hero {
-  --page-heading-surface: var(--fact-surface);
+/* Fact Flow: a calm, timeline-style news feed on plain paper. Gold (the Fact Flow
+   colour) is spent only on the timeline dots, the live dot and the permalink flash. */
+.ff-page {
+  --ff-time-col: 64px;
+  --ff-dot: color-mix(in srgb, var(--fact-ink) 55%, var(--fact-border));
+  max-width: 720px;
+}
+
+/* Header: the shared tinted page heading, flattened for this page. */
+.public-shell .ff-hero.public-page-heading {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   flex-wrap: wrap;
-  gap: 16px 24px;
+  gap: 14px 24px;
+  padding: 8px 0 22px;
+  margin-bottom: 8px;
+  background: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--hairline);
 }
+.public-shell .ff-hero.public-page-heading h1 {
+  font: 700 clamp(1.9rem, 4.5vw, 2.6rem)/1.1 var(--font-display);
+  letter-spacing: -.025em;
+}
+.public-shell .ff-hero.public-page-heading p { margin-top: 8px; }
 .ff-hero-title, .ff-hero-actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 .ff-live-badge {
-  padding: 2px 9px;
-  border: 1px solid var(--fact-border);
-  border-radius: 999px;
-  color: var(--fact-ink);
-  font-size: .75rem;
-  font-weight: 700;
-}
-.ff-rss-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 9px;
-  border: 1px solid var(--fact-border);
-  border-radius: var(--radius-md);
-  background: var(--fact-entry);
-  color: var(--fact-ink);
+  color: var(--muted);
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.ff-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ff-dot);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--ff-dot) 45%, transparent);
+  animation: ff-pulse 2.4s ease-out infinite;
+}
+@keyframes ff-pulse {
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+/* RSS and Share as quiet outline pills. */
+.ff-rss-link, .ff-hero-actions .social-share-dd__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
   font-size: .8125rem;
   font-weight: 600;
   white-space: nowrap;
 }
-.ff-rss-link:hover { text-decoration: underline; }
-.ff-rss-icon { flex-shrink: 0; }
+.ff-rss-link:hover, .ff-hero-actions .social-share-dd__toggle:hover { border-color: var(--muted); text-decoration: none; }
+.ff-rss-icon { flex-shrink: 0; color: var(--ff-dot); }
 
-.ff-day-group + .ff-day-group { margin-top: 28px; }
+/* Day headings stay pinned under the site header while their day scrolls past. */
+.ff-day-group { margin-top: 28px; }
 .ff-day-header {
+  position: sticky;
+  top: 64px;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  padding: 10px 0;
+  background: var(--bg);
   color: var(--muted);
 }
-.ff-day-label { font: 800 .875rem/1.3 var(--font-display); }
-.ff-day-line { flex: 1; height: 1px; background: var(--border); }
-.ff-day-count { font-size: .75rem; white-space: nowrap; }
-.ff-stream { display: grid; gap: 8px; }
-
-.ff-bubble {
-  padding: 14px clamp(12px, 3vw, 20px);
-  border: 1px solid color-mix(in srgb, var(--fact-border) 65%, var(--fact-entry));
-  border-radius: var(--radius-lg);
-  background: var(--fact-entry);
-  overflow-wrap: anywhere;
-  scroll-margin-top: 100px;
+@media (max-width: 767px) { .ff-day-header { top: 56px; } }
+.ff-day-label {
+  color: var(--text);
+  font: 700 .75rem/1.3 var(--font-body);
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
-.ff-bubble:target { border-color: var(--fact-ink); }
-.ff-content, .ff-content-link { font-size: .975rem; line-height: 1.55; }
-.ff-content-link { display: block; }
-.ff-content-link:hover { color: var(--accent); }
+.ff-day-line { flex: 1; height: 1px; background: var(--hairline); }
+.ff-day-count { font-size: .75rem; white-space: nowrap; }
+
+/* Timeline: time column, a fine rule, a gold dot per entry. */
+.ff-stream { display: grid; }
+.ff-entry {
+  display: grid;
+  grid-template-columns: var(--ff-time-col) minmax(0, 1fr);
+  overflow-wrap: anywhere;
+  scroll-margin-top: 120px;
+}
 .ff-time {
-  float: right;
-  margin: 0 0 2px 10px;
+  padding: 15px 16px 0 0;
   color: var(--muted);
   font-size: .75rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   white-space: nowrap;
 }
+.ff-body {
+  position: relative;
+  padding: 13px 0 15px 22px;
+  border-left: 1px solid var(--border);
+}
+.ff-body::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: -4.5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ff-dot);
+  box-shadow: 0 0 0 3px var(--bg);
+}
+.ff-entry + .ff-entry .ff-body { border-top: 1px solid var(--hairline); }
+.ff-content, .ff-content-link {
+  display: block;
+  color: var(--text);
+  font-size: 1.0625rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.ff-content-link:hover { color: var(--accent); text-decoration: none; }
 .ff-entry-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  margin-top: 8px;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin-top: 6px;
   color: var(--muted);
   font-size: .8125rem;
 }
-.ff-entry-links a:hover { text-decoration: underline; }
+.ff-entry-links a:hover { color: var(--text); text-decoration: underline; }
+.ff-permalink { opacity: 0; transition: opacity .15s ease; }
+.ff-entry:hover .ff-permalink, .ff-permalink:focus-visible { opacity: 1; }
+@media (hover: none) { .ff-permalink { opacity: .6; } }
+
+/* Supporting sources: a small grey toggle and an indented list. */
+.ff-sources { margin-top: 6px; font-size: .8125rem; color: var(--muted); }
+.ff-sources summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  list-style: none;
+}
+.ff-sources summary::-webkit-details-marker { display: none; }
+.ff-sources summary::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .15s ease;
+}
+.ff-sources[open] summary::after { transform: translateY(1px) rotate(-135deg); }
+.ff-sources summary:hover { color: var(--text); }
+.ff-sources ul {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 2px 0 2px 12px;
+  list-style: none;
+  border-left: 1px solid var(--hairline);
+}
+/* The global `li a:not(…)` rule in style.css stacks seven :not()s; an ID outranks it. */
+:is(#fact-flow-page) .ff-sources li a { color: var(--muted); text-decoration: none; }
+:is(#fact-flow-page) .ff-sources li a:hover { color: var(--text); text-decoration: underline; }
+
+/* A shared permalink briefly lights up its entry. */
+.ff-entry:target .ff-body { animation: ff-flash 2.6s ease-out; }
+@keyframes ff-flash {
+  0%, 35% { background: var(--fact-surface); }
+  100% { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ff-live-dot, .ff-entry:target .ff-body { animation: none; }
+  .ff-entry:target .ff-body { background: var(--fact-surface); }
+}
+
+/* Phones: the time sits above the sentence, on the same rule. */
+@media (max-width: 560px) {
+  .ff-entry { grid-template-columns: minmax(0, 1fr); }
+  .ff-time {
+    padding: 12px 0 0 22px;
+    border-left: 1px solid var(--border);
+    text-align: left;
+  }
+  .ff-body { padding-top: 2px; }
+  .ff-body::before { top: -11px; }
+  .ff-entry + .ff-entry .ff-body { border-top: 0; }
+  .ff-entry + .ff-entry .ff-time { border-top: 1px solid var(--hairline); }
+}
+
 .ff-empty { padding: 36px 0; color: var(--muted); text-align: center; }
 .ff-empty h2 { margin: 0 0 8px; font-size: 1.25rem; }

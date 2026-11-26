@@ -213,8 +213,12 @@ const previews = 'work/reading-preview'
         }
       }
       await visit('/fact-flow')
-      const message = await page.locator('.ff-bubble').first().evaluate(card => getComputedStyle(card).backgroundColor)
-      assert.notEqual(message, readerPalette, 'Fact Flow messages have their own surface')
+      const entry = await page.locator('.ff-entry .ff-body').first().evaluate(body => ({
+        rule: getComputedStyle(body).borderLeftWidth,
+        dot: getComputedStyle(body, '::before').backgroundColor,
+      }))
+      assert.equal(entry.rule, '1px', 'Fact Flow entries hang on a timeline rule')
+      assert.notEqual(entry.dot, readerPalette, 'each Fact Flow entry carries its own dot')
       await context.close()
     }
     assert.deepEqual(errors, [])
