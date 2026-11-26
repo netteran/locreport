@@ -5,15 +5,15 @@ const LOGO_NAMES = [
   'Hugging Face','Mistral AI',
 ]
 
+/** A static line of sources we follow; it used to scroll, which was the busiest thing on the page. */
 export function HomeLogoTicker() {
   return (
     <div className="home-logo-ticker" aria-hidden="true">
       <div className="home-logo-ticker__track">
-        {[0, 1].map(copy => (
-          <div key={copy} className="home-logo-ticker__group">
-            {LOGO_NAMES.map(name => <span key={name}>{name}</span>)}
-          </div>
-        ))}
+        <span className="home-logo-ticker__label">Sources we follow</span>
+        <div className="home-logo-ticker__group">
+          {LOGO_NAMES.map(name => <span key={name}>{name}</span>)}
+        </div>
       </div>
     </div>
   )

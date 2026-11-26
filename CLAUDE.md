@@ -163,7 +163,7 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 
 | Path | File | Notes |
 |---|---|---|
-| `/` | `page.tsx` | Split hero (gradient wash + orbs, Explore-tools panel) → sources marquee → "Highlighted story" briefing + high-impact rail → momentum strip → day-grouped stream (3 days) → CTA; sidebar carries Fact Flow, reports, active signals. **Runs the pre-2026-08-17 visual system — see Design System below.** |
+| `/` | `page.tsx` | Filter tabs → lead story beside a Fact Flow panel → static "Sources we follow" line → advertise banner → "More stories" grid (via `components/ContentFeed.tsx`) → The Weekly signup → Monthly Report + Tools. Styled by `app/(public)/homepage.css` on the reader palette in `public-theme.css` — see Design System below. |
 | `/articles` | `articles/page.tsx` | All articles — server-side filters + pagination via URL params (`topic`, `impact`, `category`, `from`, `to`, `sort`, `page`) |
 | `/articles/[slug]` | `articles/[...slug]/page.tsx` | Article detail, 7-day ISR revalidation (see ISR write budget) |
 | `/intelligence` | `intelligence/page.tsx` | Signals dashboard + stats |
@@ -881,19 +881,20 @@ the single indigo accent used sparingly (links, active states, one eyebrow per p
 gradients/orbs/glassmorphism/marquees. Prefer flat surfaces + hairline borders over shadows; reserve
 `--gold`/`--warm` for a single deliberate highlight, not broad theming.
 
-**The homepage is a deliberate exception.** It runs the visual system the site had on 2026-08-16 — split
-hero with gradient wash and drifting orbs, a sources marquee, card shadows, the brighter `#3550F5` accent,
-and the softer radius scale. That system lives entirely inside `assets/css/style.css` under the `.home-v1`
-scope, matched by the wrapper `<div className="home-v1">` in `app/(public)/page.tsx`.
-
-Working on it:
-- The `.home-v1` rule redeclares the **full** Aug 16 token set, not just the values that differ, because it
-  sits later in the file than the global `[data-theme="dark"]` block at equal specificity — a partial
-  light-mode set leaks into dark mode.
-- It also redeclares `color`, because `<body>` resolved that from the global `--text` before the scope
-  existed and inheritance carries the computed colour, not the variable.
-- Keep new homepage rules inside the scope. Do not re-point them at the global tokens, and do not lift them
-  out to global selectors — that is what would bleed this palette onto the rest of the site.
+**The homepage** (`.editorial-home`, `app/(public)/homepage.css`) runs on the reader palette in
+`app/(public)/public-theme.css` (Manrope display face). The old `.home-v1` scope in `style.css` is no longer
+rendered. Its look was calmed on 2026-11-26 at the owner's request, aiming for a quiet, Substack-like
+editorial feel. Keep these choices when touching it:
+- Headlines are weight 700 with light negative tracking, not 800 with tight tracking.
+- The lead story and story cards sit on plain paper: no panel background, no card border. Images carry
+  small radii (10px lead, 8px cards). Card titles and excerpts clamp to 3 lines.
+- Content types show as small uppercase text labels; `.editorial-home .content-badge` overrides the
+  Tailwind pill classes from `lib/contentTaxonomy.ts` on the homepage only.
+- Filters are underline tabs. Load More is an outline pill. The Weekly is a centred block between
+  hairlines with the one solid button. Monthly Report and Tools are unboxed columns under footer-style labels.
+- The sources line (`HomeLogoTicker`) is static. It used to scroll and was the busiest thing on the page.
+- The global `li a:not(…)` link rule in `style.css` stacks seven `:not()`s, so ordinary class selectors
+  cannot turn off its underline. Homepage overrides use an ID (`:is(#tools)`, `:has(#home-fact-flow)`).
 
 **Theme:** `data-theme="dark"` on `<html>` activates dark mode via CSS variable overrides.
 

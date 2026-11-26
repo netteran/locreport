@@ -13,7 +13,7 @@
   --accent-soft: color-mix(in srgb, var(--accent) 9%, transparent);
   --editorial-action: #2838ac;
   --editorial-action-hover: #202d8d;
-  --fact-surface: #fff1c4;
+  --fact-surface: #fff8e3;
   --fact-entry: #fff8e2;
   --fact-border: #e4cd8d;
   --fact-ink: #68490f;
@@ -42,7 +42,7 @@
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
   --editorial-action: #3548bb;
   --editorial-action-hover: #4357c9;
-  --fact-surface: #382d1a;
+  --fact-surface: #2a2419;
   --fact-entry: #443820;
   --fact-border: #635332;
   --fact-ink: #f4d58c;
@@ -53,6 +53,8 @@
 }
 .public-shell:not(:has(> .admin-shell)) > .site-footer {
   margin-top: 0;
+  background: var(--bg);
+  border-top-color: var(--hairline);
   padding: 38px 0 24px;
 }
 .public-shell:not(:has(> .admin-shell)) .footer-top {
