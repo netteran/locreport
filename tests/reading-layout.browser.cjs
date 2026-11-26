@@ -40,14 +40,15 @@ const previews = 'work/reading-preview'
         await page.setViewportSize({ width, height: width > 768 ? 1000 : 844 })
         await visit('/')
         await page.locator('.editorial-home__image img').evaluate(image => image.decode())
-        const leadAd = page.locator('.home-logo-ticker + [data-ad-placement="home-briefing"]')
-        const adUnit = leadAd.locator('ins.adsbygoogle')
+        assert.equal(await page.locator('.home-logo-ticker + .advertise-banner').count(), 1, 'the advertise banner follows the logo ticker')
+        assert.equal(await page.locator('[data-ad-placement="home-briefing"], [data-ad-placement="home-feed"]').count(), 0)
+        const storiesAd = page.locator('.editorial-home__analysis-grid > .editorial-home__grid-ad')
+        assert.equal(await storiesAd.count(), 1, 'one AdSense unit sits inside the stories grid')
+        const adUnit = storiesAd.locator('ins.adsbygoogle')
         await adUnit.evaluate(ad => {
           ad.dataset.adStatus = 'filled'
           ad.style.height = '112px'
         })
-        assert.equal(await page.locator('.editorial-home__analysis-grid [data-ad-placement]').count(), 0)
-        assert.equal(await page.locator('.editorial-home__below > [data-ad-placement="home-feed"]').count(), 1)
         const dimensions = await page.evaluate(() => {
           const rect = selector => document.querySelector(selector).getBoundingClientRect()
           const lead = rect('.editorial-home__lead')
@@ -58,8 +59,12 @@ const previews = 'work/reading-preview'
           const leadStyle = getComputedStyle(document.querySelector('.editorial-home__lead'))
           const summaryStyle = getComputedStyle(document.querySelector('.editorial-home__summary'))
           const photo = rect('.editorial-home__image img')
-          const ad = rect('[data-ad-placement="home-briefing"] .home-ad-reservation__slot')
+          const ad = rect('.advertise-banner')
           const logos = rect('.home-logo-ticker')
+          const cards = [...document.querySelectorAll('.editorial-home__card')].map(card => card.getBoundingClientRect())
+          const columns = new Set(cards.map(card => Math.round(card.left))).size
+          const storiesAd = rect('.editorial-home__grid-ad')
+          const above = cards.filter(card => card.bottom <= storiesAd.top + 1).length
           const logoTrack = document.querySelector('.home-logo-ticker__track')
           return {
             beside: flow.left >= lead.right && Math.abs(flow.top - lead.top) < 1,
@@ -67,8 +72,10 @@ const previews = 'work/reading-preview'
             cardsEndTogether: Math.abs(flow.bottom - lead.bottom) < 1,
             adBelowLogos: ad.top >= logos.bottom,
             adCentered: Math.abs(ad.left + ad.right - document.documentElement.clientWidth) < 1,
+            storiesAdAfterTwoRows: above === Math.min(cards.length, columns * 2),
+            storiesAdFullWidth: Math.abs(storiesAd.width - document.querySelector('.editorial-home__analysis-grid').getBoundingClientRect().width) < 1,
             logosBelowCards: logos.top >= Math.max(flow.bottom, lead.bottom),
-            logosFillPage: Math.abs(logos.left) < 1 && Math.abs(logos.width - document.documentElement.clientWidth) < 1,
+            logosFillPage: Math.abs(logos.left - lead.left) < 1 && Math.abs(logos.right - Math.max(lead.right, flow.right)) < 1,
             logosRespectReducedMotion: getComputedStyle(logoTrack).animationName === 'none',
             mobileImageOrder: image.top >= headline.bottom && image.bottom <= summary.top,
             imageFillsColumn: Math.abs(image.top - lead.top - parseFloat(leadStyle.paddingTop)) < 1
@@ -82,8 +89,10 @@ const previews = 'work/reading-preview'
         assert.equal(dimensions.beside, width >= 1024, 'Fact Flow is beside the lead on wide screens')
         assert.equal(dimensions.stacked, width < 1024, 'Fact Flow follows the lead on smaller screens')
         if (width >= 1024) assert.ok(dimensions.cardsEndTogether, 'the featured article and Fact Flow end together')
-        assert.ok(dimensions.logosBelowCards && dimensions.logosFillPage, 'the logo ticker spans the page below both cards')
-        assert.ok(dimensions.adBelowLogos && dimensions.adCentered, 'the first ad is centered below the logo ticker')
+        assert.ok(dimensions.logosBelowCards && dimensions.logosFillPage, 'the logo ticker spans the main container below both cards')
+        assert.ok(dimensions.adBelowLogos && dimensions.adCentered, 'the advertise banner is centered below the logo ticker')
+        assert.ok(dimensions.storiesAdAfterTwoRows, 'the AdSense unit follows the second row of stories')
+        assert.ok(dimensions.storiesAdFullWidth, 'the AdSense unit spans the stories grid')
         assert.ok(dimensions.logosRespectReducedMotion, 'the ticker honors reduced motion')
         if (width <= 690) assert.ok(dimensions.mobileImageOrder, 'the mobile lead image sits between the headline and summary')
         else assert.ok(dimensions.imageFillsColumn, 'the lead image fills its side from top to bottom')
@@ -107,14 +116,26 @@ const previews = 'work/reading-preview'
         await noOverflow()
         if ([1440, 390].includes(width)) {
           await adUnit.evaluate(ad => { ad.dataset.adStatus = 'unfilled' })
-          const emptySlot = await leadAd.evaluate(slot => ({
+          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+          const emptySlot = await storiesAd.evaluate(slot => ({
             height: slot.getBoundingClientRect().height,
-            margin: getComputedStyle(slot).marginBlockStart,
             width: slot.getBoundingClientRect().width,
+            // Largest vertical gap between consecutive rows of story cards.
+            gap: (() => {
+              const rows = [...document.querySelectorAll('.editorial-home__card')]
+                .map(card => card.getBoundingClientRect())
+                .sort((a, b) => a.top - b.top)
+              let widest = 0
+              for (let i = 1; i < rows.length; i++) {
+                const above = Math.max(...rows.slice(0, i).map(row => row.bottom))
+                if (rows[i].top > above) widest = Math.max(widest, rows[i].top - above)
+              }
+              return widest
+            })(),
           }))
           assert.equal(emptySlot.height, 0, 'an unfilled ad takes up no height')
-          assert.equal(emptySlot.margin, '0px', 'an unfilled ad leaves no margin')
           assert.ok(emptySlot.width > 0, 'the hidden ad still has measurable width')
+          assert.ok(emptySlot.gap <= 17, `an unfilled ad leaves no extra gap between rows (${emptySlot.gap}px)`)
           assert.equal(await adUnit.getAttribute('data-ad-status'), 'unfilled')
           await page.evaluate(() => scrollTo(0, 0))
           await page.screenshot({ path: `${previews}/home-${theme}-${width}.png`, fullPage: true, animations: 'disabled' })

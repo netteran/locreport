@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { ContentBadge } from './ContentBadge'
 import { HomeFeedAd } from './HomeFeedAd'
+import { AdvertiseBanner } from './AdvertiseBanner'
 import { HomeLogoTicker } from './HomeLogoTicker'
 import { CONTENT_TYPES, CONTENT_TAXONOMY, type ContentFilter, type ContentType } from '@/lib/contentTaxonomy'
 import type { FeedPage, FeedPost } from '@/lib/contentFeed'
@@ -33,9 +34,12 @@ function updateCanonical(page: number) {
   if (link) link.href = SITE_URL + feedPagePath(page)
 }
 
-function PostCard({ post }: { post: FeedPost }) {
+/** The in-grid AdSense unit follows this many cards: two rows of the desktop grid. */
+const STORIES_AD_AFTER = 6
+
+function PostCard({ post, order }: { post: FeedPost; order?: number }) {
   return (
-    <article className="editorial-home__card">
+    <article className="editorial-home__card" style={order === undefined ? undefined : { order }}>
       {post.imageUrl && (
         <Link href={post.href} className="editorial-home__card-image" aria-hidden="true" tabIndex={-1}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -183,7 +187,9 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
 
   const featured = initialPage === 1 && !archiveType
   const cards = featured ? feed.posts.slice(1) : feed.posts
-  const showFeedAd = featured && filter === 'all' && cards.length > 3
+  // Cards take even `order` values; the ad's odd `order` (set per breakpoint in
+  // homepage.css) drops it after the second row whatever the column count.
+  const showStoriesAd = featured && cards.length > 1
   const showEmpty = !feed.posts.length && (!featured || filter !== 'all')
 
   return (
@@ -206,7 +212,7 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
             {companion}
           </div>
           <HomeLogoTicker />
-          <HomeFeedAd placement="home-briefing" />
+          <AdvertiseBanner />
         </>
       )}
       <section className="editorial-home__below" aria-label="Stories" aria-busy={pending !== null}>
@@ -217,7 +223,14 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
               <h2>{featured ? 'More stories' : 'Stories'}</h2>
             </div>
             <div className="editorial-home__analysis-grid">
-              {cards.map(post => <PostCard key={post.id} post={post} />)}
+              {cards.map((post, index) => (
+                <PostCard key={post.id} post={post} order={showStoriesAd ? index * 2 : undefined} />
+              )).flatMap((card, index) => showStoriesAd && index === STORIES_AD_AFTER - 1
+                ? [card, <div key="stories-ad" className="editorial-home__grid-ad"><HomeFeedAd placement="home-stories" /></div>]
+                : [card])}
+              {showStoriesAd && cards.length < STORIES_AD_AFTER && (
+                <div className="editorial-home__grid-ad"><HomeFeedAd placement="home-stories" /></div>
+              )}
             </div>
           </>
         )}
@@ -240,7 +253,6 @@ export function ContentFeed({ initial, archiveType, companion }: Props) {
             ))}
           </nav>
         )}
-        {showFeedAd && <HomeFeedAd />}
       </section>
     </>
   )

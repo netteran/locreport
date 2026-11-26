@@ -27,6 +27,60 @@
 .home-ad-reservation[data-ad-placement='home-briefing'] > .home-ad-reservation__slot:has(.adsbygoogle[data-ad-status='unfilled']) {
   display: none;
 }
+/* In-grid AdSense: full width, after the second row (cards use order 0,2,4…). */
+.editorial-home__grid-ad { grid-column: 1 / -1; order: 11; min-width: 0; }
+.editorial-home__grid-ad .home-ad-reservation { margin-block: 0; }
+/* An unfilled ad must leave no blank row, yet keep its width: display:none would
+   zero the width HomeFeedAd measures, unmount the ad and make the cell flap back.
+   Taking the cell out of grid flow drops its row (and both gaps) while it keeps
+   the grid's full width. */
+.editorial-home__analysis-grid { position: relative; }
+.editorial-home__grid-ad:has(.adsbygoogle[data-ad-status='unfilled']) { position: absolute; inset-inline: 0; }
+.editorial-home__grid-ad .home-ad-reservation__slot:has(.adsbygoogle[data-ad-status='unfilled']) { display: none; }
+
+/* House banner offering the prime slot to sponsors (components/AdvertiseBanner.tsx). */
+.advertise-banner {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 728px;
+  min-height: 90px;
+  margin: 0 auto 16px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.advertise-banner__label {
+  flex: none;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.advertise-banner__copy { flex: 1; min-width: 0; display: grid; gap: 2px; line-height: 1.4; }
+.advertise-banner__copy strong { font-size: .95rem; }
+.advertise-banner__copy span { font-size: .82rem; color: var(--muted); }
+.editorial-home .advertise-banner__cta {
+  flex: none;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.editorial-home .advertise-banner__cta:hover { background: var(--bg-secondary); text-decoration: none; }
+@media (max-width: 560px) {
+  .advertise-banner { flex-wrap: wrap; gap: 8px 12px; }
+  .advertise-banner__copy { flex-basis: 100%; order: 1; }
+  .advertise-banner__cta { order: 2; }
+}
+
 @media (min-width: 1024px) {
   .editorial-home__opening {
     grid-template-columns: minmax(0, 2.7fr) minmax(270px, 1fr);
@@ -254,10 +308,12 @@
   .editorial-home__lead .editorial-home__byline { margin-top: 0; }
   .editorial-home__read { justify-self: start; margin-top: 6px; }
   .editorial-home__fact-flow { padding: 15px; }
+  .editorial-home__grid-ad { order: 3; }
 }
 
 @media (min-width: 691px) and (max-width: 900px) {
   .editorial-home__analysis-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .editorial-home__grid-ad { order: 7; }
 }
 
 .editorial-home__updates li {

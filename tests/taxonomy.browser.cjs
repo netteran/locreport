@@ -109,7 +109,7 @@ async function checkEnhancedFeed() {
     await page.route('**/*', route => new URL(route.request().url()).origin === new URL(base).origin ? route.continue() : route.abort())
     await page.goto(base + '/', { waitUntil: 'networkidle' })
     const pills = page.getByRole('navigation', { name: 'Filter stories' })
-    const adBelowLogos = page.locator(`.home-logo-ticker + ${leadAd}`)
+    const adBelowLogos = page.locator('.home-logo-ticker + .advertise-banner')
     const count = number => page.waitForFunction(({ card, number }) => document.querySelectorAll(card).length === number, { card, number })
     const active = name => page.waitForFunction(name => document.querySelector('.content-filters [aria-current="true"]')?.textContent === name, name)
     for (const [name, label] of [['Briefs', 'INDUSTRY BRIEF'], ['Analysis', 'LOC ANALYSIS'], ['Reports', 'MONTHLY REPORT']]) {
