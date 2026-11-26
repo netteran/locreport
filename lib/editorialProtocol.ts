@@ -2,7 +2,7 @@ import { marked, type Token, type Tokens } from 'marked'
 import { type ContentType } from './contentTaxonomy'
 import { domainToPublisher } from './utils'
 
-export const BRIEF_PROTOCOL = 'Write 200–450 words about one development. Name and link its original source naturally in the opening paragraph. Do not add a “Why this matters”, “Key takeaways” or similar bullet summary. End with *Sources: [Source Name](exact supplied URL)*.'
+export const BRIEF_PROTOCOL = 'Write 200–450 words about one development. Do not add a “Why this matters”, “Key takeaways” or similar bullet summary. End with *Sources: [Source Name](exact supplied URL)*.'
 export const ANALYSIS_PROTOCOL = 'Aim for 600–1,500+ words when supported. Connect the evidence, explain market implications, and cite named sources naturally in body paragraphs. Avoid a generic source list at the end. A references list is appropriate for official multi-page documents or PDFs only.'
 
 function sourceUrl(value: string | null | undefined): URL | null {
@@ -15,6 +15,32 @@ function sourceUrl(value: string | null | undefined): URL | null {
     return null
   }
 }
+
+const TRACKING_PARAM = /^(?:utm_[a-z]+|fbclid|gclid|mc_cid|mc_eid|si|feature|ref)$/i
+
+/**
+ * A comparison key for "is this the same source?". Model-written links drift in
+ * ways that don't change the destination: `www.`, a trailing slash, tracking
+ * parameters, or YouTube's short `youtu.be/ID` form for `youtube.com/watch?v=ID`
+ * (the Signal Room podcast briefs). Exact string equality rejected those.
+ */
+export function sourceKey(value: string | null | undefined): string | null {
+  const url = sourceUrl(value)
+  if (!url) return null
+  const host = url.hostname.toLowerCase().replace(/^(?:www|m)\./, '')
+  if (host === 'youtu.be' || host === 'youtube.com') {
+    const id = host === 'youtu.be' ? url.pathname.slice(1).split('/')[0]
+      : url.pathname === '/watch' ? url.searchParams.get('v')
+      : url.pathname.match(/^\/(?:shorts|live|embed)\/([^/]+)/)?.[1]
+    if (id) return `youtube:${id}`
+  }
+  const params = [...url.searchParams].filter(([key]) => !TRACKING_PARAM.test(key))
+    .sort(([a], [b]) => a.localeCompare(b))
+  const query = params.length ? '?' + new URLSearchParams(params).toString() : ''
+  return `${host}${url.pathname.replace(/\/+$/, '')}${query}`
+}
+
+const sameSource = (href: string, key: string | null) => key !== null && sourceKey(href) === key
 
 function links(tokens: Token[]) {
   const result: Tokens.Link[] = []
@@ -50,14 +76,14 @@ export function validateEditorialProtocol(type: ContentType, markdown: string, o
   if (type === 'brief') {
     const url = sourceUrl(originalSource)
     if (!url) throw new Error('An industry brief needs one valid original source URL.')
-    const { lead, last } = briefParts(markdown)
-    const matchesSource = (link: Tokens.Link) => sourceUrl(link.href)?.href === url.href && !genericAnchor.test(link.text.trim())
-    if (!lead || !links([lead]).some(matchesSource)) {
-      throw new Error('Name and link the original source in the opening paragraph of the brief.')
-    }
+    const key = sourceKey(url.href)
+    // The source is credited by the closing Sources line. Linking it in the opening
+    // paragraph is no longer required (owner's call, 2026-11-26).
+    const { last } = briefParts(markdown)
+    const matchesSource = (link: Tokens.Link) => sameSource(link.href, key) && !genericAnchor.test(link.text.trim())
     const footnote = last?.type === 'paragraph' && sourcesLine.test(last.raw.trim()) ? links([last]) : []
     if (footnote.length !== 1 || !matchesSource(footnote[0])) {
-      throw new Error('End the brief with *Sources: [Source Name](original URL)*.')
+      throw new Error(`End the brief with *Sources: [Source Name](${url.href})*.`)
     }
     const count = words(markdown.slice(0, markdown.lastIndexOf(last!.raw.trim())))
     if (count < 200 || count > 450) throw new Error(`Keep industry briefs between 200 and 450 words. This brief has ${count} words.`)
@@ -107,21 +133,41 @@ export function stripTakeaways(markdown: string) {
   return result
 }
 
-/** Older briefs get credited to their saved original source without rewriting their copy. */
+const escapeLinkText = (text: string) => text.replace(/([\\`*_{}\[\]<>!#|])/g, '\\$1')
+const linkTarget = (url: URL) => url.href.replace(/\(/g, '%28').replace(/\)/g, '%29')
+
+/**
+ * Make a brief end with the *Sources: [Name](url)* line validateEditorialProtocol
+ * requires. A generator is told to write it but doesn't always; this appends it
+ * when missing (or replaces a Sources line that cites something else) and leaves
+ * a brief that already has it untouched. The opening paragraph is never changed.
+ */
+export function ensureBriefSourcing(
+  markdown: string,
+  originalSource: string | null | undefined,
+  sourceName?: string | null,
+  { replaceFootnote = true }: { replaceFootnote?: boolean } = {},
+) {
+  const source = sourceUrl(originalSource)
+  if (!source) return markdown
+  const key = sourceKey(source.href)
+  const name = sourceName?.trim() || domainToPublisher(source.hostname)
+  const link = `[${escapeLinkText(name)}](${linkTarget(source)})`
+  const credits = (found: Tokens.Link) => sameSource(found.href, key) && !genericAnchor.test(found.text.trim())
+  const result = markdown.trimEnd()
+  const { last } = briefParts(result)
+
+  const footnote = last?.type === 'paragraph' && sourcesLine.test(last.raw.trim())
+  if (!footnote) return `${result}\n\n*Sources: ${link}*`
+  const cited = links([last])
+  if (!replaceFootnote || (cited.length === 1 && credits(cited[0]))) return result
+  const raw = last.raw.trim()
+  return `${result.slice(0, result.lastIndexOf(raw)).trimEnd()}\n\n*Sources: ${link}*`
+}
+
+/** Briefs without a Sources line get one for their saved original source at render; the copy is not rewritten. */
 export function presentBrief(markdown: string, originalSource: string | null) {
   const stripped = stripTakeaways(markdown)
-  const { lead, last } = briefParts(stripped)
-  const source = sourceUrl(originalSource)
-  let result = stripped.trimEnd()
-  const note = last?.type === 'paragraph' && sourcesLine.test(last.raw.trim())
-
-  if (source) {
-    const name = domainToPublisher(source.hostname).replace(/([\\`*_{}\[\]<>!#|])/g, '\\$1')
-    const link = `[${name}](${source.href.replace(/\(/g, '%28').replace(/\)/g, '%29')})`
-    if (lead && !links([lead]).some(item => sourceUrl(item.href)?.href === source.href)) {
-      result = result.replace(lead.raw.trimEnd(), body => `${body} See ${link} for the original coverage.`)
-    }
-    if (!note) result += `\n\n*Sources: ${link}*`
-  }
-  return result
+  // Rendering never rewrites an existing Sources line: published copy may cite several.
+  return sourceUrl(originalSource) ? ensureBriefSourcing(stripped, originalSource, null, { replaceFootnote: false }) : stripped
 }

@@ -29,7 +29,9 @@
 }
 /* In-grid AdSense: full width, after the second row (cards use order 0,2,4…). */
 .editorial-home__grid-ad { grid-column: 1 / -1; order: 11; min-width: 0; }
-.editorial-home__grid-ad .home-ad-reservation { margin-block: 0; }
+/* The cell spans the row so the ad starts its own line; the ad itself keeps the
+   original slot width (728px leaderboard, centred), as under the logo ticker before. */
+.editorial-home__grid-ad .home-ad-reservation { margin-block: 0; max-width: 728px; margin-inline: auto; }
 /* An unfilled ad must leave no blank row, yet keep its width: display:none would
    zero the width HomeFeedAd measures, unmount the ad and make the cell flap back.
    Taking the cell out of grid flow drops its row (and both gaps) while it keeps

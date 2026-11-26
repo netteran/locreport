@@ -965,7 +965,8 @@ anywhere; it needs no shared provider, so Server Components can host a trigger.
   static house banner offering the space to sponsors (links to `/contact?subject=Advertising on LocReport`).
   Replace it with the sponsor's creative once booked; keep it plain markup so the homepage stays cached.
 - **AdSense** (`HomeFeedAd placement="home-stories"`): one unit inside the "More stories" grid, after the
-  second row. Cards get even inline `order`s and the ad an odd one per breakpoint in `homepage.css` (11 / 7 / 3
+  second row, at its original 728px leaderboard width (centred; the grid cell spans the row, the ad does not
+  stretch). Cards get even inline `order`s and the ad an odd one per breakpoint in `homepage.css` (11 / 7 / 3
   for 3 / 2 / 1 columns), so it lands after two rows whatever the column count, also after Load More.
   When unfilled it collapses out of grid flow rather than `display:none`: HomeFeedAd measures its width and
   would unmount at 0. There is no ad after Load More any more.
@@ -1280,6 +1281,16 @@ Pro upgrade.
 ### Optional article citations
 
 Article body citations are optional in both source-based generation and publication. `validateSourceCitations` checks any supplied external links against the selected evidence without enforcing a minimum citation count. Selected source URLs remain attached through `finish_composition_generation` and `publish_editorial_draft` even when body links are omitted, preserving evidence provenance and Fact Flow links. Default industry and synthesis prompts allow articles without citations; factual grounding and accurate attribution of claims and quotes still apply.
+
+### Brief source credit
+
+A brief (`content_type='brief'`) is publishable when it has one valid original source URL, ends with
+`*Sources: [Source Name](url)*` citing that source, and runs 200–450 words (`validateEditorialProtocol` in
+`lib/editorialProtocol.ts`). **The opening paragraph does not have to link the source** — that requirement
+was removed on 2026-11-26 at the owner's request, after it blocked a re-run Signal Room podcast brief. URLs
+are compared by `sourceKey()`, so `www.`, a trailing slash, tracking parameters and `youtu.be/ID` vs
+`youtube.com/watch?v=ID` count as the same source. Re-run and compose call `ensureBriefSourcing()` to add the
+Sources line when the model omits it (a podcast brief credits the show name); it never edits the opening.
 
 ### Editorial titles and independent Fact Flow processing
 

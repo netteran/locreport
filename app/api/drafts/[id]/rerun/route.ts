@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOpenAI } from '@/lib/openai'
 import { getContentType, isContentType } from '@/lib/contentTaxonomy'
-import { BRIEF_PROTOCOL, ANALYSIS_PROTOCOL } from '@/lib/editorialProtocol'
+import { BRIEF_PROTOCOL, ANALYSIS_PROTOCOL, ensureBriefSourcing } from '@/lib/editorialProtocol'
 import { DEFAULT_EXTRACTOR_PROMPT, DEFAULT_INDUSTRY_PROMPT, CITATION_STYLE_GUIDANCE, todayLine } from '@/lib/prompts'
 import { getDirectoryEntries, linkifyCompanyMentions } from '@/lib/companyLinks'
 import { isYouTubeUrl, parsePodcastConfig, writePodcastArticle, type PodcastConfig } from '@/lib/podcast'
@@ -174,7 +174,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         { role: 'user' as const, content: generateInput },
       ],
     })
-    const rawNewContent = generateRes.choices[0].message.content ?? ''
+    const generated = generateRes.choices[0].message.content ?? ''
+    // A brief can only be published with a closing Sources line; add it if the model
+    // left it out. A podcast brief credits the show, not "YouTube".
+    const rawNewContent = contentType === 'brief'
+      ? ensureBriefSourcing(generated, draft.source_url, podcastConfig?.show_name || sourceName)
+      : generated
     const directoryEntries = await getDirectoryEntries(service)
     const newContent = linkifyCompanyMentions(rawNewContent, directoryEntries)
 
