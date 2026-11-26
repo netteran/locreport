@@ -165,7 +165,7 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 |---|---|---|
 | `/` | `page.tsx` | Split hero (gradient wash + orbs, Explore-tools panel) → sources marquee → "Highlighted story" briefing + high-impact rail → momentum strip → day-grouped stream (3 days) → CTA; sidebar carries Fact Flow, reports, active signals. **Runs the pre-2026-08-17 visual system — see Design System below.** |
 | `/articles` | `articles/page.tsx` | All articles — server-side filters + pagination via URL params (`topic`, `impact`, `category`, `from`, `to`, `sort`, `page`) |
-| `/articles/[slug]` | `articles/[...slug]/page.tsx` | Article detail, 24h ISR revalidation |
+| `/articles/[slug]` | `articles/[...slug]/page.tsx` | Article detail, 7-day ISR revalidation (see ISR write budget) |
 | `/intelligence` | `intelligence/page.tsx` | Signals dashboard + stats |
 | `/intelligence/signals` | `intelligence/signals/page.tsx` | All 13 active signals |
 | `/intelligence/signals/[id]` | `intelligence/signals/[id]/page.tsx` | Signal detail + linked articles |
@@ -1003,8 +1003,30 @@ worked example) rather than reading the session on the server.
 - `metadataBase` is set to `https://locreport.com` globally
 
 ### ISR Revalidation
-- Article detail pages: `export const revalidate = 86400` (24h)
-- Listing pages: `export const revalidate = 3600` (1h)
+- Article detail pages (`/briefs|analysis|reports/[slug]`): `revalidate = 604800` (7 days)
+- Homepage, `/briefs/`, `/analysis/`, `/reports/`, `/fact-flow`: `revalidate = 21600` (6h; on-demand on publish)
+- `/page/[num]`, `/directory`, `/directory/[slug]`: `revalidate = 86400` (24h)
+- `/sitemap.xml`: `revalidate = 21600` (6h)
+
+**ISR write budget (Hobby plan: 200K writes/month; hit 203K in Nov 2026).** Every regeneration of a
+cached page is billed as writes in 8 KB units, for the HTML *and* the RSC payload, and every Data Cache
+entry (`fetch` with `next.revalidate` / `force-cache`, `unstable_cache`) counts too. Crawlers revisit every
+cached URL, so each cached page costs roughly `size/8KB × 2 × regenerations`. What blew the budget: every
+publish (several per ingest run, since most sources auto-publish) invalidated all ~125 `/page/[num]` pages
+and the ~1,500-URL sitemap, and crawlers then rebuilt them; on top of that the detail pages regenerated
+daily and listings hourly. Rules that keep it down:
+- Only invalidate on write what a reader needs immediately (`lib/revalidate.ts`). Never add a dynamic
+  segment wholesale (`revalidatePath('/x/[y]', 'page')`) or the sitemap back to that list.
+- Don't shorten `revalidate` windows to "fix" freshness — invalidate the specific path on write instead.
+- Plain Supabase `fetch`es are not Data-Cached at runtime in Next 15 (auto no-cache), so don't add
+  `next: { revalidate }` to them: the page cache already covers them, and each key is an extra write
+  (`lib/articleLookup.ts` had one, keyed per slug — including every junk URL a bot probed). The one
+  exception is middleware: it runs on every legacy-URL hit, so it passes `cacheSeconds: 86400` to
+  `resolvePublicArticle` and keeps its lookups Data-Cached.
+- **Fluid Active CPU is the other budget, and the two pull the same way.** Every regeneration is also a
+  function invocation, so longer windows and fewer on-publish invalidations cut CPU as well as writes. The
+  CPU problem came from pages turning *dynamic* (`cookies()` via `createClient()`); never fix ISR writes by
+  making a public page dynamic (`force-dynamic`, `no-store`) — that trades this limit for that one.
 
 These only take effect while the page avoids Dynamic APIs — see the client-selection note above. `/articles`
 and `/search` read `searchParams` and so are dynamic by nature no matter which client they use; the

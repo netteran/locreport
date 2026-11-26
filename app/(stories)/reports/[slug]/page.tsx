@@ -1,7 +1,10 @@
 import { PublicArticle, articleMetadata } from '@/components/PublicArticle'
 import '../../reading.css'
 
-export const revalidate = 86400
+// A week: edits, deletes and noindex changes revalidate the page on demand
+// (lib/revalidate.ts), so the window only refreshes the related-reading rail.
+// Every regeneration is an ISR write — see "ISR write budget" in CLAUDE.md.
+export const revalidate = 604800
 export const dynamic = 'force-static'
 
 export function generateStaticParams() {

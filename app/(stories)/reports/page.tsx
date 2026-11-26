@@ -18,7 +18,8 @@ export const metadata: Metadata = {
   alternates: { canonical: '/reports/' },
 }
 
-export const revalidate = 3600
+// Publishes revalidate this on demand; the window is only a safety net.
+export const revalidate = 21600
 
 type BriefingListRow = Pick<Article, 'id' | 'title' | 'slug' | 'excerpt' | 'published_at' | 'image_url' | 'content_type' | 'content_slug' | 'article_type'> & BriefingCoverage
 

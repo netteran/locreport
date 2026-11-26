@@ -7,7 +7,8 @@ import type { Metadata } from 'next'
 import { ShareButton } from '@/components/ShareButton'
 import './fact-flow.css'
 
-export const revalidate = 3600
+// Publishes revalidate this on demand; the window is only a safety net.
+export const revalidate = 21600
 
 export function generateMetadata(): Metadata {
   return {
