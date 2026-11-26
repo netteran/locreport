@@ -163,7 +163,7 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 
 | Path | File | Notes |
 |---|---|---|
-| `/` | `page.tsx` | Filter tabs → lead story beside a Fact Flow panel → static "Sources we follow" line → advertise banner → "More stories" grid (via `components/ContentFeed.tsx`) → The Weekly signup → Monthly Report + Tools. Styled by `app/(public)/homepage.css` on the reader palette in `public-theme.css` — see Design System below. |
+| `/` | `page.tsx` | Filter tabs → lead story beside a Fact Flow panel → scrolling "Sources we follow" ticker → advertise banner → "More stories" grid (via `components/ContentFeed.tsx`) → The Weekly signup → Monthly Report + Tools. Styled by `app/(public)/homepage.css` on the reader palette in `public-theme.css` — see Design System below. |
 | `/articles` | `articles/page.tsx` | All articles — server-side filters + pagination via URL params (`topic`, `impact`, `category`, `from`, `to`, `sort`, `page`) |
 | `/articles/[slug]` | `articles/[...slug]/page.tsx` | Article detail, 7-day ISR revalidation (see ISR write budget) |
 | `/intelligence` | `intelligence/page.tsx` | Signals dashboard + stats |
@@ -892,7 +892,8 @@ editorial feel. Keep these choices when touching it:
   Tailwind pill classes from `lib/contentTaxonomy.ts` on the homepage only.
 - Filters are underline tabs. Load More is an outline pill. The Weekly is a centred block between
   hairlines with the one solid button. Monthly Report and Tools are unboxed columns under footer-style labels.
-- The sources line (`HomeLogoTicker`) is static. It used to scroll and was the busiest thing on the page.
+- The sources line (`HomeLogoTicker`) scrolls slowly (120s loop) behind a static "Sources we follow" label.
+  It was made static on 2026-11-26 and restored the same day at the owner's request: keep it moving.
 - The global `li a:not(…)` link rule in `style.css` stacks seven `:not()`s, so ordinary class selectors
   cannot turn off its underline. Homepage overrides use an ID (`:is(#tools)`, `:has(#home-fact-flow)`).
 
@@ -963,7 +964,8 @@ anywhere; it needs no shared provider, so Server Components can host a trigger.
 ### Homepage ad slots
 
 - **Prime slot** (under the lead story + Fact Flow, after the logo ticker): `components/AdvertiseBanner.tsx`, a
-  static house banner offering the space to sponsors (links to `/contact?subject=Advertising on LocReport`).
+  static house banner offering the space to sponsors — deliberately prominent (owner's call, 2026-11-26): tinted
+  surface, accent border and label, solid pill CTA (links to `/contact?subject=Advertising on LocReport`).
   Replace it with the sponsor's creative once booked; keep it plain markup so the homepage stays cached.
 - **AdSense** (`HomeFeedAd placement="home-stories"`): one unit inside the "More stories" grid, after the
   second row, at its original 728px leaderboard width (centred; the grid cell spans the row, the ad does not
