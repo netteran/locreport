@@ -158,6 +158,8 @@
   background: var(--surface-warm);
   border-radius: 15px;
 }
+/* "Whole image" framing paints its blurred backdrop on the wrapper: round it like the image. */
+.editorial-home__image.image-frame-fit { border-radius: 15px; }
 @media (min-width: 691px) {
   .editorial-home__image {
     position: relative;

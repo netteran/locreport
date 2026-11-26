@@ -8,6 +8,7 @@ import { SITE_URL, ORG_ID, WEBSITE_ID, breadcrumbJsonLd, serializeJsonLd } from 
 import { marked } from 'marked'
 import { Article, ARTICLE_COLUMNS } from '@/lib/types'
 import { estimateReadMinutes, safeImageUrl } from '@/lib/utils'
+import { imageFrameBox, imageFrameOf, imageFrameStyle } from '@/lib/imageFrame'
 import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from '@/lib/briefingDisplay'
 import { articleHref, CONTENT_TAXONOMY, getContentType, type ContentType } from '@/lib/contentTaxonomy'
 import { resolvePublicArticle } from '@/lib/articleLookup'
@@ -86,6 +87,8 @@ export async function PublicArticle({ slug, contentType }: { slug: string; conte
   // Optional lead image — absent unless an image URL was set on the article.
   const heroImage = safeImageUrl(a.image_url)
   const heroAlt = a.image_alt?.trim() || a.title
+  const heroFrame = imageFrameOf(a.image_url)
+  const heroBox = heroImage ? imageFrameBox(heroFrame, heroImage) : {}
 
   // Resolve signal metadata
   const articleSignals = (a.signal_ids ?? [])
@@ -192,11 +195,11 @@ export async function PublicArticle({ slug, contentType }: { slug: string; conte
         </header>
 
         {heroImage && (
-          <figure className="post-hero">
+          <figure className={heroBox.className ? `post-hero ${heroBox.className}` : 'post-hero'} style={heroBox.style}>
             {/* Arbitrary external hosts — plain <img> avoids routing every
                 publisher's CDN through the Next image optimizer. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={heroImage} alt={heroAlt} loading="eager" decoding="async" />
+            <img src={heroImage} alt={heroAlt} loading="eager" decoding="async" style={imageFrameStyle(heroFrame)} />
           </figure>
         )}
 

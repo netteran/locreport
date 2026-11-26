@@ -105,7 +105,7 @@ export async function GET() {
     .select('image_url')
     .like('image_url', `%${marker}%`)
   for (const { image_url } of rows ?? []) {
-    const path = decodeURIComponent(String(image_url).split(marker)[1] ?? '').split('?')[0]
+    const path = decodeURIComponent(String(image_url).split(marker)[1] ?? '').split(/[?#]/)[0]
     if (path) usage.set(path, (usage.get(path) ?? 0) + 1)
   }
 

@@ -3,6 +3,7 @@ import { FEED_PAGE_SIZE, type FeedCursor } from './feedPagination'
 import { monthlyReportTitle, monthlyReportSubtitle, type BriefingCoverage } from './briefingDisplay'
 import { createPublicClient } from './supabase/server'
 import { safeImageUrl } from './utils'
+import { imageFrameOf, type ImageFrame } from './imageFrame'
 
 export type FeedPost = FeedCursor & {
   href: string
@@ -10,6 +11,7 @@ export type FeedPost = FeedCursor & {
   excerpt: string | null
   author: string | null
   imageUrl: string | null
+  imageFrame: ImageFrame
   contentType: ContentType
 }
 
@@ -47,6 +49,7 @@ export async function loadContentFeed(page: number, filter: ContentFilter = 'all
       excerpt: contentType === 'report' ? monthlyReportSubtitle(row.excerpt) : row.excerpt,
       href: articleHref(row),
       imageUrl: safeImageUrl(row.image_url),
+      imageFrame: imageFrameOf(row.image_url),
       author: row.author,
       publishedAt: row.published_at,
       contentType,

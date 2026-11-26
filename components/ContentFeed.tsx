@@ -10,6 +10,7 @@ import { CONTENT_TYPES, CONTENT_TAXONOMY, type ContentFilter, type ContentType }
 import type { FeedPage, FeedPost } from '@/lib/contentFeed'
 import { feedPageFromPath, feedPagePath, type FeedCursor } from '@/lib/feedPagination'
 import { SITE_URL } from '@/lib/seo'
+import { imageFrameBox, imageFrameStyle } from '@/lib/imageFrame'
 
 const FILTERS: ContentFilter[] = ['all', ...CONTENT_TYPES]
 const pubDate = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
@@ -37,13 +38,19 @@ function updateCanonical(page: number) {
 /** The in-grid AdSense unit follows this many cards: two rows of the desktop grid. */
 const STORIES_AD_AFTER = 6
 
+/** Class + style for an image's wrapper, adding the "whole image" backdrop when chosen. */
+function framedBox(className: string, post: FeedPost) {
+  const box = imageFrameBox(post.imageFrame, post.imageUrl ?? '')
+  return { className: box.className ? `${className} ${box.className}` : className, style: box.style }
+}
+
 function PostCard({ post, order }: { post: FeedPost; order?: number }) {
   return (
     <article className="editorial-home__card" style={order === undefined ? undefined : { order }}>
       {post.imageUrl && (
-        <Link href={post.href} className="editorial-home__card-image" aria-hidden="true" tabIndex={-1}>
+        <Link href={post.href} aria-hidden="true" tabIndex={-1} {...framedBox('editorial-home__card-image', post)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={post.imageUrl} alt="" width={640} height={360} loading="lazy" decoding="async" />
+          <img src={post.imageUrl} alt="" width={640} height={360} loading="lazy" decoding="async" style={imageFrameStyle(post.imageFrame)} />
         </Link>
       )}
       <div className="editorial-home__card-copy">
@@ -79,9 +86,9 @@ function LeadPost({ post }: { post: FeedPost | undefined }) {
         <Link className="editorial-home__read" href={post.href}>Read the {post.contentType}</Link>
       </div>
       {post.imageUrl && (
-        <Link className="editorial-home__image" href={post.href} aria-hidden="true" tabIndex={-1}>
+        <Link href={post.href} aria-hidden="true" tabIndex={-1} {...framedBox('editorial-home__image', post)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={post.imageUrl} alt="" width={1120} height={700} fetchPriority="high" />
+          <img src={post.imageUrl} alt="" width={1120} height={700} fetchPriority="high" style={imageFrameStyle(post.imageFrame)} />
         </Link>
       )}
     </article>
