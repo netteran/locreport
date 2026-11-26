@@ -124,6 +124,7 @@ const previews = 'work/reading-preview'
           const emptySlot = await storiesAd.evaluate(slot => ({
             height: slot.getBoundingClientRect().height,
             width: slot.getBoundingClientRect().width,
+            rowGap: parseFloat(getComputedStyle(slot.parentElement).rowGap),
             // Largest vertical gap between consecutive rows of story cards.
             gap: (() => {
               const rows = [...document.querySelectorAll('.editorial-home__card')]
@@ -139,7 +140,7 @@ const previews = 'work/reading-preview'
           }))
           assert.equal(emptySlot.height, 0, 'an unfilled ad takes up no height')
           assert.ok(emptySlot.width > 0, 'the hidden ad still has measurable width')
-          assert.ok(emptySlot.gap <= 17, `an unfilled ad leaves no extra gap between rows (${emptySlot.gap}px)`)
+          assert.ok(emptySlot.gap <= emptySlot.rowGap + 1, `an unfilled ad leaves no extra gap between rows (${emptySlot.gap}px)`)
           assert.equal(await adUnit.getAttribute('data-ad-status'), 'unfilled')
           await page.evaluate(() => scrollTo(0, 0))
           await page.screenshot({ path: `${previews}/home-${theme}-${width}.png`, fullPage: true, animations: 'disabled' })
@@ -173,17 +174,9 @@ const previews = 'work/reading-preview'
       await page.emulateMedia({ reducedMotion: 'no-preference' })
       await visit('/')
       const ticker = page.locator('.home-logo-ticker')
-      assert.equal(await ticker.locator('button').count(), 0, 'the marquee needs no controls')
-      const groups = await ticker.locator('.home-logo-ticker__group').allTextContents()
-      assert.equal(groups.length, 2)
-      assert.equal(groups[0], groups[1], 'the two logo groups make the loop seamless')
-      await page.waitForFunction(() => {
-        const track = document.querySelector('.home-logo-ticker__track')
-        const animation = track?.getAnimations()[0]
-        return animation?.effect?.getTiming().iterations === Infinity
-          && animation.playState === 'running'
-          && animation.currentTime > 100
-      })
+      assert.equal(await ticker.locator('button').count(), 0, 'the source line needs no controls')
+      assert.equal(await ticker.locator('.home-logo-ticker__group').count(), 1, 'one static line of sources')
+      assert.equal(await ticker.locator('.home-logo-ticker__track').evaluate(track => track.getAnimations().length), 0, 'the source line does not scroll')
       const readerPalette = await page.locator('.public-shell').evaluate(shell => getComputedStyle(shell).backgroundColor)
       const homeColors = await page.evaluate(() => {
         const color = (selector, property) => getComputedStyle(document.querySelector(selector))[property]
@@ -191,13 +184,15 @@ const previews = 'work/reading-preview'
           factPanel: color('.editorial-home__fact-flow', 'backgroundColor'),
           factMessage: color('.editorial-home__updates li', 'backgroundColor'),
           weekly: color('.editorial-home__weekly', 'backgroundColor'),
+          weeklyBorder: color('.editorial-home__weekly', 'borderTopWidth'),
           weeklyHeading: color('.editorial-home__weekly h2', 'color'),
           footerSpacing: color('.site-footer', 'marginTop'),
         }
       })
-      assert.notEqual(homeColors.factMessage, homeColors.factPanel, 'each homepage update has a tinted field')
-      assert.notEqual(homeColors.weekly, readerPalette, 'the signup has a defined surface')
-      assert.notEqual(homeColors.weeklyHeading, homeColors.weekly, 'the signup heading remains visible')
+      assert.notEqual(homeColors.factPanel, readerPalette, 'the Fact Flow panel keeps its warm surface')
+      assert.equal(homeColors.factMessage, 'rgba(0, 0, 0, 0)', 'updates sit on the panel, separated by hairlines')
+      assert.equal(homeColors.weekly, 'rgba(0, 0, 0, 0)', 'the signup sits on plain paper')
+      assert.equal(homeColors.weeklyBorder, '1px', 'hairlines frame the signup')
       assert.equal(homeColors.footerSpacing, '0px', 'the footer follows the homepage without an extra spacer')
 
       for (const path of ['/reports', '/fact-flow', '/directory', '/directory/rws', '/locstock', '/llm-pricing']) {
@@ -216,7 +211,7 @@ const previews = 'work/reading-preview'
     }
     assert.deepEqual(errors, [])
     fs.writeFileSync(`${previews}/metrics.json`, JSON.stringify(metrics, null, 2))
-    console.log('Reading layout checks passed at 320, 390, 768, 1024 and 1440px in light/dark themes: responsive lead imagery, continuous logo ticker, shared page styling, preserved quotes, native nested list markers, links and no overflow.')
+    console.log('Reading layout checks passed at 320, 390, 768, 1024 and 1440px in light/dark themes: responsive lead imagery, static source line, shared page styling, preserved quotes, native nested list markers, links and no overflow.')
   } finally {
     await browser.close()
   }
