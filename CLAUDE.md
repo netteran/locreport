@@ -965,7 +965,8 @@ anywhere; it needs no shared provider, so Server Components can host a trigger.
   static house banner offering the space to sponsors (links to `/contact?subject=Advertising on LocReport`).
   Replace it with the sponsor's creative once booked; keep it plain markup so the homepage stays cached.
 - **AdSense** (`HomeFeedAd placement="home-stories"`): one unit inside the "More stories" grid, after the
-  second row. Cards get even inline `order`s and the ad an odd one per breakpoint in `homepage.css` (11 / 7 / 3
+  second row, at its original 728px leaderboard width (centred; the grid cell spans the row, the ad does not
+  stretch). Cards get even inline `order`s and the ad an odd one per breakpoint in `homepage.css` (11 / 7 / 3
   for 3 / 2 / 1 columns), so it lands after two rows whatever the column count, also after Load More.
   When unfilled it collapses out of grid flow rather than `display:none`: HomeFeedAd measures its width and
   would unmount at 0. There is no ad after Load More any more.

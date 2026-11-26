@@ -64,6 +64,8 @@ const previews = 'work/reading-preview'
           const cards = [...document.querySelectorAll('.editorial-home__card')].map(card => card.getBoundingClientRect())
           const columns = new Set(cards.map(card => Math.round(card.left))).size
           const storiesAd = rect('.editorial-home__grid-ad')
+          const storiesAdUnit = rect('.editorial-home__grid-ad .home-ad-reservation')
+          const grid = rect('.editorial-home__analysis-grid')
           const above = cards.filter(card => card.bottom <= storiesAd.top + 1).length
           const logoTrack = document.querySelector('.home-logo-ticker__track')
           return {
@@ -73,7 +75,9 @@ const previews = 'work/reading-preview'
             adBelowLogos: ad.top >= logos.bottom,
             adCentered: Math.abs(ad.left + ad.right - document.documentElement.clientWidth) < 1,
             storiesAdAfterTwoRows: above === Math.min(cards.length, columns * 2),
-            storiesAdFullWidth: Math.abs(storiesAd.width - document.querySelector('.editorial-home__analysis-grid').getBoundingClientRect().width) < 1,
+            storiesAdOriginalWidth: storiesAdUnit.width <= 728.5
+              && Math.abs(storiesAdUnit.width - Math.min(728, grid.width)) < 1
+              && Math.abs((storiesAdUnit.left - grid.left) - (grid.right - storiesAdUnit.right)) < 1,
             logosBelowCards: logos.top >= Math.max(flow.bottom, lead.bottom),
             logosFillPage: Math.abs(logos.left - lead.left) < 1 && Math.abs(logos.right - Math.max(lead.right, flow.right)) < 1,
             logosRespectReducedMotion: getComputedStyle(logoTrack).animationName === 'none',
@@ -92,7 +96,7 @@ const previews = 'work/reading-preview'
         assert.ok(dimensions.logosBelowCards && dimensions.logosFillPage, 'the logo ticker spans the main container below both cards')
         assert.ok(dimensions.adBelowLogos && dimensions.adCentered, 'the advertise banner is centered below the logo ticker')
         assert.ok(dimensions.storiesAdAfterTwoRows, 'the AdSense unit follows the second row of stories')
-        assert.ok(dimensions.storiesAdFullWidth, 'the AdSense unit spans the stories grid')
+        assert.ok(dimensions.storiesAdOriginalWidth, 'the AdSense unit keeps its original width, centred in the grid')
         assert.ok(dimensions.logosRespectReducedMotion, 'the ticker honors reduced motion')
         if (width <= 690) assert.ok(dimensions.mobileImageOrder, 'the mobile lead image sits between the headline and summary')
         else assert.ok(dimensions.imageFillsColumn, 'the lead image fills its side from top to bottom')
