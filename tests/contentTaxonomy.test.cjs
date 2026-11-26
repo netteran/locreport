@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const { load } = require('./fixtures/typescript.cjs')
 
 const { articleHref, getContentBadge, isArticlePath, isContentType } = load('lib/contentTaxonomy.ts')
-const { validateEditorialProtocol, presentBrief, stripTakeaways, ensureBriefSourcing, sourceKey } = load('lib/editorialProtocol.ts')
+const { validateEditorialProtocol, presentBrief, stripTakeaways, ensureBriefSourcing, sourceKey, tidyBriefSources } = load('lib/editorialProtocol.ts')
 const { feedPageNumber, feedPagePath, validFeedCursor } = load('lib/feedPagination.ts')
 const { serializeJsonLd } = load('lib/seo.ts')
 
@@ -77,6 +77,24 @@ test('generated briefs get the closing Sources line publishing requires', () => 
   // Rendering keeps an existing multi-source line untouched.
   const multi = brief.replace(footnote, `*Sources: [A](${original}), [B](https://other.test/x)*`)
   assert.equal(presentBrief(multi, original), multi)
+})
+
+test('a Sources line run on from the last paragraph, after <br /> lines or split across lines, still counts', () => {
+  const episode = 'https://www.youtube.com/watch?v=l9xunThSR4Q'
+  const body = paragraph.repeat(10).replaceAll('.Buyers', '. Buyers')
+  // As the Signal Room re-run came out: no blank line, a <br /> line, and the link split.
+  const written = `${body}\nFor a deeper dive, check out the full episode.\n<br /><br />\n*Sources: [The Buyer of the Future -The Signal Room Podcast]\n(${episode})*`
+  assert.doesNotThrow(() => validateEditorialProtocol('brief', written, episode))
+  const tidy = tidyBriefSources(written)
+  assert.ok(tidy.endsWith(`check out the full episode.\n\n*Sources: [The Buyer of the Future -The Signal Room Podcast](${episode})*`))
+  assert.doesNotMatch(tidy, /<br/)
+  // Rendering tidies it too and does not add a second Sources line.
+  assert.equal((presentBrief(written, episode).match(/\*Sources:/g) || []).length, 1)
+  // Run on without any break at all.
+  assert.doesNotThrow(() => validateEditorialProtocol('brief', `${body}\n*Sources: [Signal Room](${episode})*`, episode))
+  // Text after the Sources line still fails: it has to be the end of the brief.
+  assert.throws(() => validateEditorialProtocol('brief', `${body}\n\n*Sources: [Signal Room](${episode})*\n\nMore text after.`, episode), /End the brief/)
+  assert.equal(tidyBriefSources(brief), brief)
 })
 
 test('stored "Why this matters" bullet lists are removed when a brief renders', () => {

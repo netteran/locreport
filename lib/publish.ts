@@ -11,7 +11,7 @@ import { draftSourceName } from '@/lib/sourceName'
 import { validateBriefing } from '@/lib/monthlyBriefing'
 import { validateSourceCitations } from '@/lib/eventMatching'
 import { getContentType, validSlugSegment, type ContentType } from '@/lib/contentTaxonomy'
-import { validateEditorialProtocol } from '@/lib/editorialProtocol'
+import { tidyBriefSources, validateEditorialProtocol } from '@/lib/editorialProtocol'
 
 type Service = ReturnType<typeof createServiceClient>
 
@@ -60,7 +60,9 @@ export async function approveDraft(
     if (monthlyReport !== (storedType === 'report')) {
       return { status: 'error', message: 'Use the monthly reporting workflow to publish reports.' }
     }
-    const content = overrides.content ?? draft.content
+    const written = overrides.content ?? draft.content
+    // A brief's closing Sources line is tidied (stray <br> lines, a split link) before it is checked.
+    const content = contentType === 'brief' ? tidyBriefSources(written) : written
     let coveredUrls:string[]=[]
     if(draft.composition_id){
       const {data:sources,error}=await supabase.from('composition_sources').select('snapshot').eq('composition_id',draft.composition_id)
