@@ -177,7 +177,7 @@ vercel.json              — Build config + 301 redirects. No `crons` key: sched
 | `/llm-pricing` | `llm-pricing/page.tsx` | Interactive LLM pricing simulator + history chart |
 | `/directory` | `directory/page.tsx` | 31 localization tech vendors |
 | `/directory/[slug]` | `directory/[slug]/page.tsx` | Company profile (static array merged with the `directory` table), 1h ISR. Ends with **"<Company> in the news"** (every article naming it in title/excerpt) and **"Also mentioned in"** (body-only mentions, first 10 + a `/search` link) via `lib/companyArticles.ts` — the hub half of the article ↔ company link pair |
-| `/fact-flow` | `fact-flow/page.tsx` | Day-grouped stream of published facts — one per article. Shows only facts with an `article_id` |
+| `/fact-flow` | `fact-flow/page.tsx` | Day-grouped stream of published facts — one per article. Shows only facts with an `article_id`. Styled as a calm timeline (2026-11-26, owner's call): 720px column on plain paper, sticky UTC day headings, clock time per entry (relative only within 24 h), a gold dot per fact on a hairline rule, hover-only `#` permalink. Gold is spent only on the dots, the live dot and the `:target` flash (`fact-flow.css`) |
 | `/fact-flow/feed.xml` | `fact-flow/feed.xml/route.ts` | Fact Flow RSS (latest 100 linked facts) |
 | `/search` | `search/page.tsx` | Hybrid semantic + full-text search (`?q=...`), RRF-ranked via `hybrid_search_articles` RPC with keyword/ilike fallbacks |
 | `/subscribe/confirm` | `subscribe/confirm/page.tsx` | Double-opt-in confirmation (`?token=`), noindex |
