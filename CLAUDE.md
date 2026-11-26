@@ -1020,7 +1020,13 @@ daily and listings hourly. Rules that keep it down:
 - Don't shorten `revalidate` windows to "fix" freshness — invalidate the specific path on write instead.
 - Plain Supabase `fetch`es are not Data-Cached at runtime in Next 15 (auto no-cache), so don't add
   `next: { revalidate }` to them: the page cache already covers them, and each key is an extra write
-  (`lib/articleLookup.ts` had one, keyed per slug — including every junk URL a bot probed).
+  (`lib/articleLookup.ts` had one, keyed per slug — including every junk URL a bot probed). The one
+  exception is middleware: it runs on every legacy-URL hit, so it passes `cacheSeconds: 86400` to
+  `resolvePublicArticle` and keeps its lookups Data-Cached.
+- **Fluid Active CPU is the other budget, and the two pull the same way.** Every regeneration is also a
+  function invocation, so longer windows and fewer on-publish invalidations cut CPU as well as writes. The
+  CPU problem came from pages turning *dynamic* (`cookies()` via `createClient()`); never fix ISR writes by
+  making a public page dynamic (`force-dynamic`, `no-store`) — that trades this limit for that one.
 
 These only take effect while the page avoids Dynamic APIs — see the client-selection note above. `/articles`
 and `/search` read `searchParams` and so are dynamic by nature no matter which client they use; the

@@ -57,7 +57,7 @@ export async function middleware(request: NextRequest) {
     const slug = legacy.at(-1)?.toLowerCase()
     if (slug && knownReports.has(slug)) return redirect(request, annualReportPath(slug))
     try {
-      const article = await resolvePublicArticle(legacy)
+      const article = await resolvePublicArticle(legacy, undefined, { cacheSeconds: 86400 })
       if (article) {
         const response = redirect(request, articleHref(article))
         response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600')

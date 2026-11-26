@@ -15,6 +15,7 @@ async function lookup(
   table: 'articles' | 'public_article_index',
   filter: Record<string, string>,
   limit: number,
+  cacheSeconds?: number,
 ) {
   const url = new URL('/rest/v1/' + table, process.env.NEXT_PUBLIC_SUPABASE_URL!)
   url.search = new URLSearchParams({
@@ -26,11 +27,13 @@ async function lookup(
   }).toString()
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   const response = await fetchWithRetry(url, {
-    // No `next.revalidate`: callers are either already-cached pages or
-    // middleware/API routes, so a Data Cache entry per lookup key (including
-    // every junk URL a crawler probes) was pure ISR-write cost.
+    // Pages call this only while (re)generating, so their result is already
+    // cached with the page and a Data Cache entry would just be another ISR
+    // write. Middleware runs on every legacy-URL hit, though, so it opts in
+    // (a legacy slug's destination is stable, hence a long window).
     headers: { apikey: key, Authorization: `Bearer ${key}` },
-  })
+    ...(cacheSeconds ? { next: { revalidate: cacheSeconds } } : {}),
+  } as RequestInit)
   if (!response.ok) throw new Error(`Public article lookup returned HTTP ${response.status}`)
   return await response.json() as PublicArticleReference[]
 }
@@ -38,29 +41,33 @@ async function lookup(
 const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&')
 
 /** Shared by the edge redirect and the server-rendered detail routes. */
-export async function resolvePublicArticle(parts: string[], type?: ContentType) {
+export async function resolvePublicArticle(
+  parts: string[],
+  type?: ContentType,
+  { cacheSeconds }: { cacheSeconds?: number } = {},
+) {
   if (!parts.length || !parts.every(validSlugSegment)) return null
   const bare = parts.at(-1)!.toLowerCase()
   if (parts.length > 1) {
-    const dated = await lookup('articles', { slug: `eq.${parts.join('/')}` }, 1)
+    const dated = await lookup('articles', { slug: `eq.${parts.join('/')}` }, 1, cacheSeconds)
     if (dated.length) return dated[0]
   }
 
   const legacy = canonicalLegacyArticleSlug(bare)
   const aliases = !type || type === 'report' ? canonicalMonthlyReportSlug(legacy) : legacy
-  const exact = await lookup('public_article_index', { content_slug: `eq.${aliases}` }, 3)
+  const exact = await lookup('public_article_index', { content_slug: `eq.${aliases}` }, 3, cacheSeconds)
   if (exact.length) return choose(exact, type)
 
   // Older Jekyll URLs were sometimes truncated, or collapsed runs of dashes.
   // Only redirect when the legacy match resolves to one public destination.
-  const prefix = await lookup('public_article_index', { content_slug: `like.${escapeLike(bare)}%` }, 2)
+  const prefix = await lookup('public_article_index', { content_slug: `like.${escapeLike(bare)}%` }, 2, cacheSeconds)
   if (prefix.length === 1) return prefix[0]
 
   if (bare.includes('-')) {
     const collapse = (slug: string) => slug.replace(/-+/g, '-')
     const normalized = collapse(bare)
     const pattern = normalized.split('-').map(escapeLike).join('-%')
-    const loose = await lookup('public_article_index', { content_slug: `like.%${pattern}` }, 12)
+    const loose = await lookup('public_article_index', { content_slug: `like.%${pattern}` }, 12, cacheSeconds)
     const matching = loose.filter(row => collapse(row.content_slug ?? '') === normalized)
     if (new Set(matching.map(articleHref)).size === 1) return matching[0]
   }
