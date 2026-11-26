@@ -288,6 +288,7 @@ export default function DraftReviewPage() {
         </div>
 
         <ImageDropzone
+          framing
           value={editImageUrl}
           onChange={setEditImageUrl}
           hint="Optional. Shown at the top of the published article and as a thumbnail in the lists."

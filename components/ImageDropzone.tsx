@@ -12,6 +12,15 @@ import {
 } from '@/lib/storage'
 import { Label } from '@/components/ui/label'
 import { ImageLibraryPicker, findDuplicate, invalidateImageLibrary, displayName } from '@/components/ImageLibrary'
+import {
+  IMAGE_FRAMES,
+  IMAGE_FRAME_LABELS,
+  imageFrameBox,
+  imageFrameOf,
+  imageFrameStyle,
+  stripImageFrame,
+  withImageFrame,
+} from '@/lib/imageFrame'
 
 interface Props {
   /** Current image URL, or '' for none. */
@@ -20,6 +29,12 @@ interface Props {
   onChange: (url: string) => void
   label?: string
   hint?: string
+  /**
+   * Offer the "Thumbnail framing" control (which part of the picture the
+   * cropped homepage lead, story cards and article hero keep). Saved as a
+   * `#frame=` fragment on the URL — see lib/imageFrame.ts.
+   */
+  framing?: boolean
 }
 
 /**
@@ -34,7 +49,7 @@ interface Props {
  * straight to Supabase. Before that, an identical file already in the bucket
  * is reused rather than stored twice.
  */
-export function ImageDropzone({ value, onChange, label = 'Lead image', hint }: Props) {
+export function ImageDropzone({ value, onChange, label = 'Lead image', hint, framing = false }: Props) {
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState('')
@@ -119,6 +134,8 @@ export function ImageDropzone({ value, onChange, label = 'Lead image', hint }: P
   }, [upload])
 
   const preview = safeImageUrl(value)
+  const frame = imageFrameOf(value)
+  const previewBox = framing && preview ? imageFrameBox(frame, preview) : {}
 
   return (
     <div>
@@ -166,22 +183,32 @@ export function ImageDropzone({ value, onChange, label = 'Lead image', hint }: P
 
         {preview ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={preview}
-              alt=""
+            {/* Same 16:10 crop as the homepage lead story, with the chosen framing. */}
+            <div
+              className={previewBox.className}
               style={{
-                width: '100%',
+                ...previewBox.style,
                 maxWidth: 360,
-                aspectRatio: '16 / 9',
-                objectFit: 'cover',
+                margin: '0 auto',
                 borderRadius: 'var(--radius-sm, 4px)',
                 border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                margin: '0 auto',
-                display: 'block',
+                overflow: 'hidden',
               }}
-            />
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={preview}
+                alt=""
+                style={{
+                  width: '100%',
+                  aspectRatio: framing ? '16 / 10' : '16 / 9',
+                  objectFit: 'cover',
+                  background: 'var(--surface)',
+                  display: 'block',
+                  ...(framing ? imageFrameStyle(frame) : {}),
+                }}
+              />
+            </div>
             <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>
               {uploading ? 'Uploading…' : 'Click, drop or paste to replace'}
             </p>
@@ -208,10 +235,40 @@ export function ImageDropzone({ value, onChange, label = 'Lead image', hint }: P
       </div>
 
       <ImageLibraryPicker
-        value={value}
+        value={value ? stripImageFrame(value) : value}
         onPick={url => { setError(''); setNotice(''); onChange(url) }}
         disabled={uploading}
       />
+
+      {framing && preview && (
+        <div className="mt-2">
+          <p className="text-xs" style={{ color: 'var(--muted)' }} id="image-framing-label">
+            Thumbnail framing — which part stays in view where the image is cropped (homepage, story cards, article header)
+          </p>
+          <div role="radiogroup" aria-labelledby="image-framing-label" className="flex flex-wrap gap-1 mt-1">
+            {IMAGE_FRAMES.map(option => (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={frame === option}
+                disabled={uploading}
+                onClick={() => onChange(withImageFrame(value, option))}
+                className="text-xs px-2 py-1 disabled:opacity-50"
+                style={{
+                  borderRadius: 'var(--radius-sm, 4px)',
+                  border: `1px solid ${frame === option ? 'var(--accent)' : 'var(--border)'}`,
+                  background: frame === option ? 'var(--accent-soft)' : 'transparent',
+                  color: frame === option ? 'var(--accent)' : 'var(--text)',
+                  fontWeight: frame === option ? 600 : 400,
+                }}
+              >
+                {IMAGE_FRAME_LABELS[option]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && <p className="text-xs mt-1" style={{ color: '#dc2626' }}>{error}</p>}
       {notice && <p className="text-xs mt-1" style={{ color: 'var(--accent)' }}>{notice}</p>}

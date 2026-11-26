@@ -100,6 +100,7 @@ export default function EditArticlePage() {
           <Input id="article-source-url" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} placeholder="https://…" />
         </div>
         <ImageDropzone
+          framing
           value={imageUrl}
           onChange={setImageUrl}
           hint={article.article_type === 'monthly-summary'

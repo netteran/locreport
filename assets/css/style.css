@@ -6421,3 +6421,28 @@ kbd, code {
 }
 .image-library__meta { font-size: 0.68rem; color: var(--muted); }
 
+
+/* ── Image framing: "Whole image" (lib/imageFrame.ts) ────────
+   The picture is shown uncropped (object-fit: contain, set inline) over a
+   blurred, enlarged copy of itself, so the letterbox is not a flat bar.
+   Used by the homepage lead, story cards and the article hero. */
+.image-frame-fit {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.image-frame-fit::before {
+  content: '';
+  position: absolute;
+  inset: -24px;
+  z-index: -1;
+  background: var(--image-frame-src) center / cover no-repeat;
+  filter: blur(22px) saturate(1.1);
+  opacity: 0.7;
+}
+.image-frame-fit img { background: transparent !important; }
+.post-hero.image-frame-fit { border-radius: var(--radius-md); }
+.article-reading .post-hero.image-frame-fit { border-radius: 16px; }
+@media (max-width: 640px) {
+  .article-reading .post-hero.image-frame-fit { border-radius: 12px; }
+}

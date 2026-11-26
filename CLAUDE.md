@@ -1120,6 +1120,15 @@ previous deployment serving. Decorative extras (a sidebar rail, a fact strip) sh
   `ANNUAL_REPORTS` and call `getReportImage(slug)` the way the 2026 page does.
 - Legacy rows may still hold a third-party publisher URL — those keep rendering; only new images go to
   the bucket.
+- **Thumbnail framing** (2026-11-26). The lead image is cropped in three places — homepage lead (16:10), story
+  cards (16:9) and the article hero (16:8; 4:3 on phones) — and a centred crop can cut off the subject. The
+  image field in `/admin/articles/[id]` and `/admin/drafts/[id]` (`ImageDropzone framing`) offers Centre /
+  Left / Right / Top / Bottom / **Whole image**, with a live 16:10 preview. Whole image shows the picture
+  uncropped over a blurred copy of itself (`.image-frame-fit` in `style.css`). The choice is stored as a
+  `#frame=<value>` fragment on `image_url` (`lib/imageFrame.ts`) — no column, so it rides through drafts,
+  `publish_editorial_draft` and `public_article_index` without a migration. `safeImageUrl()` strips it, so
+  OG/Twitter, RSS and JSON-LD get the clean URL; only the three cropped renders read it (`imageFrameOf`).
+  Picking or uploading a new image resets it to Centre.
 - Rendered with plain `<img>`, not `next/image`: legacy sources are arbitrary publisher CDNs, and
   allowing them through the optimizer would mean opening `images.remotePatterns` to every host.
 - `safeImageUrl()` in `lib/utils.ts` gates every render — http(s) or root-relative only, so a stray

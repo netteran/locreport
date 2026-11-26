@@ -138,7 +138,8 @@ export function splitSentences(text: string): string[] {
 // (javascript:, data:, malformed input) resolves to null so the layout simply
 // falls back to the no-image rendering.
 export function safeImageUrl(url: string | null | undefined): string | null {
-  const trimmed = url?.trim()
+  // A `#frame=…` fragment is display framing (lib/imageFrame.ts), not part of the image.
+  const trimmed = url?.trim().replace(/#frame=[a-z]+$/, '')
   if (!trimmed) return null
   if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return trimmed
   try {
