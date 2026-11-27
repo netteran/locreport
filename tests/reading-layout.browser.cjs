@@ -82,8 +82,8 @@ const previews = 'work/reading-preview'
             logosFillPage: Math.abs(logos.left - lead.left) < 1 && Math.abs(logos.right - Math.max(lead.right, flow.right)) < 1,
             logosRespectReducedMotion: getComputedStyle(logoTrack).animationName === 'none',
             mobileImageOrder: image.top >= headline.bottom && image.bottom <= summary.top,
-            imageFillsColumn: Math.abs(image.top - lead.top - parseFloat(leadStyle.paddingTop)) < 1
-              && Math.abs(lead.bottom - image.bottom - parseFloat(leadStyle.paddingBottom)) < 1
+            imageFillsColumn: Math.abs(image.top - lead.top - parseFloat(leadStyle.paddingTop) - parseFloat(leadStyle.borderTopWidth)) < 1
+              && Math.abs(lead.bottom - image.bottom - parseFloat(leadStyle.paddingBottom) - parseFloat(leadStyle.borderBottomWidth)) < 1
               && Math.abs(photo.height - image.height) < 1,
             summaryFitsFourLines: summary.height <= parseFloat(summaryStyle.lineHeight) * 4 + 1,
             imageWidth: image.width,

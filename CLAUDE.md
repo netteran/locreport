@@ -886,8 +886,10 @@ gradients/orbs/glassmorphism/marquees. Prefer flat surfaces + hairline borders o
 rendered. Its look was calmed on 2026-11-26 at the owner's request, aiming for a quiet, Substack-like
 editorial feel. Keep these choices when touching it:
 - Headlines are weight 700 with light negative tracking, not 800 with tight tracking.
-- The lead story and story cards sit on plain paper: no panel background, no card border. Images carry
-  small radii (10px lead, 8px cards). Card titles and excerpts clamp to 3 lines.
+- The lead story and story cards sit in quiet containers: `--surface` background, 1px `--border`, gentle
+  rounding (16px lead, 12px cards; card images run flush to the card top). They were briefly bare paper
+  and the owner found that looked unfinished (2026-11-27), so don't strip them again. Card titles and
+  excerpts clamp to 3 lines.
 - Content types show as small uppercase text labels; `.editorial-home .content-badge` overrides the
   Tailwind pill classes from `lib/contentTaxonomy.ts` on the homepage only.
 - Filters are underline tabs. Load More is an outline pill. The Weekly is a centred block between
